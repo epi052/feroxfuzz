@@ -1,0 +1,78 @@
+[package]
+name = "feroxfuzz"
+version = "0.1.0"
+edition = "2021"
+authors = ["Ben 'epi' Risher (@epi052)"]
+license = "MIT"
+repository = "https://github.com/epi052/feroxfuzz"
+categories = ["development-tools::testing"]
+keywords = ["fuzzing", "testing", "security", "web"]
+readme = "README.md"
+description = "Structure-aware, black box HTTP fuzzing library"
+
+[features]
+default = ["async", "json"]
+
+# AsyncResponse et al will [de]serialize the response body in addition to normal fields
+serialize-body = ["serde"]
+
+# AsyncResponse et al can attempt to convert the response body to json, also needed for
+# libafl Input trait
+json = ["serde", "serde_json"]
+
+# wrapper around providing concrete async implementations via reqwest, tokio, and futures 
+async = ["reqwest", "tokio", "futures"]
+
+# wrapper around providing concrete serial implementations via reqwest 
+blocking = ["reqwest/blocking"]
+
+# wrapper around providing different encoders
+encoders = ["base64", "hex"]
+
+[dependencies]
+# MIT Licenses
+tuple_list = { version = "0.1" }
+derive_more = { version = "0.99" }
+tracing = { version = "0.1", features = ["log"] }
+## optional
+tokio = { version = "1.20", optional = true, features = [
+    "rt-multi-thread",
+    "macros",
+    "tracing",
+] }
+##
+## logical break between licenses
+##
+# MIT / Apache Licenses
+num = { version = "0.4" }
+cfg-if = { version = "1.0" }
+libafl = { version = "0.8.0", default-features = false, features = ["std"] }
+url = { version = "2.2", features = ["serde"] }
+## optional
+serde = { version = "1.0", optional = true, features = ["derive", "rc"] }
+serde_json = { version = "1.0", optional = true }
+thiserror = { version = "1.0" }
+reqwest = { version = "0.11", optional = true, features = ["socks"] }
+async-trait = { version = "0.1" }
+regex = { version = "1.6" }
+serde_regex = { version = "1.1.0" }
+lazy_static = { version = "1.4" }
+futures = { version = "0.3", optional = true }
+base64 = { version = "0.13.0", optional = true }
+hex = { version = "0.4.3", optional = true }
+
+[dev-dependencies]
+http = { version = "0.2" }
+tokio-test = { version = "0.4" }
+httpmock = { version = "0.6" }
+allocation-counter = { version = "0.5" }
+tempdir = { version = "0.3.7" }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# docs.rs-specific configuration
+[package.metadata.docs.rs]
+# document all features
+all-features = true
+
+# defines the configuration attribute `docsrs`
+rustdoc-args = ["--cfg", "docsrs"]

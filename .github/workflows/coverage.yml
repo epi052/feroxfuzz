@@ -1,0 +1,31 @@
+on: [push]
+
+name: Code Coverage Pipeline
+
+jobs:
+  coverage:
+    name: LLVM Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - name: Update rust
+        run: rustup update
+      - name: Install llvm-tools-preview
+        run: rustup component add llvm-tools-preview
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: actions-rs/cargo@v1
+        with:
+          command: llvm-cov
+          args: clean --workspace
+      - run: cargo +nightly llvm-cov --workspace --doctests --all-features --no-fail-fast --lcov --output-path lcov.info
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov.info
+          fail_ci_if_error: true

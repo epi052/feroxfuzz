@@ -1,0 +1,54 @@
+# usage of this file's tasks requires cargo-make (https://sagiegurari.github.io/cargo-make/)
+# install:
+#   cargo install -f cargo-make
+
+# composite tasks
+[tasks.upgrade]
+dependencies = ["upgrade-deps", "update"]
+
+[tasks.check]
+dependencies = ["clippy", "fmt", "test-lib", "test-doc"]
+
+# docs
+[tasks.doc]
+script = """
+RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features "${@}"
+"""
+
+# dependency management
+[tasks.upgrade-deps]
+command = "cargo"
+args = ["upgrade"]
+
+[tasks.update]
+command = "cargo"
+args = ["update"]
+
+# pre-commit checks: lint/test/coverage/fmt
+[tasks.clippy]
+clear = true
+script = """
+cargo clippy --all-targets --all-features -- -D warnings
+"""
+
+[tasks.fmt]
+command = "cargo"
+args = ["fmt"]
+
+[tasks.coverage]
+clear = true
+script = """
+cargo +nightly llvm-cov --doctests --all-features --show-missing-lines
+"""
+
+[tasks.test-doc]
+clear = true
+script = """
+cargo test --all-features --doc "${@}"
+"""
+
+[tasks.test-lib]
+clear = true
+script = """
+cargo nextest run --all-features --lib "${@}"
+"""
