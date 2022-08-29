@@ -263,8 +263,12 @@ impl Request {
     ///
     /// # Errors
     ///
-    /// If this function receives one of the following  [`ShouldFuzz::Key`] variants, it
-    /// will raise an error, as they don't make sense in this particular context
+    /// This function will return an error if the given `url` is invalid or
+    /// if an unknown [`ShouldFuzz`] variant is encountered.
+    ///
+    /// Additionally, if this function receives one of the following
+    /// [`ShouldFuzz::Key`] variants, it will raise an error, as they
+    /// don't make sense in this particular context
     ///
     /// - `Key`
     /// - `Value`

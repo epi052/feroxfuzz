@@ -20,6 +20,7 @@ pub mod deciders;
 pub mod error;
 pub mod fuzzers;
 pub mod input;
+pub mod metadata;
 pub mod mutators;
 pub mod observers;
 pub mod prelude;
@@ -32,6 +33,7 @@ pub mod statistics;
 mod std_ext;
 
 // re-exported traits, to be available as top-level imports for users
+pub use metadata::Metadata;
 pub use std_ext::convert::{AsBytes, AsInner, IntoInner};
 pub use std_ext::ops::Len;
 pub use std_ext::tuple::{MatchName, Named};
