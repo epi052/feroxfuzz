@@ -13,7 +13,7 @@
 //! - [`Len`] - exposes the `len` method on implementing `Corpus` types
 //! - [`Decider`] - exposes the `decide_with_request` and `decide_with_observers` methods on implementing `Decider` types
 //! - [`AsInner`] - exposes the `inner` method on implementing types such as [`Data`]
-//! - [`Fuzzer`] - exposes the `fuzz*` methods on implementing types such as [`BlockingFuzzer`]
+//! - [`Fuzzer`] - exposes the `fuzz*` methods on implementing types such as [`AsyncFuzzer`]
 //!
 //! # Structs & Enums
 //!
@@ -39,7 +39,7 @@ use cfg_if::cfg_if;
 cfg_if! {
     if #[cfg(docsrs)] {
         // just bringing in types for easier intra-doc linking during doc build
-        use crate::fuzzers::{BlockingFuzzer, Fuzzer};
+        use crate::fuzzers::{AsyncFuzzer, Fuzzer};
         use crate::{AsInner, Len};
         use crate::deciders::Decider;
         use crate::responses::{AsyncResponse, Response};

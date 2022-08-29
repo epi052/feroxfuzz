@@ -8,6 +8,7 @@ use tracing::{debug, error, instrument, warn};
 
 use crate::corpora::{CorpusIndices, CorpusMap, CorpusType};
 use crate::error::FeroxFuzzError;
+use crate::metadata::{Metadata, MetadataMap};
 use crate::observers::Observers;
 use crate::requests::Request;
 use crate::responses::{Response, Timed};
@@ -46,6 +47,11 @@ pub struct SharedState {
     corpora: CorpusMap,
     statistics: Arc<RwLock<Statistics>>,
 
+    // collection of user-supplied objects that implement the [`Metadata`] trait
+    //
+    // currently the only source of dynamic dispatch in the crate
+    metadata: MetadataMap,
+
     // rng stuff, both of which are Copy
     seed: u64,
     rng: RomuDuoJrRand,
@@ -54,7 +60,7 @@ pub struct SharedState {
     // a hashmap of corpus-names->atomicusize to track the current index
     // of the corpus. this is necessary to support multiple corpora with
     // more complex scheduling.
-    corpus_indices: Arc<HashMap<String, AtomicUsize>>,
+    corpus_indices: CorpusIndices,
 }
 
 impl SharedState {
@@ -99,6 +105,7 @@ impl SharedState {
         Self {
             corpora: Arc::new(state_corpora),
             statistics: Arc::new(RwLock::new(statistics)),
+            metadata: Arc::new(RwLock::new(HashMap::new())),
             seed,
             rng: RomuDuoJrRand::with_seed(seed),
             corpus_indices: Arc::new(corpus_indices),
@@ -158,6 +165,7 @@ impl SharedState {
         Self {
             corpora: Arc::new(state_corpora),
             statistics: Arc::new(RwLock::new(statistics)),
+            metadata: Arc::new(RwLock::new(HashMap::new())),
             seed,
             rng: RomuDuoJrRand::with_seed(seed),
             corpus_indices: Arc::new(corpus_indices),
@@ -373,6 +381,18 @@ impl SharedState {
         }
 
         Ok(())
+    }
+
+    /// get the `[MetadataMap]`
+    pub fn metadata(&self) -> MetadataMap {
+        self.metadata.clone()
+    }
+
+    /// add an implementor of [`Metadata`] to the `[MetadataMap]`
+    pub fn add_metadata(&self, name: &str, metadata: impl Metadata + 'static) {
+        if let Ok(mut guard) = self.metadata.write() {
+            guard.insert(name.to_string(), Box::new(metadata));
+        }
     }
 }
 

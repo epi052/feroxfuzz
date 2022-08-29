@@ -14,11 +14,11 @@ description = "Structure-aware, black box HTTP fuzzing library"
 default = ["async", "json"]
 
 # AsyncResponse et al will [de]serialize the response body in addition to normal fields
-serialize-body = ["serde"]
+serialize-body = ["serde", "typetag"]
 
 # AsyncResponse et al can attempt to convert the response body to json, also needed for
 # libafl Input trait
-json = ["serde", "serde_json"]
+json = ["serde", "serde_json", "typetag"]
 
 # wrapper around providing concrete async implementations via reqwest, tokio, and futures 
 async = ["reqwest", "tokio", "futures"]
@@ -46,11 +46,12 @@ tokio = { version = "1.20", optional = true, features = [
 # MIT / Apache Licenses
 num = { version = "0.4" }
 cfg-if = { version = "1.0" }
-libafl = { version = "0.8.0", default-features = false, features = ["std"] }
+libafl = { version = "0.8.1", default-features = false, features = ["std"] }
 url = { version = "2.2", features = ["serde"] }
 ## optional
 serde = { version = "1.0", optional = true, features = ["derive", "rc"] }
 serde_json = { version = "1.0", optional = true }
+typetag = { version = "0.2.3", optional = true }
 thiserror = { version = "1.0" }
 reqwest = { version = "0.11", optional = true, features = ["socks"] }
 async-trait = { version = "0.1" }
