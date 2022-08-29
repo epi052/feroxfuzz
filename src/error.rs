@@ -215,13 +215,6 @@ pub enum FeroxFuzzError {
     /// async fuzz_once loop.
     #[error("Discarded request based on user-provided criteria")]
     DiscardedRequest,
-
-    /// Represents an invalid request passed to [`MatchName`]
-    #[error("Requested Named `{name}` object could not be found via MatchName")]
-    MetadataNotFound {
-        /// contains the name of what was requested
-        name: String,
-    },
 }
 
 /// Used to differentiate between different types of errors that occur when making requests.
