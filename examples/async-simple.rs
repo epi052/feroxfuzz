@@ -13,8 +13,6 @@ use feroxfuzz::processors::ResponseProcessor;
 use feroxfuzz::responses::AsyncResponse;
 use feroxfuzz::schedulers::OrderedScheduler;
 
-use std::time::Duration;
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // create a new corpus from the given list of words
@@ -26,9 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut state = SharedState::with_corpus(words);
 
     // bring-your-own client, this example uses the reqwest library
-    let req_client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(1))
-        .build()?;
+    let req_client = reqwest::Client::builder().build()?;
 
     // with some client that can handle the actual http request/response stuff
     // we can build a feroxfuzz client, specifically an asynchronous client in this
@@ -82,16 +78,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // some other service, or whatever else you can think of.
     let response_printer = ResponseProcessor::new(
         |response_observer: &ResponseObserver<AsyncResponse>, action, _state| {
-            if let Some(inner) = action {
-                if matches!(inner, Action::Keep) {
-                    println!(
-                        "[{}] {} - {} - {:?}",
-                        response_observer.status_code(),
-                        response_observer.content_length(),
-                        response_observer.url(),
-                        response_observer.elapsed()
-                    );
-                }
+            if let Some(Action::Keep) = action {
+                println!(
+                    "[{}] {} - {} - {:?}",
+                    response_observer.status_code(),
+                    response_observer.content_length(),
+                    response_observer.url(),
+                    response_observer.elapsed()
+                );
             }
         },
     );
@@ -119,7 +113,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // the fuzzer will run until it iterates over the entire corpus once
     fuzzer.fuzz_once(&mut state).await?;
 
-    println!("{state:#?}");
+    println!("{state:#}");
 
     Ok(())
 }
