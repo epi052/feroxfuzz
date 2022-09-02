@@ -192,3 +192,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+The fuzzer above would produce something similar to what's shown below.
+
+```
+[200] 815 - http://localhost:8000/?admin=Ajax - 840.985µs
+[200] 206 - http://localhost:8000/?admin=Al - 4.092037ms
+----8<----
+SharedState::{
+  Seed=24301
+  Rng=RomuDuoJrRand { x_state: 97704, y_state: 403063 }
+  Corpus[words]=Wordlist::{len=102774, top-3=[Static("A"), Static("A's"), Static("AMD")]},
+  Statistics={"timeouts":0,"requests":102774.0,"errors":44208,"informatives":3626,"successes":29231,"redirects":25709,"client_errors":18195,"server_errors":26013,"redirection_errors":0,"connection_errors":0,"request_errors":0,"start_time":{"secs":1662124648,"nanos":810398280},"avg_reqs_per_sec":5946.646301595066,"statuses":{"500":14890,"201":3641,"307":3656,"203":3562,"101":3626,"401":3625,"207":3711,"308":3578,"300":3724,"404":3705,"301":3707,"302":3651,"304":3706,"502":3682,"402":3636,"200":3718,"503":3762,"400":3585,"501":3679,"202":3659,"205":3680,"206":3676,"204":3584,"403":3644,"303":3687}}
+}
+```
