@@ -7,7 +7,7 @@
 dependencies = ["upgrade-deps", "update"]
 
 [tasks.check]
-dependencies = ["clippy", "fmt", "test-lib", "test-doc"]
+dependencies = ["clippy", "fmt", "test-lib", "test-doc", "doc"]
 
 # docs
 [tasks.doc]

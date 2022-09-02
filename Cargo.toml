@@ -46,6 +46,7 @@ tokio = { version = "1.20", optional = true, features = [
 # MIT / Apache Licenses
 num = { version = "0.4" }
 cfg-if = { version = "1.0" }
+dyn-clone = { version = "1.0.9" }
 libafl = { version = "0.8.1", default-features = false, features = ["std"] }
 url = { version = "2.2", features = ["serde"] }
 ## optional

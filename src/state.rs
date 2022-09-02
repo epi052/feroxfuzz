@@ -384,6 +384,7 @@ impl SharedState {
     }
 
     /// get the `[MetadataMap]`
+    #[must_use]
     pub fn metadata(&self) -> MetadataMap {
         self.metadata.clone()
     }

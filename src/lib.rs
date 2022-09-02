@@ -13,6 +13,19 @@
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::multiple_crate_versions)] // appears to be a false positive; cargo tree doesn't show what clippy yells about
 
+//! `FeroxFuzz` is a structure-aware HTTP fuzzing library.
+//!
+//! The primary goal in writing `FeroxFuzz` was to move some core pieces out of feroxbuster and into a place where they
+//! could be generally useful for other folks. In so doing, my hope is that anyone who wants to write web tooling
+//! and/or one-off web fuzzers in Rust, can do so with very little overhead.
+//!
+//! `FeroxFuzz`'s overall design is derived from `LibAFL`. `FeroxFuzz` implements most of the components listed in the paper
+//! `LibAFL`: A Framework to Build Modular and Reusable Fuzzers. When `FeroxFuzz` deviates, it's typically due to supporting
+//! async code.
+//!
+//! Similar to `LibAFL`, `FeroxFuzz` is a composable fuzzing library. However, unlike `LibAFL`, `FeroxFuzz` is solely focused
+//! on black box HTTP fuzzing.
+
 pub mod actions;
 pub mod client;
 pub mod corpora;

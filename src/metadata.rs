@@ -4,6 +4,15 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::{Arc, RwLock};
 
+use cfg_if::cfg_if;
+
+cfg_if! {
+    if #[cfg(docsrs)] {
+        // just bringing in types for easier intra-doc linking during doc build
+        use crate::state::SharedState;
+    }
+}
+
 /// typedef of the `SharedState`'s `metadata` field
 pub type MetadataMap = Arc<RwLock<HashMap<String, Box<dyn Metadata>>>>;
 

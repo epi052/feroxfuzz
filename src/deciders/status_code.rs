@@ -109,7 +109,7 @@ impl<O, R, F> DeciderHooks<O, R> for StatusCodeDecider<F>
 where
     O: Observers<R>,
     R: Response,
-    F: Fn(u16, u16, &SharedState) -> Action,
+    F: Fn(u16, u16, &SharedState) -> Action + Sync + Send + Clone,
 {
 }
 
@@ -117,7 +117,7 @@ impl<O, R, F> Decider<O, R> for StatusCodeDecider<F>
 where
     O: Observers<R>,
     R: Response,
-    F: Fn(u16, u16, &SharedState) -> Action,
+    F: Fn(u16, u16, &SharedState) -> Action + Clone,
 {
     fn decide_with_observers(&mut self, state: &SharedState, observers: &O) -> Option<Action> {
         // there's an implicit expectation that there is only a single ResponseObserver in the

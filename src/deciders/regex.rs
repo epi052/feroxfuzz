@@ -86,16 +86,16 @@ where
 impl<O, R, F> DeciderHooks<O, R> for RequestRegexDecider<F>
 where
     O: Observers<R>,
-    R: Response,
-    F: Fn(&Regex, &Request, &SharedState) -> Action,
+    R: Response + Sync + Send + Clone,
+    F: Fn(&Regex, &Request, &SharedState) -> Action + Sync + Send + Clone,
 {
 }
 
 impl<O, R, F> Decider<O, R> for RequestRegexDecider<F>
 where
     O: Observers<R>,
-    R: Response,
-    F: Fn(&Regex, &Request, &SharedState) -> Action,
+    R: Response + Clone,
+    F: Fn(&Regex, &Request, &SharedState) -> Action + Clone,
 {
     fn decide_with_request(&mut self, state: &SharedState, request: &Request) -> Option<Action> {
         Some((self.comparator)(&self.regex, request, state))
@@ -192,16 +192,16 @@ where
 impl<O, R, F> DeciderHooks<O, R> for ResponseRegexDecider<F, R>
 where
     O: Observers<R>,
-    R: Response,
-    F: Fn(&Regex, &ResponseObserver<R>, &SharedState) -> Action,
+    R: Response + Send + Sync + Clone,
+    F: Fn(&Regex, &ResponseObserver<R>, &SharedState) -> Action + Sync + Send + Clone,
 {
 }
 
 impl<O, R, F> Decider<O, R> for ResponseRegexDecider<F, R>
 where
     O: Observers<R>,
-    R: Response,
-    F: Fn(&Regex, &ResponseObserver<R>, &SharedState) -> Action,
+    R: Response + Clone,
+    F: Fn(&Regex, &ResponseObserver<R>, &SharedState) -> Action + Clone,
 {
     fn decide_with_observers(&mut self, state: &SharedState, observers: &O) -> Option<Action> {
         // there's an implicit expectation that there is only a single ResponseObserver in the

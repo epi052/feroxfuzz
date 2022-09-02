@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // instance.
     //
     // feroxfuzz provides both a blocking and an asynchronous client implementation
-    // using reqwest. 
+    // using reqwest.
     let client = AsyncClient::with_client(req_client);
 
     // ReplaceKeyword mutators operate similar to how ffuf/wfuzz work, in that they'll
@@ -77,7 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let response_observer: ResponseObserver<AsyncResponse> = ResponseObserver::new();
 
     // a `ResponseProcessor` provides access to the fuzzer's instance of `ResponseObserver`
-// as well as the `Action` returned from calling `Deciders` (like the `StatusCodeDecider` above).
+    // as well as the `Action` returned from calling `Deciders` (like the `StatusCodeDecider` above).
     // Those two objects may be used to produce side-effects, such as printing, logging, calling out to
     // some other service, or whatever else you can think of.
     let response_printer = ResponseProcessor::new(
@@ -108,9 +108,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let observers = build_observers!(response_observer);
     let processors = build_processors!(response_printer);
 
-    let threads = 40;  // number of threads to use for the fuzzing process
+    let threads = 40; // number of threads to use for the fuzzing process
 
-    // the `Fuzzer` is the main component of the feroxfuzz library. It wraps most of the other components 
+    // the `Fuzzer` is the main component of the feroxfuzz library. It wraps most of the other components
     // and takes care of the actual fuzzing process.
     let mut fuzzer = AsyncFuzzer::new(
         threads, client, request, scheduler, mutators, observers, processors, deciders,
