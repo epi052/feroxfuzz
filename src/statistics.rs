@@ -1,6 +1,8 @@
 //! [`Statistics`] is the primary data container for all [`Request`], [`Response`], and
 //! [`Timed`] statistics
-use std::{fmt::Display, time::Duration};
+use std::collections::HashMap;
+use std::fmt::Display;
+use std::time::Duration;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -24,7 +26,7 @@ cfg_if! {
 }
 
 /// fuzzer's tracked statistics
-#[derive(Default, Debug, Copy, Clone)]
+#[derive(Default, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Statistics {
     /// tracker for number of timeouts seen by the client
@@ -51,36 +53,6 @@ pub struct Statistics {
     /// tracker for overall number of 5xx status codes seen by the client
     server_errors: usize,
 
-    /// tracker for overall number of 200s seen by the client
-    status_200s: usize,
-
-    /// tracker for overall number of 301s seen by the client
-    status_301s: usize,
-
-    /// tracker for overall number of 302s seen by the client
-    status_302s: usize,
-
-    /// tracker for overall number of 401s seen by the client
-    status_401s: usize,
-
-    /// tracker for overall number of 403s seen by the client
-    status_403s: usize,
-
-    /// tracker for overall number of 429s seen by the client
-    status_429s: usize,
-
-    /// tracker for overall number of 500s seen by the client
-    status_500s: usize,
-
-    /// tracker for overall number of 503s seen by the client
-    status_503s: usize,
-
-    /// tracker for overall number of 504s seen by the client
-    status_504s: usize,
-
-    /// tracker for overall number of 508s seen by the client
-    status_508s: usize,
-
     /// tracker for number of errors triggered by the [`reqwest::redirect::Policy`]
     redirection_errors: usize,
 
@@ -95,6 +67,9 @@ pub struct Statistics {
 
     /// average number of requests per second
     avg_reqs_per_sec: f64,
+
+    /// tracker for overall number of any status code seen by the client
+    statuses: HashMap<u16, usize>,
 }
 
 impl Statistics {
@@ -160,74 +135,11 @@ impl Statistics {
         self.server_errors
     }
 
-    /// get the number of 200 status codes seen
+    /// given a status code, return the number of times it was seen by the client
     #[inline]
     #[must_use]
-    pub const fn status_200s(&self) -> usize {
-        self.status_200s
-    }
-
-    /// get the number of 301 status codes seen
-    #[inline]
-    #[must_use]
-    pub const fn status_301s(&self) -> usize {
-        self.status_301s
-    }
-
-    /// get the number of 302 status codes seen
-    #[inline]
-    #[must_use]
-    pub const fn status_302s(&self) -> usize {
-        self.status_302s
-    }
-
-    /// get the number of 401 status codes seen
-    #[inline]
-    #[must_use]
-    pub const fn status_401s(&self) -> usize {
-        self.status_401s
-    }
-
-    /// get the number of 403 status codes seen
-    #[inline]
-    #[must_use]
-    pub const fn status_403s(&self) -> usize {
-        self.status_403s
-    }
-
-    /// get the number of 429 status codes seen
-    #[inline]
-    #[must_use]
-    pub const fn status_429s(&self) -> usize {
-        self.status_429s
-    }
-
-    /// get the number of 500 status codes seen
-    #[inline]
-    #[must_use]
-    pub const fn status_500s(&self) -> usize {
-        self.status_500s
-    }
-
-    /// get the number of 503 status codes seen
-    #[inline]
-    #[must_use]
-    pub const fn status_503s(&self) -> usize {
-        self.status_503s
-    }
-
-    /// get the number of 504 status codes seen
-    #[inline]
-    #[must_use]
-    pub const fn status_504s(&self) -> usize {
-        self.status_504s
-    }
-
-    /// get the number of 508 status codes seen
-    #[inline]
-    #[must_use]
-    pub const fn status_508s(&self) -> usize {
-        self.status_508s
+    pub fn status_code_count(&self, status_code: u16) -> Option<usize> {
+        self.statuses.get(&status_code).copied()
     }
 
     /// get the number of errors encountered during redirection (redirect loops etc)
@@ -289,68 +201,19 @@ impl Statistics {
             200..=299 => {
                 // success
                 self.successes += 1;
-
-                if status == 200 {
-                    // Ok
-                    self.status_200s += 1;
-                }
             }
             300..=399 => {
                 // redirect
                 self.redirects += 1;
-
-                if status == 301 {
-                    // Moved permanently
-                    self.status_301s += 1;
-                } else if status == 302 {
-                    // Found
-                    self.status_302s += 1;
-                }
             }
             400..=499 => {
                 // client error
                 self.errors += 1;
                 self.client_errors += 1;
-
-                match status {
-                    401 => {
-                        // unauthorized
-                        self.status_401s += 1;
-                    }
-                    403 => {
-                        // forbidden
-                        self.status_403s += 1;
-                    }
-                    429 => {
-                        // too many requests
-                        self.status_429s += 1;
-                    }
-                    _ => {}
-                }
             }
             500..=599 => {
                 self.errors += 1;
                 self.server_errors += 1;
-
-                match status {
-                    500 => {
-                        // internal server error
-                        self.status_500s += 1;
-                    }
-                    503 => {
-                        // service unavailable
-                        self.status_503s += 1;
-                    }
-                    504 => {
-                        // gateway timeout
-                        self.status_504s += 1;
-                    }
-                    508 => {
-                        // loop detected
-                        self.status_508s += 1;
-                    }
-                    _ => {}
-                }
             }
             // anything outside 100-599 is invalid
             _ => {
@@ -361,6 +224,9 @@ impl Statistics {
                 });
             }
         }
+
+        // update the status code counter map
+        *self.statuses.entry(status).or_insert(0) += 1;
 
         Ok(())
     }
