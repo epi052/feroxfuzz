@@ -13,8 +13,6 @@ use feroxfuzz::processors::ResponseProcessor;
 use feroxfuzz::responses::AsyncResponse;
 use feroxfuzz::schedulers::OrderedScheduler;
 
-use std::time::Duration;
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // create a new corpus from the given list of words
@@ -26,16 +24,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut state = SharedState::with_corpus(words);
 
     // bring-your-own client, this example uses the reqwest library
-    let req_client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(1))
-        .build()?;
+    let req_client = reqwest::Client::builder().build()?;
 
     // with some client that can handle the actual http request/response stuff
     // we can build a feroxfuzz client, specifically an asynchronous client in this
     // instance.
     //
     // feroxfuzz provides both a blocking and an asynchronous client implementation
-    // using reqwest. 
+    // using reqwest.
     let client = AsyncClient::with_client(req_client);
 
     // ReplaceKeyword mutators operate similar to how ffuf/wfuzz work, in that they'll
@@ -77,21 +73,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let response_observer: ResponseObserver<AsyncResponse> = ResponseObserver::new();
 
     // a `ResponseProcessor` provides access to the fuzzer's instance of `ResponseObserver`
-// as well as the `Action` returned from calling `Deciders` (like the `StatusCodeDecider` above).
+    // as well as the `Action` returned from calling `Deciders` (like the `StatusCodeDecider` above).
     // Those two objects may be used to produce side-effects, such as printing, logging, calling out to
     // some other service, or whatever else you can think of.
     let response_printer = ResponseProcessor::new(
         |response_observer: &ResponseObserver<AsyncResponse>, action, _state| {
-            if let Some(inner) = action {
-                if matches!(inner, Action::Keep) {
-                    println!(
-                        "[{}] {} - {} - {:?}",
-                        response_observer.status_code(),
-                        response_observer.content_length(),
-                        response_observer.url(),
-                        response_observer.elapsed()
-                    );
-                }
+            if let Some(Action::Keep) = action {
+                println!(
+                    "[{}] {} - {} - {:?}",
+                    response_observer.status_code(),
+                    response_observer.content_length(),
+                    response_observer.url(),
+                    response_observer.elapsed()
+                );
             }
         },
     );
@@ -108,9 +102,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let observers = build_observers!(response_observer);
     let processors = build_processors!(response_printer);
 
-    let threads = 40;  // number of threads to use for the fuzzing process
+    let threads = 40; // number of threads to use for the fuzzing process
 
-    // the `Fuzzer` is the main component of the feroxfuzz library. It wraps most of the other components 
+    // the `Fuzzer` is the main component of the feroxfuzz library. It wraps most of the other components
     // and takes care of the actual fuzzing process.
     let mut fuzzer = AsyncFuzzer::new(
         threads, client, request, scheduler, mutators, observers, processors, deciders,
@@ -119,7 +113,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // the fuzzer will run until it iterates over the entire corpus once
     fuzzer.fuzz_once(&mut state).await?;
 
-    println!("{state:#?}");
+    println!("{state:#}");
 
     Ok(())
 }

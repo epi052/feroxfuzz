@@ -1,9 +1,9 @@
 [package]
 name = "feroxfuzz"
-version = "0.1.0"
+version = "0.1.0-beta.0"
 edition = "2021"
 authors = ["Ben 'epi' Risher (@epi052)"]
-license = "MIT"
+license = "Apache-2.0"
 repository = "https://github.com/epi052/feroxfuzz"
 categories = ["development-tools::testing"]
 keywords = ["fuzzing", "testing", "security", "web"]
