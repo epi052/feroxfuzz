@@ -56,7 +56,7 @@ Similar to LibAFL, FeroxFuzz is a composable fuzzing library. However, unlike Li
 
 FeroxFuzz is very capable, and was made to suit all of my planned needs for a new `feroxbuster`. However, I still expect FeroxFuzz's API to change, at least slightly, as work on the new version of `feroxbuster` begins.
 
-Until the API solidifies, breaking changes may occur.
+Until the API solidifies, breaking changes ~~may~~ will occur.
 
 ## Getting Started
 
@@ -64,7 +64,7 @@ The easiest way to get started is to include FeroxFuzz in your project's `Cargo.
 
 ```toml
 [dependencies]
-feroxfuzz = { version = "0.1.0" }
+feroxfuzz = { version = "0.1.0-beta" }
 ```
 
 ## Docs
