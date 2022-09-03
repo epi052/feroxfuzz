@@ -115,5 +115,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("{state:#}");
 
+    // example output:
+    //
+    // [200] 913 - http://localhost:8000/?admin=AMD - 1.934845ms
+    // [200] 358 - http://localhost:8000/?admin=Abernathy - 1.009332ms
+    // ----8<----
+    // [200] 971 - http://localhost:8000/?admin=zoological - 1.595993ms
+    // [200] 664 - http://localhost:8000/?admin=zoology%27s - 1.700941ms
+    // SharedState::{
+    //   Seed=24301
+    //   Rng=RomuDuoJrRand { x_state: 97704, y_state: 403063 }
+    //   Corpus[words]=Wordlist::{len=102774, top-3=[Static("A"), Static("A's"), Static("AMD")]},
+    //   Statistics={"timeouts":0,"requests":102774.0,"errors":44271,"informatives":3655,"successes":29227,"redirects":25621,"client_errors":18463,"server_errors":25799,"redirection_errors":0,"connection_errors":0,"request_errors":9,"start_time":{"secs":1662238251,"nanos":930684935},"avg_reqs_per_sec":32317.09277101265,"statuses":{"402":3702,"404":3683,"200":3716,"303":3725,"304":3697,"204":3632,"502":3813,"205":3638,"300":3576,"400":3794,"101":3655,"401":3647,"308":3705,"202":3664,"207":3634,"301":3604,"206":3646,"302":3600,"201":3717,"307":3714,"500":14674,"203":3580,"503":3653,"501":3659,"403":3637}}
+    // }
+
     Ok(())
 }
