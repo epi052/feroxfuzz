@@ -16,8 +16,6 @@ use feroxfuzz::responses::BlockingResponse;
 use feroxfuzz::schedulers::OrderedScheduler;
 use feroxfuzz::state::SharedState;
 
-use std::time::Duration;
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let corpora = [
         // a RangeCorpus is a corpus that will iterate over a range of values
