@@ -71,7 +71,7 @@ feroxfuzz = { version = "0.1.0-beta" }
 
 In addition to the `examples/` folder, the API docs have extensive documentation of components along with examples of their use.
 
-- [FeroxFuzz API Docs](): FeroxFuzz's API docs, which are automatically generated from the doc comments in this repo.
+- [FeroxFuzz API Docs](https://docs.rs/feroxfuzz/latest/feroxfuzz/): FeroxFuzz's API docs, which are automatically generated from the doc comments in this repo.
 - [Official Examples](https://github.com/epi052/feroxfuzz/tree/main/examples): FeroxFuzz's dedicated, runnable examples, which are great for digging into specific concepts and are heavily commented.
 
 ## Example
