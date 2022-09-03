@@ -80,7 +80,7 @@ The example below ([examples/async-simple.rs](https://github.com/epi052/feroxfuz
 
 If using the source, the example can be run from the `feroxfuzz/` directory using the following command:
 
-> note: unless you have a webserver running on your machine @ port 8000, you'll need to change th target passed in `Request::from_url`
+> note: unless you have a webserver running on your machine @ port 8000, you'll need to change the target passed in `Request::from_url`
 
 ```
 cargo run --example async-simple
