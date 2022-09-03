@@ -88,9 +88,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // the time it took to receive the response, and a bunch of other stuff.
     let response_observer: ResponseObserver<BlockingResponse> = ResponseObserver::new();
 
-    // a ResponseProcessor provides a way to produce side-effects, such as printing, logging, etc... Within their callback
-    // closure, they have access to the current response (through the ResponseObserver), the action recommended by
-    // the Deciders, and the fuzzer's current state.
+    // a `ResponseProcessor` provides access to the fuzzer's instance of `ResponseObserver`
+    // as well as the `Action` returned from calling `Deciders` (like the `StatusCodeDecider` above).
+    // Those two objects may be used to produce side-effects, such as printing, logging, calling out to
+    // some other service, or whatever else you can think of.
     let response_printer = ResponseProcessor::new(
         |response_observer: &ResponseObserver<BlockingResponse>, action, _state| {
             if let Some(Action::Keep) = action {

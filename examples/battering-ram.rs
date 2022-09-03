@@ -118,7 +118,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         mutators,
         observers,
         processors,
-        (),
+        (), // since we didn't use any Deciders, we just pass in ()
     );
 
     fuzzer.fuzz_once(&mut state)?;

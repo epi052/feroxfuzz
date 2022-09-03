@@ -33,10 +33,8 @@ use serde::{Deserialize, Serialize};
 /// let request = Request::from_url("http://localhost:8000/ignore", None)?;
 ///
 /// // create a RequestRegexDecider with a regular expression and a closure
-/// // that will provide the 'how' of the decision making process. Since
-/// // there are two different implementations of DeciderHooks, we need to provide type
-/// // information to the closure definition / compiler.
-/// let decider = RequestRegexDecider::new("[iI]gnored?", |regex: &Regex, request: &Request, _state: &SharedState| {
+/// // that will provide the 'how' of the decision making process.
+/// let decider = RequestRegexDecider::new("[iI]gnored?", |regex, request, _state| {
 ///     match request.path().as_str() {
 ///         Ok(path) => {
 ///             if regex.is_match(path.as_bytes()) {
