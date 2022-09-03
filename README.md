@@ -44,7 +44,7 @@ Chill, it's not another command-line tool, this one's a library! 😁
 
 More specifically, FeroxFuzz is a structure-aware HTTP fuzzing library.
 
-The primary goal in writing FeroxFuzz was to move some core pieces out of [feroxbuster](https://github.com/epi052/feroxbuster) and into a place where they could be generally useful for other folks. In so doing, my hope is that anyone who wants to write web tooling and/or one-off web fuzzers in Rust, can do so with very little overhead.  
+The primary goal in writing FeroxFuzz was to move some core pieces out of [feroxbuster](https://github.com/epi052/feroxbuster) and into a place where they could be generally useful for other folks. In so doing, my hope is that anyone who wants to write web tooling and/or one-off web fuzzers in Rust, can do so with minimal effort.  
 
 ## Design 
 
@@ -56,7 +56,7 @@ Similar to LibAFL, FeroxFuzz is a composable fuzzing library. However, unlike Li
 
 FeroxFuzz is very capable, and was made to suit all of my planned needs for a new `feroxbuster`. However, I still expect FeroxFuzz's API to change, at least slightly, as work on the new version of `feroxbuster` begins.
 
-Until the API solidifies, breaking changes may occur.
+Until the API solidifies, breaking changes ~~may~~ will occur.
 
 ## Getting Started
 
@@ -64,14 +64,14 @@ The easiest way to get started is to include FeroxFuzz in your project's `Cargo.
 
 ```toml
 [dependencies]
-feroxfuzz = { version = "0.1.0" }
+feroxfuzz = { version = "0.1.0-beta" }
 ```
 
 ## Docs
 
 In addition to the `examples/` folder, the API docs have extensive documentation of components along with examples of their use.
 
-- [FeroxFuzz API Docs](): FeroxFuzz's API docs, which are automatically generated from the doc comments in this repo.
+- [FeroxFuzz API Docs](https://docs.rs/feroxfuzz/latest/feroxfuzz/): FeroxFuzz's API docs, which are automatically generated from the doc comments in this repo.
 - [Official Examples](https://github.com/epi052/feroxfuzz/tree/main/examples): FeroxFuzz's dedicated, runnable examples, which are great for digging into specific concepts and are heavily commented.
 
 ## Example
@@ -80,7 +80,7 @@ The example below ([examples/async-simple.rs](https://github.com/epi052/feroxfuz
 
 If using the source, the example can be run from the `feroxfuzz/` directory using the following command:
 
-> note: unless you have a webserver running on your machine @ port 8000, you'll need to change th target passed in `Request::from_url`
+> note: unless you have a webserver running on your machine @ port 8000, you'll need to change the target passed in `Request::from_url`
 
 ```
 cargo run --example async-simple
@@ -98,9 +98,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut state = SharedState::with_corpus(words);
 
     // bring-your-own client, this example uses the reqwest library
-    let req_client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(1))
-        .build()?;
+    let req_client = reqwest::Client::builder().build()?;
 
     // with some client that can handle the actual http request/response stuff
     // we can build a feroxfuzz client, specifically an asynchronous client in this
@@ -154,16 +152,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // some other service, or whatever else you can think of.
     let response_printer = ResponseProcessor::new(
         |response_observer: &ResponseObserver<AsyncResponse>, action, _state| {
-            if let Some(inner) = action {
-                if matches!(inner, Action::Keep) {
-                    println!(
-                        "[{}] {} - {} - {:?}",
-                        response_observer.status_code(),
-                        response_observer.content_length(),
-                        response_observer.url(),
-                        response_observer.elapsed()
-                    );
-                }
+            if let Some(Action::Keep) = action {
+                println!(
+                    "[{}] {} - {} - {:?}",
+                    response_observer.status_code(),
+                    response_observer.content_length(),
+                    response_observer.url(),
+                    response_observer.elapsed()
+                );
             }
         },
     );
@@ -191,8 +187,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // the fuzzer will run until it iterates over the entire corpus once
     fuzzer.fuzz_once(&mut state).await?;
 
-    println!("{state:#?}");
+    println!("{state:#}");
 
     Ok(())
+}
+```
+
+The fuzzer above would produce something similar to what's shown below.
+
+```
+[200] 815 - http://localhost:8000/?admin=Ajax - 840.985µs
+[200] 206 - http://localhost:8000/?admin=Al - 4.092037ms
+----8<----
+SharedState::{
+  Seed=24301
+  Rng=RomuDuoJrRand { x_state: 97704, y_state: 403063 }
+  Corpus[words]=Wordlist::{len=102774, top-3=[Static("A"), Static("A's"), Static("AMD")]},
+  Statistics={"timeouts":0,"requests":102774.0,"errors":44208,"informatives":3626,"successes":29231,"redirects":25709,"client_errors":18195,"server_errors":26013,"redirection_errors":0,"connection_errors":0,"request_errors":0,"start_time":{"secs":1662124648,"nanos":810398280},"avg_reqs_per_sec":5946.646301595066,"statuses":{"500":14890,"201":3641,"307":3656,"203":3562,"101":3626,"401":3625,"207":3711,"308":3578,"300":3724,"404":3705,"301":3707,"302":3651,"304":3706,"502":3682,"402":3636,"200":3718,"503":3762,"400":3585,"501":3679,"202":3659,"205":3680,"206":3676,"204":3584,"403":3644,"303":3687}}
 }
 ```
