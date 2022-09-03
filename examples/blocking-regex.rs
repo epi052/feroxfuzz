@@ -45,9 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let scheduler = OrderedScheduler::new(state.clone())?;
 
     // byo-client, this example uses reqwest
-    let req_client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(1))
-        .build()?;
+    let req_client = reqwest::blocking::Client::builder().build()?;
 
     // with some client that can handle the actual http request/response stuff
     // we can build a feroxfuzz client, specifically a blocking client in this
@@ -93,7 +91,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let response_observer: ResponseObserver<BlockingResponse> = ResponseObserver::new();
 
     // a ResponseProcessor provides a way to produce side-effects, such as printing, logging, etc... Within their callback
-    // closure, they have access to the current response (through the ResponseObserver), the action recommended by 
+    // closure, they have access to the current response (through the ResponseObserver), the action recommended by
     // the Deciders, and the fuzzer's current state.
     let response_printer = ResponseProcessor::new(
         |response_observer: &ResponseObserver<BlockingResponse>, action, _state| {
@@ -128,11 +126,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // example output:
     //
     // [500] 0 - http://localhost:8000/?injectable=/0/a/4 - 1.223366ms
-    // [302] 603 - http://localhost:8000/?injectable=/1/b/5 - 981.827µs    
-    // [500] 675 - http://localhost:8000/?injectable=/2/c/6 - 439.846µs    
-    // [403] 302 - http://localhost:8000/?injectable=/0/a/4 - 437.268µs    
-    // [500] 717 - http://localhost:8000/?injectable=/1/b/5 - 477.585µs    
-    // [207] 292 - http://localhost:8000/?injectable=/2/c/6 - 418.939µs    
-    
+    // [302] 603 - http://localhost:8000/?injectable=/1/b/5 - 981.827µs
+    // [500] 675 - http://localhost:8000/?injectable=/2/c/6 - 439.846µs
+    // [403] 302 - http://localhost:8000/?injectable=/0/a/4 - 437.268µs
+    // [500] 717 - http://localhost:8000/?injectable=/1/b/5 - 477.585µs
+    // [207] 292 - http://localhost:8000/?injectable=/2/c/6 - 418.939µs
+
     Ok(())
 }
