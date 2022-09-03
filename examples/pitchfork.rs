@@ -31,31 +31,12 @@ use feroxfuzz::responses::BlockingResponse;
 use feroxfuzz::schedulers::OrderedScheduler;
 use feroxfuzz::state::SharedState;
 
-use tracing::subscriber::set_global_default;
-use tracing_subscriber::EnvFilter;
-
-use std::time::Duration;
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let filter = EnvFilter::from_default_env();
-
-    // construct a subscriber that prints formatted traces to stdout
-    let subscriber = tracing_subscriber::fmt()
-        // Display source code file paths
-        .with_file(true)
-        // Display source code line numbers
-        .with_line_number(true)
-        // Display the thread ID an event was recorded on
-        .with_thread_ids(true)
-        .with_env_filter(filter)
-        // Build the subscriber
-        .finish();
-
-    // use that subscriber to process traces emitted after this point
-    set_global_default(subscriber)?;
-
     // each corpus is what burp refers to as a "payload set", for a pitchfork style session, we'll
     // need to create one corpus for each fuzzable position in the request.
+
+    // a Wordlist is a corpus that will iterate over a list of words
+    // in this case, we're going to iterate over the words "a", "b", and "c"
     let wordlist = Wordlist::new()
         .word("a")
         .word("b")
@@ -63,7 +44,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .name("chars")
         .build();
 
+    // a RangeCorpus is a corpus that will iterate over a range of values
+    // in this case, we're going to iterate over the numbers 0-2, stepping
+    // by 1
     let range1 = RangeCorpus::new().name("range1").stop(3).build()?;
+
+    // this RangeCorpus will iterate over the numbers 4, 6, and 8
     let range2 = RangeCorpus::new()
         .name("range2")
         .start(4)
@@ -71,14 +57,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .step(2)
         .build()?;
 
+    // pass all corpora to the state object, which will be shared between all of the fuzzers and processors
     let corpora = [range1, wordlist, range2];
-
     let mut state = SharedState::with_corpora(corpora);
 
     // byo-client, this example uses reqwest
-    let req_client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(1))
-        .build()?;
+    let req_client = reqwest::blocking::Client::builder().build()?;
 
     // with some client that can handle the actual http request/response stuff
     // we can build a feroxfuzz client, specifically a blocking client in this
@@ -158,10 +142,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         mutators,
         observers,
         processors,
-        (),
+        (), // since we didn't use any Deciders, we just pass in ()
     );
 
+    // fuzz_n_iterations means that the fuzzer will iterate over whatever is provided by the scheduler
+    // n times. In this case, we're going to iterate over the corpus entries twice.
     fuzzer.fuzz_n_iterations(2, &mut state)?;
+
+    // example output:
+    //
+    // http://localhost:8000/?injectable=/0/a/4
+    // http://localhost:8000/?injectable=/1/b/6
+    // http://localhost:8000/?injectable=/2/c/8
+    // http://localhost:8000/?injectable=/0/a/4
+    // http://localhost:8000/?injectable=/1/b/6
+    // http://localhost:8000/?injectable=/2/c/8
 
     Ok(())
 }

@@ -33,6 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 0, 1, 2, 3, 4
     let range = RangeCorpus::new().name("range").stop(5).build()?;
 
+    // pass the corpus to the state object, which will be shared between all of the fuzzers and processors
     let mut state = SharedState::with_corpus(range);
 
     // byo-client, this example uses reqwest
@@ -118,7 +119,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         mutators,
         observers,
         processors,
-        (),
+        (), // since we didn't use any Deciders, we just pass in ()
     );
 
     // our overall strategy is to let the fuzzer run through a full iteration of the corpus/scheduler
@@ -147,6 +148,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         println!();
     }
+
+    // example output:
+    //
+    // http://localhost:8000/?injectable=0&second=second-value&third=third-value&fourth=fourth-value&fifth=fifth-value
+    // http://localhost:8000/?injectable=1&second=second-value&third=third-value&fourth=fourth-value&fifth=fifth-value
+    // http://localhost:8000/?injectable=2&second=second-value&third=third-value&fourth=fourth-value&fifth=fifth-value
+    // http://localhost:8000/?injectable=3&second=second-value&third=third-value&fourth=fourth-value&fifth=fifth-value
+    // http://localhost:8000/?injectable=4&second=second-value&third=third-value&fourth=fourth-value&fifth=fifth-value
+    //
+    // http://localhost:8000/?injectable=first-value&second=0&third=third-value&fourth=fourth-value&fifth=fifth-value
+    // http://localhost:8000/?injectable=first-value&second=1&third=third-value&fourth=fourth-value&fifth=fifth-value
+    // http://localhost:8000/?injectable=first-value&second=2&third=third-value&fourth=fourth-value&fifth=fifth-value
+    // http://localhost:8000/?injectable=first-value&second=3&third=third-value&fourth=fourth-value&fifth=fifth-value
+    // http://localhost:8000/?injectable=first-value&second=4&third=third-value&fourth=fourth-value&fifth=fifth-value
+    //
+    // http://localhost:8000/?injectable=first-value&second=second-value&third=0&fourth=fourth-value&fifth=fifth-value
+    // http://localhost:8000/?injectable=first-value&second=second-value&third=1&fourth=fourth-value&fifth=fifth-value
+    // http://localhost:8000/?injectable=first-value&second=second-value&third=2&fourth=fourth-value&fifth=fifth-value
+    // http://localhost:8000/?injectable=first-value&second=second-value&third=3&fourth=fourth-value&fifth=fifth-value
+    // http://localhost:8000/?injectable=first-value&second=second-value&third=4&fourth=fourth-value&fifth=fifth-value
+    //
+    // http://localhost:8000/?injectable=first-value&second=second-value&third=third-value&fourth=0&fifth=fifth-value
+    // http://localhost:8000/?injectable=first-value&second=second-value&third=third-value&fourth=1&fifth=fifth-value
+    // http://localhost:8000/?injectable=first-value&second=second-value&third=third-value&fourth=2&fifth=fifth-value
+    // http://localhost:8000/?injectable=first-value&second=second-value&third=third-value&fourth=3&fifth=fifth-value
+    // http://localhost:8000/?injectable=first-value&second=second-value&third=third-value&fourth=4&fifth=fifth-value
+    //
+    // http://localhost:8000/?injectable=first-value&second=second-value&third=third-value&fourth=fourth-value&fifth=0
+    // http://localhost:8000/?injectable=first-value&second=second-value&third=third-value&fourth=fourth-value&fifth=1
+    // http://localhost:8000/?injectable=first-value&second=second-value&third=third-value&fourth=fourth-value&fifth=2
+    // http://localhost:8000/?injectable=first-value&second=second-value&third=third-value&fourth=fourth-value&fifth=3
+    // http://localhost:8000/?injectable=first-value&second=second-value&third=third-value&fourth=fourth-value&fifth=4
 
     Ok(())
 }
