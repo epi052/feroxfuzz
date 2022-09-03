@@ -44,7 +44,7 @@ Chill, it's not another command-line tool, this one's a library! 😁
 
 More specifically, FeroxFuzz is a structure-aware HTTP fuzzing library.
 
-The primary goal in writing FeroxFuzz was to move some core pieces out of [feroxbuster](https://github.com/epi052/feroxbuster) and into a place where they could be generally useful for other folks. In so doing, my hope is that anyone who wants to write web tooling and/or one-off web fuzzers in Rust, can do so with very little overhead.  
+The primary goal in writing FeroxFuzz was to move some core pieces out of [feroxbuster](https://github.com/epi052/feroxbuster) and into a place where they could be generally useful for other folks. In so doing, my hope is that anyone who wants to write web tooling and/or one-off web fuzzers in Rust, can do so with minimal effort.  
 
 ## Design 
 
