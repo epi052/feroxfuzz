@@ -149,9 +149,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         mutators,
         observers,
         processors,
-        (),
+        (), // since we didn't use any Deciders, we just pass in ()
     );
 
+    // the fuzzer will run until it iterates over the entire corpus once
     fuzzer.fuzz_once(&mut state)?;
 
     Ok(())

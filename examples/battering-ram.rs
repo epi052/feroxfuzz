@@ -118,10 +118,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         mutators,
         observers,
         processors,
-        (),
+        (), // since we didn't use any Deciders, we just pass in ()
     );
 
+    // the fuzzer will run until it iterates over the entire corpus once
     fuzzer.fuzz_once(&mut state)?;
+
+    // example output:
+    //
+    // http://localhost:8000/?injectable=/home/A/.ssh/id_rsa
+    //    x-injected-for: A
+    // http://localhost:8000/?injectable=/home/A's/.ssh/id_rsa
+    //    x-injected-for: A's
+    // http://localhost:8000/?injectable=/home/AMD/.ssh/id_rsa
+    //    x-injected-for: AMD
+    // ----8<----
 
     Ok(())
 }
