@@ -1,7 +1,7 @@
 //! Use data from an [`Observer`] to make a decision about the supplied data
+mod content_length;
 mod regex;
 mod status_code;
-mod content_length;
 use crate::actions::Action;
 use crate::observers::Observers;
 use crate::requests::Request;
@@ -9,10 +9,10 @@ use crate::responses::Response;
 use crate::state::SharedState;
 use crate::DecidersList;
 
+pub use self::content_length::ContentLengthDecider;
 pub use self::regex::RequestRegexDecider;
 pub use self::regex::ResponseRegexDecider;
 pub use self::status_code::StatusCodeDecider;
-pub use self::content_length::ContentLengthDecider;
 // re-export LogicOperation from here, for a more logical location from an external user's perspective
 pub use crate::std_ext::ops::LogicOperation;
 
