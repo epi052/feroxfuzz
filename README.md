@@ -1,4 +1,7 @@
 <h1 align="center">
+<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+[![All Contributors](https://img.shields.io/badge/all_contributors-1-orange.svg?style=flat-square)](#contributors-)
+<!-- ALL-CONTRIBUTORS-BADGE:END -->
   <br>
   <!-- <a href="https://github.com/epi052/feroxfuzz"><img src="img/logo/default-cropped.png" alt="feroxfuzz"></a> -->
   🚀 FeroxFuzz 🚀
@@ -206,3 +209,23 @@ SharedState::{
   Statistics={"timeouts":0,"requests":102774.0,"errors":44208,"informatives":3626,"successes":29231,"redirects":25709,"client_errors":18195,"server_errors":26013,"redirection_errors":0,"connection_errors":0,"request_errors":0,"start_time":{"secs":1662124648,"nanos":810398280},"avg_reqs_per_sec":5946.646301595066,"statuses":{"500":14890,"201":3641,"307":3656,"203":3562,"101":3626,"401":3625,"207":3711,"308":3578,"300":3724,"404":3705,"301":3707,"302":3651,"304":3706,"502":3682,"402":3636,"200":3718,"503":3762,"400":3585,"501":3679,"202":3659,"205":3680,"206":3676,"204":3584,"403":3644,"303":3687}}
 }
 ```
+
+## Contributors ✨
+
+Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tr>
+    <td align="center"><a href="https://github.com/iustin24"><img src="https://avatars.githubusercontent.com/u/62765470?v=4?s=100" width="100px;" alt=""/><br /><sub><b>iustin24</b></sub></a><br /><a href="https://github.com/epi052/feroxfuzz/commits?author=iustin24" title="Code">💻</a></td>
+  </tr>
+</table>
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!

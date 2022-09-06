@@ -1,0 +1,24 @@
+{
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "contributors": [
+    {
+      "login": "iustin24",
+      "name": "iustin24",
+      "avatar_url": "https://avatars.githubusercontent.com/u/62765470?v=4",
+      "profile": "https://github.com/iustin24",
+      "contributions": [
+        "code"
+      ]
+    }
+  ],
+  "contributorsPerLine": 7,
+  "projectName": "feroxfuzz",
+  "projectOwner": "epi052",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "skipCi": true
+}
