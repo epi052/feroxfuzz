@@ -23,13 +23,9 @@
   <a href="https://crates.io/crates/feroxfuzz">
     <img src="https://img.shields.io/crates/d/feroxfuzz?label=downloads&logo=rust&color=inactive">
   </a>
-
-  <!-- <a href="https://codecov.io/gh/epi052/feroxfuzz">
-    <img src="https://codecov.io/gh/epi052/feroxfuzz/branch/master/graph/badge.svg" />
-  </a> -->
   
-  <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-    [![All Contributors](https://img.shields.io/badge/all_contributors-1-orange.svg?style=flat-square)](#contributors-)
+  <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section 
+    [![All Contributors](https://img.shields.io/badge/all_contributors-15-orange.svg?style=flat-square)](#contributors-)
   <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
   <a href="https://github.com/epi052/feroxfuzz/graphs/contributors">
