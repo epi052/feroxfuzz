@@ -53,7 +53,7 @@ cfg_if! {
 /// let reqwest_response = http::response::Builder::new().status(200).body("").unwrap();
 /// let id = RequestId::new(0);
 /// let elapsed = Duration::from_secs(1);
-/// let response = AsyncResponse::try_from_reqwest_response(id, reqwest_response.into(), elapsed).await?;
+/// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
 ///
 /// // also not relevant to the current example, but needed to make the call to .post_send_hook
 /// let corpus = Wordlist::with_words(["a", "b", "c"]).name("chars").build();

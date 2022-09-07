@@ -49,7 +49,7 @@ use tracing::instrument;
 /// let reqwest_response = http::response::Builder::new().status(200).body("").unwrap();
 /// let id = RequestId::new(0);
 /// let elapsed = Duration::from_secs(1);
-/// let response = BlockingResponse::try_from_reqwest_response(id, reqwest_response.into(), elapsed)?;
+/// let response = BlockingResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed)?;
 ///
 /// // also not relevant to the current example, but it's needed to make the call to the hook
 /// let mut state = SharedState::with_corpus(RangeCorpus::with_stop(3).name("range").build()?);

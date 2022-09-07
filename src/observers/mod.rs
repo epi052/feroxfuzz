@@ -117,10 +117,14 @@ mod tests {
         let id = RequestId::new(0);
         let elapsed = Duration::from_secs(1);
         let reqwest_response = http::response::Response::new("{\"stuff\":\"things\"}");
-        let response =
-            AsyncResponse::try_from_reqwest_response(id, reqwest_response.into(), elapsed)
-                .await
-                .unwrap();
+        let response = AsyncResponse::try_from_reqwest_response(
+            id,
+            String::from("GET"),
+            reqwest_response.into(),
+            elapsed,
+        )
+        .await
+        .unwrap();
 
         observer.pre_send_hook(&request);
         observer.post_send_hook(response.clone());

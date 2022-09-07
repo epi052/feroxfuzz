@@ -3,13 +3,13 @@ mod regex;
 mod status_code;
 
 use crate::actions::Action;
+use crate::metadata::AsAny;
 use crate::observers::Observers;
 use crate::requests::Request;
 use crate::responses::Response;
 use crate::state::SharedState;
-use crate::DecidersList;
-use crate::metadata::AsAny;
 use crate::std_ext::tuple::Named;
+use crate::DecidersList;
 
 pub use self::regex::RequestRegexDecider;
 pub use self::regex::ResponseRegexDecider;

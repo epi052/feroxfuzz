@@ -85,8 +85,8 @@ where
 
     /// create a new `RequestRegexDecider` that calls `comparator` in its
     /// `pre_send_hook` method
-    pub fn with_regex(regex: Regex, comparator: F) -> Self {
-        Self { regex, comparator }
+    pub const fn with_regex(regex: Regex, comparator: F) -> Self {
+        Self { comparator, regex }
     }
 }
 
@@ -148,7 +148,7 @@ where
 /// let reqwest_response = http::response::Builder::new().status(200).body("XyZDeRpZyX").unwrap();
 /// let id = RequestId::new(0);
 /// let elapsed = Duration::from_secs(1);
-/// let response = BlockingResponse::try_from_reqwest_response(id, reqwest_response.into(), elapsed)?;
+/// let response = BlockingResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed)?;
 ///
 /// // not relevant to the current example, but needed to make the call to .post_send_hook
 /// let mut state = SharedState::with_corpus(RangeCorpus::with_stop(10).name("corpus").build()?);
@@ -215,7 +215,7 @@ where
 
     /// create a new `ResponseRegexDecider` that calls `comparator` in its
     /// `post_send_hook` method
-    pub fn with_regex(regex: Regex, comparator: F) -> Self {
+    pub const fn with_regex(regex: Regex, comparator: F) -> Self {
         Self {
             regex,
             comparator,

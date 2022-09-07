@@ -60,7 +60,7 @@ impl BlockingResponse {
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = BlockingResponse::try_from_reqwest_response(id, reqwest_response.into(), elapsed)?;
+    /// let response = BlockingResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed)?;
     ///  
     /// assert_eq!(response.id(), RequestId::new(0));
     /// assert_eq!(response.status_code(), StatusCode::OK);
@@ -185,12 +185,12 @@ impl Default for BlockingResponse {
     fn default() -> Self {
         Self {
             id: RequestId::default(),
-            method: Default::default(),
+            method: String::default(),
             url: Url::parse("http://no.url.provided.local/").unwrap(),
             status_code: Default::default(),
-            headers: Default::default(),
-            body: Default::default(),
-            elapsed: Default::default(),
+            headers: HashMap::default(),
+            body: Vec::default(),
+            elapsed: Duration::default(),
             content_length: Default::default(),
             line_count: Default::default(),
             word_count: Default::default(),

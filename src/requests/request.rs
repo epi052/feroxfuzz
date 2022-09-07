@@ -444,7 +444,7 @@ impl Request {
 
     /// the parsed [`Url`] that this request was constructed from
     #[must_use]
-    pub fn parsed_url(&self) -> &Url {
+    pub const fn parsed_url(&self) -> &Url {
         &self.parsed_url
     }
 
