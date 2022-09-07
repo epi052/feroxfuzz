@@ -1,8 +1,10 @@
 use super::{Decider, DeciderHooks};
 use crate::actions::Action;
+use crate::metadata::AsAny;
 use crate::observers::{Observers, ResponseObserver};
 use crate::responses::Response;
 use crate::state::SharedState;
+use crate::std_ext::tuple::Named;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -50,7 +52,7 @@ cfg_if! {
 /// let reqwest_response = http::response::Builder::new().body("0123456789").unwrap();
 /// let id = RequestId::new(0);
 /// let elapsed = Duration::from_secs(1);
-/// let response = AsyncResponse::try_from_reqwest_response(id, reqwest_response.into(), elapsed).await?;
+/// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
 ///
 /// // also not relevant to the current example, but needed to make the call to .post_send_hook
 /// let corpus = Wordlist::with_words(["a", "b", "c"]).name("chars").build();
@@ -86,7 +88,7 @@ cfg_if! {
 #[allow(clippy::derive_partial_eq_without_eq)] // known false-positive introduced in 1.63.0
 pub struct ContentLengthDecider<F>
 where
-    F: Fn(usize, usize, &SharedState) -> Action + Sync + Send + Clone + 'static,
+    F: Fn(usize, usize, &SharedState) -> Action + 'static,
 {
     comparator: F,
     content_length: usize,
@@ -94,7 +96,7 @@ where
 
 impl<F> ContentLengthDecider<F>
 where
-    F: Fn(usize, usize, &SharedState) -> Action + Sync + Send + Clone + 'static,
+    F: Fn(usize, usize, &SharedState) -> Action + 'static,
 {
     /// create a new `ContentLengthDecider` that calls `comparator` in its
     /// `post_send_hook` method
@@ -118,7 +120,7 @@ impl<O, R, F> Decider<O, R> for ContentLengthDecider<F>
 where
     O: Observers<R>,
     R: Response,
-    F: Fn(usize, usize, &SharedState) -> Action + Sync + Send + Clone + 'static,
+    F: Fn(usize, usize, &SharedState) -> Action + Clone + 'static,
 {
     fn decide_with_observers(&mut self, state: &SharedState, observers: &O) -> Option<Action> {
         // there's an implicit expectation that there is only a single ResponseObserver in the
@@ -136,5 +138,23 @@ where
         }
 
         None
+    }
+}
+
+impl<F> AsAny for ContentLengthDecider<F>
+where
+    F: Fn(usize, usize, &SharedState) -> Action + 'static,
+{
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
+impl<F> Named for ContentLengthDecider<F>
+where
+    F: Fn(usize, usize, &SharedState) -> Action,
+{
+    fn name(&self) -> &'static str {
+        "ContentLengthDecider"
     }
 }

@@ -1,11 +1,10 @@
-use std::any::Any;
-
 use super::{Decider, DeciderHooks};
 use crate::actions::Action;
 use crate::metadata::AsAny;
 use crate::observers::{Observers, ResponseObserver};
 use crate::responses::Response;
 use crate::state::SharedState;
+use crate::std_ext::tuple::Named;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -106,13 +105,6 @@ where
             status_code,
         }
     }
-
-    /// Return self as [`Any`]
-    ///
-    /// only used for dynamic dispatch, which is not the default behavior
-    pub fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 impl<O, R, F> DeciderHooks<O, R> for StatusCodeDecider<F>
@@ -152,8 +144,6 @@ where
         self
     }
 }
-
-use crate::std_ext::tuple::Named;
 
 impl<F> Named for StatusCodeDecider<F>
 where
