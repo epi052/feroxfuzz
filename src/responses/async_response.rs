@@ -26,6 +26,7 @@ pub struct AsyncResponse {
     content_length: usize,
     line_count: usize,
     word_count: usize,
+    method: String,
 
     #[cfg_attr(all(not(feature = "serialize-body"), feature = "serde"), serde(skip))]
     body: Vec<u8>,
@@ -79,12 +80,14 @@ impl AsyncResponse {
     #[instrument(skip(resp, elapsed), level = "trace")]
     pub async fn try_from_reqwest_response(
         id: RequestId,
+        method: String,
         resp: reqwest::Response,
         elapsed: Duration,
     ) -> Result<Self, FeroxFuzzError> {
         let mut response = Self::new();
 
         response.id = id;
+        response.method = method;
         response.url = resp.url().clone();
         response.status_code = resp.status().as_u16();
         response.headers = resp
@@ -168,6 +171,10 @@ impl Response for AsyncResponse {
     fn word_count(&self) -> usize {
         self.word_count
     }
+
+    fn method(&self) -> &str {
+        &self.method
+    }
 }
 
 impl Timed for AsyncResponse {
@@ -180,11 +187,12 @@ impl Default for AsyncResponse {
     fn default() -> Self {
         Self {
             id: RequestId::default(),
+            method: Default::default(),
             url: Url::parse("http://no.url.provided.local/").unwrap(),
             status_code: Default::default(),
-            headers: HashMap::default(),
-            body: Vec::default(),
-            elapsed: Duration::default(),
+            headers: Default::default(),
+            body: Default::default(),
+            elapsed: Default::default(),
             content_length: Default::default(),
             line_count: Default::default(),
             word_count: Default::default(),

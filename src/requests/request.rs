@@ -103,6 +103,7 @@ where
 #[non_exhaustive]
 pub struct Request {
     pub(crate) id: RequestId,
+    pub(crate) parsed_url: Url,
     pub(crate) original_url: String,
     pub(crate) scheme: Data,
     pub(crate) username: Option<Data>,
@@ -124,6 +125,7 @@ impl Default for Request {
     fn default() -> Self {
         Self {
             id: RequestId::default(),
+            parsed_url: Url::parse("http://no.url.provided.local/").unwrap(),
             original_url: String::new(),
             body: None,
             headers: None,
@@ -179,6 +181,7 @@ impl From<Url> for Request {
                 .fragment()
                 .map(|fragment| Data::Static(fragment.as_bytes().to_vec())),
             params: if pairs.is_empty() { None } else { Some(pairs) },
+            parsed_url: url,
             ..Self::default()
         }
     }
@@ -437,6 +440,12 @@ impl Request {
         }
 
         Ok(str_builder)
+    }
+
+    /// the parsed [`Url`] that this request was constructed from
+    #[must_use]
+    pub fn parsed_url(&self) -> &Url {
+        &self.parsed_url
     }
 
     /// when building a [`reqwest::Request`] to pass to the provided client implementations that

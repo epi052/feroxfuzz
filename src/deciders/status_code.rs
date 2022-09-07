@@ -1,5 +1,8 @@
+use std::any::Any;
+
 use super::{Decider, DeciderHooks};
 use crate::actions::Action;
+use crate::metadata::AsAny;
 use crate::observers::{Observers, ResponseObserver};
 use crate::responses::Response;
 use crate::state::SharedState;
@@ -93,7 +96,7 @@ where
 
 impl<F> StatusCodeDecider<F>
 where
-    F: Fn(u16, u16, &SharedState) -> Action,
+    F: Fn(u16, u16, &SharedState) -> Action + 'static,
 {
     /// create a new `StatusCodeDecider` that calls `comparator` in its
     /// `post_send_hook` method
@@ -103,13 +106,20 @@ where
             status_code,
         }
     }
+
+    /// Return self as [`Any`]
+    ///
+    /// only used for dynamic dispatch, which is not the default behavior
+    pub fn as_any(&self) -> &dyn Any {
+        self
+    }
 }
 
 impl<O, R, F> DeciderHooks<O, R> for StatusCodeDecider<F>
 where
     O: Observers<R>,
     R: Response,
-    F: Fn(u16, u16, &SharedState) -> Action + Sync + Send + Clone,
+    F: Fn(u16, u16, &SharedState) -> Action + Sync + Send + Clone + 'static,
 {
 }
 
@@ -117,7 +127,7 @@ impl<O, R, F> Decider<O, R> for StatusCodeDecider<F>
 where
     O: Observers<R>,
     R: Response,
-    F: Fn(u16, u16, &SharedState) -> Action + Clone,
+    F: Fn(u16, u16, &SharedState) -> Action + Clone + 'static,
 {
     fn decide_with_observers(&mut self, state: &SharedState, observers: &O) -> Option<Action> {
         // there's an implicit expectation that there is only a single ResponseObserver in the
@@ -131,5 +141,25 @@ where
         }
 
         None
+    }
+}
+
+impl<F> AsAny for StatusCodeDecider<F>
+where
+    F: Fn(u16, u16, &SharedState) -> Action + 'static,
+{
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
+use crate::std_ext::tuple::Named;
+
+impl<F> Named for StatusCodeDecider<F>
+where
+    F: Fn(u16, u16, &SharedState) -> Action,
+{
+    fn name(&self) -> &'static str {
+        "StatusCodeDecider"
     }
 }

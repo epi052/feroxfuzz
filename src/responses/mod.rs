@@ -234,6 +234,11 @@ pub trait Response {
     /// ```
     #[must_use]
     fn word_count(&self) -> usize;
+
+    /// Get the associated [`Request`]'s http request method
+    #[must_use]
+    fn method(&self) -> &str;
+
 }
 
 /// a trait to provide the amount of time taken to perform an action

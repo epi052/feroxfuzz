@@ -3,7 +3,7 @@ name = "feroxfuzz"
 version = "0.1.0-rc.0"
 edition = "2021"
 authors = ["Ben 'epi' Risher (@epi052)"]
-license = "Apache-2.0"
+license = ""
 repository = "https://github.com/epi052/feroxfuzz"
 categories = ["development-tools::testing"]
 keywords = ["fuzzing", "testing", "security", "web"]
@@ -54,7 +54,10 @@ serde = { version = "1.0", optional = true, features = ["derive", "rc"] }
 serde_json = { version = "1.0", optional = true }
 typetag = { version = "0.2.3", optional = true }
 thiserror = { version = "1.0" }
-reqwest = { version = "0.11", optional = true, features = ["socks"] }
+reqwest = { version = "0.11", optional = true, features = [
+    "socks",
+    "rustls-tls",
+] }
 async-trait = { version = "0.1" }
 regex = { version = "1.6" }
 serde_regex = { version = "1.1.0" }

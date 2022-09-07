@@ -79,6 +79,7 @@ impl BlockingRequests for BlockingClient {
         let parsed_version = parse_version(request.version())?;
 
         let request_id = request.id;
+        let request_method = request.method().as_str()?.to_string();
 
         // build out the reqwest Request from our mutated Request
         let reqwest_request = self.build_request(parsed_version, request)?;
@@ -95,6 +96,7 @@ impl BlockingRequests for BlockingClient {
         // build the AsyncResponse, the await is for reqwest's asynchronous read of the response body
         let response = BlockingResponse::try_from_reqwest_response(
             request_id,
+            request_method,
             reqwest_response,
             now.elapsed(),
         )?;

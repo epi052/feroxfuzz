@@ -346,6 +346,11 @@ where
     fn word_count(&self) -> usize {
         self.response.word_count()
     }
+
+    /// get the original http request method used to generate the response
+    fn method(&self) -> &str {
+        self.response.method()
+    }
 }
 
 impl<R> Observer for ResponseObserver<R> where R: Response {}

@@ -8,6 +8,8 @@ use crate::requests::Request;
 use crate::responses::Response;
 use crate::state::SharedState;
 use crate::DecidersList;
+use crate::metadata::AsAny;
+use crate::std_ext::tuple::Named;
 
 pub use self::regex::RequestRegexDecider;
 pub use self::regex::ResponseRegexDecider;
@@ -28,7 +30,7 @@ cfg_if! {
 
 /// A `Decider` pulls information from some [`Observer`] in order to
 /// reach a decision about what [`Action`] should be taken
-pub trait Decider<O, R>: DynClone
+pub trait Decider<O, R>: DynClone + AsAny + Named
 where
     O: Observers<R>,
     R: Response,
@@ -77,7 +79,7 @@ where
 /// - `pre_send_hook(.., request, ..)`
 /// - `let response = client.send(request)`
 /// - `post_send_hook(.., response,)`
-pub trait DeciderHooks<O, R>: Decider<O, R> + DynClone + Sync + Send
+pub trait DeciderHooks<O, R>: Decider<O, R> + DynClone + AsAny + Sync + Send
 where
     O: Observers<R>,
     R: Response,
