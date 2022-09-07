@@ -10,6 +10,12 @@ use url::Url;
 use tracing::{error, instrument};
 
 cfg_if! {
+    if #[cfg(docsrs)] {
+        use crate::requests::Request;
+    }
+}
+
+cfg_if! {
     if #[cfg(feature = "json")] {
         use crate::error::FeroxFuzzError;
         use serde_json;
@@ -86,7 +92,7 @@ pub trait Response {
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = AsyncResponse::try_from_reqwest_response(id, reqwest_response.into(), elapsed).await?;
+    /// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
     ///
     /// let json = response.json::<HashMap<String, String>>()?;
     ///
@@ -140,7 +146,7 @@ pub trait Response {
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = AsyncResponse::try_from_reqwest_response(id, reqwest_response.into(), elapsed).await?;
+    /// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
     ///
     /// assert_eq!(response.content(), None);
     /// # Result::<(), FeroxFuzzError>::Ok(())
@@ -191,7 +197,7 @@ pub trait Response {
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = AsyncResponse::try_from_reqwest_response(id, reqwest_response.into(), elapsed).await?;
+    /// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
     ///
     /// assert_eq!(response.line_count(), 5);
     /// # Result::<(), FeroxFuzzError>::Ok(())
@@ -225,7 +231,7 @@ pub trait Response {
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = AsyncResponse::try_from_reqwest_response(id, reqwest_response.into(), elapsed).await?;
+    /// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
     ///
     /// assert_eq!(response.word_count(), 5);
     /// # Result::<(), FeroxFuzzError>::Ok(())
@@ -234,6 +240,10 @@ pub trait Response {
     /// ```
     #[must_use]
     fn word_count(&self) -> usize;
+
+    /// Get the associated [`Request`]'s http request method
+    #[must_use]
+    fn method(&self) -> &str;
 }
 
 /// a trait to provide the amount of time taken to perform an action

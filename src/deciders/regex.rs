@@ -5,10 +5,13 @@ use std::marker::PhantomData;
 
 use super::{Decider, DeciderHooks};
 use crate::actions::Action;
+use crate::metadata::AsAny;
 use crate::observers::{Observers, ResponseObserver};
 use crate::requests::Request;
 use crate::responses::Response;
 use crate::state::SharedState;
+use crate::std_ext::tuple::Named;
+
 use regex::bytes::Regex;
 
 #[cfg(feature = "serde")]
@@ -79,24 +82,48 @@ where
             comparator,
         }
     }
+
+    /// create a new `RequestRegexDecider` that calls `comparator` in its
+    /// `pre_send_hook` method
+    pub const fn with_regex(regex: Regex, comparator: F) -> Self {
+        Self { comparator, regex }
+    }
 }
 
 impl<O, R, F> DeciderHooks<O, R> for RequestRegexDecider<F>
 where
     O: Observers<R>,
-    R: Response,
-    F: Fn(&Regex, &Request, &SharedState) -> Action,
+    R: Response + Sync + Send + Clone,
+    F: Fn(&Regex, &Request, &SharedState) -> Action + Sync + Send + Clone + 'static,
 {
 }
 
 impl<O, R, F> Decider<O, R> for RequestRegexDecider<F>
 where
     O: Observers<R>,
-    R: Response,
-    F: Fn(&Regex, &Request, &SharedState) -> Action,
+    R: Response + Clone,
+    F: Fn(&Regex, &Request, &SharedState) -> Action + Clone + 'static,
 {
     fn decide_with_request(&mut self, state: &SharedState, request: &Request) -> Option<Action> {
         Some((self.comparator)(&self.regex, request, state))
+    }
+}
+
+impl<F> AsAny for RequestRegexDecider<F>
+where
+    F: Fn(&Regex, &Request, &SharedState) -> Action + 'static,
+{
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
+impl<F> Named for RequestRegexDecider<F>
+where
+    F: Fn(&Regex, &Request, &SharedState) -> Action,
+{
+    fn name(&self) -> &'static str {
+        "RequestRegexDecider"
     }
 }
 
@@ -121,7 +148,7 @@ where
 /// let reqwest_response = http::response::Builder::new().status(200).body("XyZDeRpZyX").unwrap();
 /// let id = RequestId::new(0);
 /// let elapsed = Duration::from_secs(1);
-/// let response = BlockingResponse::try_from_reqwest_response(id, reqwest_response.into(), elapsed)?;
+/// let response = BlockingResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed)?;
 ///
 /// // not relevant to the current example, but needed to make the call to .post_send_hook
 /// let mut state = SharedState::with_corpus(RangeCorpus::with_stop(10).name("corpus").build()?);
@@ -185,21 +212,31 @@ where
             marker: PhantomData,
         }
     }
+
+    /// create a new `ResponseRegexDecider` that calls `comparator` in its
+    /// `post_send_hook` method
+    pub const fn with_regex(regex: Regex, comparator: F) -> Self {
+        Self {
+            regex,
+            comparator,
+            marker: PhantomData,
+        }
+    }
 }
 
 impl<O, R, F> DeciderHooks<O, R> for ResponseRegexDecider<F, R>
 where
     O: Observers<R>,
-    R: Response,
-    F: Fn(&Regex, &ResponseObserver<R>, &SharedState) -> Action,
+    R: Response + Send + Sync + Clone + 'static,
+    F: Fn(&Regex, &ResponseObserver<R>, &SharedState) -> Action + Sync + Send + Clone + 'static,
 {
 }
 
 impl<O, R, F> Decider<O, R> for ResponseRegexDecider<F, R>
 where
     O: Observers<R>,
-    R: Response,
-    F: Fn(&Regex, &ResponseObserver<R>, &SharedState) -> Action,
+    R: Response + Clone + 'static,
+    F: Fn(&Regex, &ResponseObserver<R>, &SharedState) -> Action + Clone + 'static,
 {
     fn decide_with_observers(&mut self, state: &SharedState, observers: &O) -> Option<Action> {
         // there's an implicit expectation that there is only a single ResponseObserver in the
@@ -210,5 +247,25 @@ where
         }
 
         None
+    }
+}
+
+impl<F, R> AsAny for ResponseRegexDecider<F, R>
+where
+    R: Response + 'static,
+    F: Fn(&Regex, &ResponseObserver<R>, &SharedState) -> Action + 'static,
+{
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
+impl<F, R> Named for ResponseRegexDecider<F, R>
+where
+    R: Response + 'static,
+    F: Fn(&Regex, &ResponseObserver<R>, &SharedState) -> Action,
+{
+    fn name(&self) -> &'static str {
+        "ResponseRegexDecider"
     }
 }

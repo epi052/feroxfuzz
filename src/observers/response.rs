@@ -81,7 +81,7 @@ where
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = AsyncResponse::try_from_reqwest_response(id, reqwest_response.into(), elapsed).await?;
+    /// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
     /// let observer = ResponseObserver::with_response(response);
     ///
     /// # Result::<(), FeroxFuzzError>::Ok(())
@@ -123,7 +123,7 @@ where
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = AsyncResponse::try_from_reqwest_response(id, reqwest_response.into(), elapsed).await?;
+    /// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
     /// let observer: ResponseObserver<_> = response.into();
     ///
     /// assert_eq!(observer.is_redirect(), true);
@@ -166,7 +166,7 @@ where
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = AsyncResponse::try_from_reqwest_response(id, reqwest_response.into(), elapsed).await?;
+    /// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
     /// let observer: ResponseObserver<_> = response.into();
     ///
     /// assert_eq!(observer.is_redirect(), true);
@@ -214,7 +214,7 @@ where
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = AsyncResponse::try_from_reqwest_response(id, reqwest_response.into(), elapsed).await?;
+    /// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
     /// let observer: ResponseObserver<_> = response.into();
     ///
     /// assert_eq!(observer.url().as_str(), "http://no.url.provided.local/");
@@ -245,7 +245,7 @@ where
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = AsyncResponse::try_from_reqwest_response(id, reqwest_response.into(), elapsed).await?;
+    /// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
     /// let observer: ResponseObserver<_> = response.into();
     ///
     /// assert_eq!(observer.url().as_str(), "http://no.url.provided.local/");
@@ -345,6 +345,11 @@ where
     /// get the `word_count` from the associated `Response`
     fn word_count(&self) -> usize {
         self.response.word_count()
+    }
+
+    /// get the original http request method used to generate the response
+    fn method(&self) -> &str {
+        self.response.method()
     }
 }
 

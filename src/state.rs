@@ -423,6 +423,13 @@ impl Display for SharedState {
             writeln!(f, "  Statistics={}", guard)?;
         }
 
+        if let Ok(guard) = self.metadata().read() {
+            #[allow(clippy::significant_drop_in_scrutinee)] // doesn't appear to be an accurate lint
+            for (key, value) in guard.iter() {
+                writeln!(f, "  Metadata[{key}]={:?}", value)?;
+            }
+        }
+
         writeln!(f, "}}")?;
 
         Ok(())

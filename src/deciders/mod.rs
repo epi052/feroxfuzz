@@ -3,10 +3,12 @@ mod content_length;
 mod regex;
 mod status_code;
 use crate::actions::Action;
+use crate::metadata::AsAny;
 use crate::observers::Observers;
 use crate::requests::Request;
 use crate::responses::Response;
 use crate::state::SharedState;
+use crate::std_ext::tuple::Named;
 use crate::DecidersList;
 
 pub use self::content_length::ContentLengthDecider;
@@ -17,6 +19,7 @@ pub use self::status_code::StatusCodeDecider;
 pub use crate::std_ext::ops::LogicOperation;
 
 use cfg_if::cfg_if;
+use dyn_clone::DynClone;
 
 cfg_if! {
     if #[cfg(docsrs)] {
@@ -28,7 +31,7 @@ cfg_if! {
 
 /// A `Decider` pulls information from some [`Observer`] in order to
 /// reach a decision about what [`Action`] should be taken
-pub trait Decider<O, R>
+pub trait Decider<O, R>: DynClone + AsAny + Named
 where
     O: Observers<R>,
     R: Response,
@@ -50,6 +53,26 @@ where
     }
 }
 
+impl<O, R> Clone for Box<dyn Decider<O, R>>
+where
+    O: Observers<R>,
+    R: Response,
+{
+    fn clone(&self) -> Self {
+        dyn_clone::clone_box(&**self)
+    }
+}
+
+impl<O, R> Clone for Box<dyn DeciderHooks<O, R>>
+where
+    O: Observers<R>,
+    R: Response,
+{
+    fn clone(&self) -> Self {
+        dyn_clone::clone_box(&**self)
+    }
+}
+
 /// defines the hooks that are executed before a request is sent
 /// and after a response is received
 ///
@@ -57,7 +80,7 @@ where
 /// - `pre_send_hook(.., request, ..)`
 /// - `let response = client.send(request)`
 /// - `post_send_hook(.., response,)`
-pub trait DeciderHooks<O, R>: Decider<O, R>
+pub trait DeciderHooks<O, R>: Decider<O, R> + DynClone + AsAny + Sync + Send
 where
     O: Observers<R>,
     R: Response,
