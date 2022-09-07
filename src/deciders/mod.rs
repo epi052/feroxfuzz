@@ -1,5 +1,5 @@
 //! Use data from an [`Observer`] to make a decision about the supplied data
-mod content_length;
+mod length;
 mod regex;
 mod status_code;
 use crate::actions::Action;
@@ -11,7 +11,7 @@ use crate::state::SharedState;
 use crate::std_ext::tuple::Named;
 use crate::DecidersList;
 
-pub use self::content_length::ContentLengthDecider;
+pub use self::length::ContentLengthDecider;
 pub use self::regex::RequestRegexDecider;
 pub use self::regex::ResponseRegexDecider;
 pub use self::status_code::StatusCodeDecider;
