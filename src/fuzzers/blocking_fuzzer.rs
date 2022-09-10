@@ -13,6 +13,7 @@ use crate::state::SharedState;
 use crate::std_ext::ops::LogicOperation;
 
 use tracing::instrument;
+use tracing::log::warn;
 
 /// A fuzzer that operates in serial, meaning that it executes a single fuzzcase at a time
 #[derive(Debug, Default, Clone)]
@@ -123,6 +124,7 @@ where
                 state.update_from_error(&error)?;
 
                 self.request_id += 1;
+                tracing::warn!(%error, "response errored out and will not continue through the fuzz loop");
                 continue;
             }
 

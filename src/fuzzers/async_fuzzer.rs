@@ -257,7 +257,7 @@ where
                     // that means we need to update the statistics and then continue
                     c_state.update_from_error(&error).unwrap_or_default();
 
-                    // purposely not logging, since this is a client error, just need the stats updated
+                    warn!(%error, "response errored out and will not continue through the fuzz loop");
                     return;
                 }
 
