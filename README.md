@@ -33,10 +33,6 @@
   </a>
 </p>
 
---- 
-
-![fuzz-flow](img/fuzz-flow.png)
-
 ---
 
 ## 🤔 Another ferox? why? 🤔
@@ -52,6 +48,12 @@ The primary goal in writing FeroxFuzz was to move some core pieces out of [ferox
 FeroxFuzz's overall design is derived from [LibAFL](https://github.com/AFLplusplus/LibAFL). FeroxFuzz implements most of the components listed in [LibAFL: A Framework to Build Modular and Reusable Fuzzers (pre-print)](https://www.s3.eurecom.fr/docs/ccs22_fioraldi.pdf). When FeroxFuzz deviates, it's typically due to supporting async code.
 
 Similar to LibAFL, FeroxFuzz is a composable fuzzing library. However, unlike LibAFL, FeroxFuzz is solely focused on **black box HTTP fuzzing**.
+
+## Fuzz-loop execution flow
+
+Below is a visual depiction of the different components, hooks, and control flow employed by FeroxFuzz.
+
+![fuzz-flow](img/fuzz-flow.png)
 
 ## 🚧 Warning: Under Construction 🚧
 
