@@ -5,6 +5,7 @@ use std::any::Any;
 use std::cmp::min;
 use std::fmt;
 use std::sync::atomic::Ordering;
+use std::marker::PhantomData;
 
 use super::Mutator;
 use crate::corpora::Corpus;
@@ -711,7 +712,6 @@ impl AsAny for CrossoverReplaceMutator {
     }
 }
 
-use std::marker::PhantomData;
 #[cfg(feature = "serde")]
 struct LibAflMutatorVisitor<K, V> {
     _k: PhantomData<K>,
@@ -767,7 +767,6 @@ impl<'de> Visitor<'de> for LibAflMutatorVisitor<String, String> {
                 "BytesInsertMutator" => {
                     Ok(LibAflMutator::BytesInsertMutator(BytesInsertMutator::new()))
                 }
-
                 "BytesRandInsertMutator" => Ok(LibAflMutator::BytesRandInsertMutator(
                     BytesRandInsertMutator::new(),
                 )),
