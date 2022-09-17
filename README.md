@@ -33,6 +33,10 @@
   </a>
 </p>
 
+--- 
+
+![fuzz-flow](img/fuzz-flow.png)
+
 ---
 
 ## 🤔 Another ferox? why? 🤔
