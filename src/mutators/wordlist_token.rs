@@ -5,11 +5,14 @@ use crate::atomic_load;
 use crate::corpora::Corpus;
 use crate::error::FeroxFuzzError;
 use crate::input::Data;
+use crate::metadata::AsAny;
 use crate::state::SharedState;
+use crate::std_ext::tuple::Named;
 use crate::AsBytes;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use std::any::Any;
 use std::sync::atomic::Ordering;
 
 use cfg_if::cfg_if;
@@ -171,6 +174,18 @@ impl Mutator for ReplaceKeyword {
         }
 
         Ok(())
+    }
+}
+
+impl Named for ReplaceKeyword {
+    fn name(&self) -> &str {
+        "ReplaceKeyword"
+    }
+}
+
+impl AsAny for ReplaceKeyword {
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
