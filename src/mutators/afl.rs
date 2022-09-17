@@ -1,21 +1,30 @@
 //! re-exports some of libafl's mutators after implementing the [`Mutator`] trait
 #![allow(clippy::use_self)] // clippy false-positive
 #![allow(clippy::cast_possible_truncation)] // we'll be okay with this one
+use std::any::Any;
 use std::cmp::min;
+use std::fmt;
 use std::sync::atomic::Ordering;
 
 use super::Mutator;
 use crate::corpora::Corpus;
 use crate::error::FeroxFuzzError;
 use crate::input::Data;
+use crate::metadata::AsAny;
 use crate::state::SharedState;
 use crate::std_ext::ops::Len;
+use crate::std_ext::tuple::Named;
 use crate::{atomic_load, AsBytes};
 
 use libafl::bolts::rands::Rand;
 use libafl::inputs::HasBytesVec;
 use libafl::mutators::mutations::{buffer_copy, buffer_self_copy};
 use libafl::state::{HasMaxSize, HasRand};
+#[cfg(feature = "serde")]
+use serde::{
+    de::{self, Deserialize, Deserializer, MapAccess, Visitor},
+    ser::{Serialize, Serializer},
+};
 use tracing::{debug, error, instrument};
 
 pub use libafl::mutators::mutations::{
@@ -103,33 +112,364 @@ pub enum LibAflMutator {
     WordInterestingMutator(WordInterestingMutator),
 }
 
+#[allow(clippy::too_many_lines)] // excuse the heck outta me, clippy
 impl Mutator for LibAflMutator {
     fn mutate(&mut self, input: &mut Data, state: &mut SharedState) -> Result<(), FeroxFuzzError> {
+        if !input.is_fuzzable() {
+            // we can't mutate non-fuzzable data
+            return Ok(());
+        }
+
         match self {
-            LibAflMutator::BitFlipMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::ByteAddMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::ByteDecMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::ByteFlipMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::ByteIncMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::ByteInterestingMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::ByteNegMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::ByteRandMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::BytesCopyMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::BytesDeleteMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::BytesExpandMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::BytesInsertCopyMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::BytesInsertMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::BytesRandInsertMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::BytesRandSetMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::BytesSetMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::BytesSwapMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::CrossoverInsertMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::CrossoverReplaceMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::DwordAddMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::DwordInterestingMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::QwordAddMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::WordAddMutator(mutator) => mutator.mutate(input, state),
-            LibAflMutator::WordInterestingMutator(mutator) => mutator.mutate(input, state),
+            LibAflMutator::BitFlipMutator(mutator) => {
+                <BitFlipMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::ByteAddMutator(mutator) => {
+                <ByteAddMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::ByteDecMutator(mutator) => {
+                <ByteDecMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::ByteFlipMutator(mutator) => {
+                <ByteFlipMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::ByteIncMutator(mutator) => {
+                <ByteIncMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::ByteInterestingMutator(mutator) => {
+                <ByteInterestingMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::ByteNegMutator(mutator) => {
+                <ByteNegMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::ByteRandMutator(mutator) => {
+                <ByteRandMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::BytesCopyMutator(mutator) => {
+                <BytesCopyMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::BytesDeleteMutator(mutator) => {
+                <BytesDeleteMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::BytesExpandMutator(mutator) => {
+                <BytesExpandMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::BytesInsertCopyMutator(mutator) => {
+                <BytesInsertCopyMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::BytesInsertMutator(mutator) => {
+                <BytesInsertMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::BytesRandInsertMutator(mutator) => {
+                <BytesRandInsertMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::BytesRandSetMutator(mutator) => {
+                <BytesRandSetMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::BytesSetMutator(mutator) => {
+                <BytesSetMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::BytesSwapMutator(mutator) => {
+                <BytesSwapMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::CrossoverInsertMutator(mutator) => return mutator.mutate(input, state),
+            LibAflMutator::CrossoverReplaceMutator(mutator) => return mutator.mutate(input, state),
+            LibAflMutator::DwordAddMutator(mutator) => {
+                <DwordAddMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::DwordInterestingMutator(mutator) => {
+                <DwordInterestingMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::QwordAddMutator(mutator) => {
+                <QwordAddMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::WordAddMutator(mutator) => {
+                <WordAddMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+            LibAflMutator::WordInterestingMutator(mutator) => {
+                <WordInterestingMutator as libafl::mutators::Mutator<_, _>>::mutate(
+                    mutator, state, input, 0,
+                )
+            }
+        }
+        .map_err(|source| {
+            error!("LibAFL mutator failed: {}", source);
+            FeroxFuzzError::FailedMutation { source }
+        })?;
+
+        Ok(())
+    }
+}
+
+impl Named for LibAflMutator {
+    fn name(&self) -> &str {
+        match self {
+            LibAflMutator::BitFlipMutator(mutator) => mutator.name(),
+            LibAflMutator::ByteAddMutator(mutator) => mutator.name(),
+            LibAflMutator::ByteDecMutator(mutator) => mutator.name(),
+            LibAflMutator::ByteFlipMutator(mutator) => mutator.name(),
+            LibAflMutator::ByteIncMutator(mutator) => mutator.name(),
+            LibAflMutator::ByteInterestingMutator(mutator) => mutator.name(),
+            LibAflMutator::ByteNegMutator(mutator) => mutator.name(),
+            LibAflMutator::ByteRandMutator(mutator) => mutator.name(),
+            LibAflMutator::BytesCopyMutator(mutator) => mutator.name(),
+            LibAflMutator::BytesDeleteMutator(mutator) => mutator.name(),
+            LibAflMutator::BytesExpandMutator(mutator) => mutator.name(),
+            LibAflMutator::BytesInsertCopyMutator(mutator) => mutator.name(),
+            LibAflMutator::BytesInsertMutator(mutator) => mutator.name(),
+            LibAflMutator::BytesRandInsertMutator(mutator) => mutator.name(),
+            LibAflMutator::BytesRandSetMutator(mutator) => mutator.name(),
+            LibAflMutator::BytesSetMutator(mutator) => mutator.name(),
+            LibAflMutator::BytesSwapMutator(mutator) => mutator.name(),
+            LibAflMutator::CrossoverInsertMutator(mutator) => mutator.name(),
+            LibAflMutator::CrossoverReplaceMutator(mutator) => mutator.name(),
+            LibAflMutator::DwordAddMutator(mutator) => mutator.name(),
+            LibAflMutator::DwordInterestingMutator(mutator) => mutator.name(),
+            LibAflMutator::QwordAddMutator(mutator) => mutator.name(),
+            LibAflMutator::WordAddMutator(mutator) => mutator.name(),
+            LibAflMutator::WordInterestingMutator(mutator) => mutator.name(),
+        }
+    }
+}
+
+impl AsAny for LibAflMutator {
+    fn as_any(&self) -> &dyn Any {
+        match self {
+            LibAflMutator::BitFlipMutator(mutator) => mutator,
+            LibAflMutator::ByteAddMutator(mutator) => mutator,
+            LibAflMutator::ByteDecMutator(mutator) => mutator,
+            LibAflMutator::ByteFlipMutator(mutator) => mutator,
+            LibAflMutator::ByteIncMutator(mutator) => mutator,
+            LibAflMutator::ByteInterestingMutator(mutator) => mutator,
+            LibAflMutator::ByteNegMutator(mutator) => mutator,
+            LibAflMutator::ByteRandMutator(mutator) => mutator,
+            LibAflMutator::BytesCopyMutator(mutator) => mutator,
+            LibAflMutator::BytesDeleteMutator(mutator) => mutator,
+            LibAflMutator::BytesExpandMutator(mutator) => mutator,
+            LibAflMutator::BytesInsertCopyMutator(mutator) => mutator,
+            LibAflMutator::BytesInsertMutator(mutator) => mutator,
+            LibAflMutator::BytesRandInsertMutator(mutator) => mutator,
+            LibAflMutator::BytesRandSetMutator(mutator) => mutator,
+            LibAflMutator::BytesSetMutator(mutator) => mutator,
+            LibAflMutator::BytesSwapMutator(mutator) => mutator,
+            LibAflMutator::CrossoverInsertMutator(mutator) => mutator,
+            LibAflMutator::CrossoverReplaceMutator(mutator) => mutator,
+            LibAflMutator::DwordAddMutator(mutator) => mutator,
+            LibAflMutator::DwordInterestingMutator(mutator) => mutator,
+            LibAflMutator::QwordAddMutator(mutator) => mutator,
+            LibAflMutator::WordAddMutator(mutator) => mutator,
+            LibAflMutator::WordInterestingMutator(mutator) => mutator,
+        }
+    }
+}
+
+impl Clone for LibAflMutator {
+    fn clone(&self) -> Self {
+        match self {
+            LibAflMutator::BitFlipMutator(_mutator) => {
+                LibAflMutator::BitFlipMutator(BitFlipMutator::new())
+            }
+            LibAflMutator::ByteAddMutator(_mutator) => {
+                LibAflMutator::ByteAddMutator(ByteAddMutator::new())
+            }
+            LibAflMutator::ByteDecMutator(_mutator) => {
+                LibAflMutator::ByteDecMutator(ByteDecMutator::new())
+            }
+            LibAflMutator::ByteFlipMutator(_mutator) => {
+                LibAflMutator::ByteFlipMutator(ByteFlipMutator::new())
+            }
+            LibAflMutator::ByteIncMutator(_mutator) => {
+                LibAflMutator::ByteIncMutator(ByteIncMutator::new())
+            }
+            LibAflMutator::ByteInterestingMutator(_mutator) => {
+                LibAflMutator::ByteInterestingMutator(ByteInterestingMutator::new())
+            }
+            LibAflMutator::ByteNegMutator(_mutator) => {
+                LibAflMutator::ByteNegMutator(ByteNegMutator::new())
+            }
+            LibAflMutator::ByteRandMutator(_mutator) => {
+                LibAflMutator::ByteRandMutator(ByteRandMutator::new())
+            }
+            LibAflMutator::BytesCopyMutator(_mutator) => {
+                LibAflMutator::BytesCopyMutator(BytesCopyMutator::new())
+            }
+            LibAflMutator::BytesDeleteMutator(_mutator) => {
+                LibAflMutator::BytesDeleteMutator(BytesDeleteMutator::new())
+            }
+            LibAflMutator::BytesExpandMutator(_mutator) => {
+                LibAflMutator::BytesExpandMutator(BytesExpandMutator::new())
+            }
+            LibAflMutator::BytesInsertCopyMutator(_mutator) => {
+                LibAflMutator::BytesInsertCopyMutator(BytesInsertCopyMutator::new())
+            }
+            LibAflMutator::BytesInsertMutator(_mutator) => {
+                LibAflMutator::BytesInsertMutator(BytesInsertMutator::new())
+            }
+            LibAflMutator::BytesRandInsertMutator(_mutator) => {
+                LibAflMutator::BytesRandInsertMutator(BytesRandInsertMutator::new())
+            }
+            LibAflMutator::BytesRandSetMutator(_mutator) => {
+                LibAflMutator::BytesRandSetMutator(BytesRandSetMutator::new())
+            }
+            LibAflMutator::BytesSetMutator(_mutator) => {
+                LibAflMutator::BytesSetMutator(BytesSetMutator::new())
+            }
+            LibAflMutator::BytesSwapMutator(_mutator) => {
+                LibAflMutator::BytesSwapMutator(BytesSwapMutator::new())
+            }
+            LibAflMutator::CrossoverInsertMutator(mutator) => {
+                LibAflMutator::CrossoverInsertMutator(CrossoverInsertMutator::new(
+                    &mutator.corpus_name,
+                ))
+            }
+            LibAflMutator::CrossoverReplaceMutator(mutator) => {
+                LibAflMutator::CrossoverReplaceMutator(CrossoverReplaceMutator::new(
+                    &mutator.corpus_name,
+                ))
+            }
+            LibAflMutator::DwordAddMutator(_mutator) => {
+                LibAflMutator::DwordAddMutator(DwordAddMutator::new())
+            }
+            LibAflMutator::DwordInterestingMutator(_mutator) => {
+                LibAflMutator::DwordInterestingMutator(DwordInterestingMutator::new())
+            }
+            LibAflMutator::QwordAddMutator(_mutator) => {
+                LibAflMutator::QwordAddMutator(QwordAddMutator::new())
+            }
+            LibAflMutator::WordAddMutator(_mutator) => {
+                LibAflMutator::WordAddMutator(WordAddMutator::new())
+            }
+            LibAflMutator::WordInterestingMutator(_mutator) => {
+                LibAflMutator::WordInterestingMutator(WordInterestingMutator::new())
+            }
+        }
+    }
+}
+
+#[cfg(feature = "serde")]
+impl Serialize for LibAflMutator {
+    /// Function that handles serialization of Stats
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            LibAflMutator::BitFlipMutator(_mutator) => {
+                serializer.serialize_newtype_variant("LibAflMutator", 0, "BitFlipMutator", "")
+            }
+            LibAflMutator::ByteAddMutator(_mutator) => {
+                serializer.serialize_newtype_variant("LibAflMutator", 1, "ByteAddMutator", "")
+            }
+            LibAflMutator::ByteDecMutator(_mutator) => {
+                serializer.serialize_newtype_variant("LibAflMutator", 2, "ByteDecMutator", "")
+            }
+            LibAflMutator::ByteFlipMutator(_mutator) => {
+                serializer.serialize_newtype_variant("LibAflMutator", 3, "ByteFlipMutator", "")
+            }
+            LibAflMutator::ByteIncMutator(_mutator) => {
+                serializer.serialize_newtype_variant("LibAflMutator", 4, "ByteIncMutator", "")
+            }
+            LibAflMutator::ByteInterestingMutator(_mutator) => serializer
+                .serialize_newtype_variant("LibAflMutator", 5, "ByteInterestingMutator", ""),
+            LibAflMutator::ByteNegMutator(_mutator) => {
+                serializer.serialize_newtype_variant("LibAflMutator", 6, "ByteNegMutator", "")
+            }
+            LibAflMutator::ByteRandMutator(_mutator) => {
+                serializer.serialize_newtype_variant("LibAflMutator", 7, "ByteRandMutator", "")
+            }
+            LibAflMutator::BytesCopyMutator(_mutator) => {
+                serializer.serialize_newtype_variant("LibAflMutator", 8, "BytesCopyMutator", "")
+            }
+            LibAflMutator::BytesDeleteMutator(_mutator) => {
+                serializer.serialize_newtype_variant("LibAflMutator", 9, "BytesDeleteMutator", "")
+            }
+            LibAflMutator::BytesExpandMutator(_mutator) => {
+                serializer.serialize_newtype_variant("LibAflMutator", 10, "BytesExpandMutator", "")
+            }
+            LibAflMutator::BytesInsertCopyMutator(_mutator) => serializer
+                .serialize_newtype_variant("LibAflMutator", 11, "BytesInsertCopyMutator", ""),
+            LibAflMutator::BytesInsertMutator(_mutator) => {
+                serializer.serialize_newtype_variant("LibAflMutator", 12, "BytesInsertMutator", "")
+            }
+            LibAflMutator::BytesRandInsertMutator(_mutator) => serializer
+                .serialize_newtype_variant("LibAflMutator", 13, "BytesRandInsertMutator", ""),
+            LibAflMutator::BytesRandSetMutator(_mutator) => {
+                serializer.serialize_newtype_variant("LibAflMutator", 14, "BytesRandSetMutator", "")
+            }
+            LibAflMutator::BytesSetMutator(_mutator) => {
+                serializer.serialize_newtype_variant("LibAflMutator", 15, "BytesSetMutator", "")
+            }
+            LibAflMutator::BytesSwapMutator(_mutator) => {
+                serializer.serialize_newtype_variant("LibAflMutator", 16, "BytesSwapMutator", "")
+            }
+            LibAflMutator::CrossoverInsertMutator(mutator) => serializer.serialize_newtype_variant(
+                "LibAflMutator",
+                17,
+                "CrossoverInsertMutator",
+                &mutator.corpus_name,
+            ),
+            LibAflMutator::CrossoverReplaceMutator(mutator) => serializer
+                .serialize_newtype_variant(
+                    "LibAflMutator",
+                    18,
+                    "CrossoverReplaceMutator",
+                    &mutator.corpus_name,
+                ),
+            LibAflMutator::DwordAddMutator(_mutator) => {
+                serializer.serialize_newtype_variant("LibAflMutator", 19, "DwordAddMutator", "")
+            }
+            LibAflMutator::DwordInterestingMutator(_mutator) => serializer
+                .serialize_newtype_variant("LibAflMutator", 20, "DwordInterestingMutator", ""),
+            LibAflMutator::QwordAddMutator(_mutator) => {
+                serializer.serialize_newtype_variant("LibAflMutator", 21, "QwordAddMutator", "")
+            }
+            LibAflMutator::WordAddMutator(_mutator) => {
+                serializer.serialize_newtype_variant("LibAflMutator", 22, "WordAddMutator", "")
+            }
+            LibAflMutator::WordInterestingMutator(_mutator) => serializer
+                .serialize_newtype_variant("LibAflMutator", 23, "WordInterestingMutator", ""),
         }
     }
 }
@@ -137,33 +477,9 @@ impl Mutator for LibAflMutator {
 macro_rules! impl_libafl_mutation {
     // mutation_type is the type of the libafl mutator, e.g. BitFlipMutator
     ($mutation_type:ty) => {
-        impl Mutator for $mutation_type {
-            #[instrument(skip_all, level = "trace")]
-            fn mutate(
-                &mut self,
-                input: &mut Data,
-                state: &mut SharedState,
-            ) -> Result<(), FeroxFuzzError> {
-                if input.is_fuzzable() {
-                    // data is fuzzable, need to mutate it
-
-                    // create a new libafl mutator, BitFlipMutator, etc...
-                    let mut mutator = <$mutation_type>::new();
-
-                    // need to use the fully qualified name here to avoid the trait clash between libafl's and ferox's Mutator
-                    <$mutation_type as libafl::mutators::Mutator<_, _>>::mutate(
-                        &mut mutator,
-                        state,
-                        input,
-                        0, // none of these mutators use a corpus index, so we can simply pass a dummy value here
-                    )
-                    .map_err(|source| {
-                        error!("LibAFL mutator failed: {}", source);
-                        FeroxFuzzError::FailedMutation { source }
-                    })?;
-                }
-
-                Ok(())
+        impl AsAny for $mutation_type {
+            fn as_any(&self) -> &dyn Any {
+                self
             }
         }
     };
@@ -207,7 +523,8 @@ impl_libafl_mutation!(WordInterestingMutator);
 /// Crossover insert mutation for inputs with a bytes vector
 ///
 /// ported from libafl's `CrossoverInsertMutator`
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CrossoverInsertMutator {
     corpus_name: String,
 }
@@ -291,11 +608,24 @@ impl Mutator for CrossoverInsertMutator {
     }
 }
 
+impl Named for CrossoverInsertMutator {
+    fn name(&self) -> &str {
+        "CrossoverInsertMutator"
+    }
+}
+
+impl AsAny for CrossoverInsertMutator {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
 /// Crossover replace mutation for inputs with a bytes vector
 ///
 /// ported from libafl's `CrossoverReplaceMutator`
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CrossoverReplaceMutator {
     corpus_name: String,
 }
@@ -366,5 +696,159 @@ impl Mutator for CrossoverReplaceMutator {
         }
 
         Ok(())
+    }
+}
+
+impl Named for CrossoverReplaceMutator {
+    fn name(&self) -> &str {
+        "CrossoverReplaceMutator"
+    }
+}
+
+impl AsAny for CrossoverReplaceMutator {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+use std::marker::PhantomData;
+#[cfg(feature = "serde")]
+struct LibAflMutatorVisitor<K, V> {
+    _k: PhantomData<K>,
+    _v: PhantomData<V>,
+}
+
+#[cfg(feature = "serde")]
+impl<K, V> LibAflMutatorVisitor<K, V> {
+    const fn new() -> Self {
+        Self {
+            _k: PhantomData,
+            _v: PhantomData,
+        }
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Visitor<'de> for LibAflMutatorVisitor<String, String> {
+    // The type that our Visitor is going to produce.
+    type Value = LibAflMutator;
+
+    // Format a message stating what data this Visitor expects to receive.
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a LibAflMutator")
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'de>,
+    {
+        if let Some((key, value)) = map.next_entry::<String, String>()? {
+            return match key.as_str() {
+                "BitFlipMutator" => Ok(LibAflMutator::BitFlipMutator(BitFlipMutator::new())),
+                "ByteAddMutator" => Ok(LibAflMutator::ByteAddMutator(ByteAddMutator::new())),
+                "ByteDecMutator" => Ok(LibAflMutator::ByteDecMutator(ByteDecMutator::new())),
+                "ByteFlipMutator" => Ok(LibAflMutator::ByteFlipMutator(ByteFlipMutator::new())),
+                "ByteIncMutator" => Ok(LibAflMutator::ByteIncMutator(ByteIncMutator::new())),
+                "ByteInterestingMutator" => Ok(LibAflMutator::ByteInterestingMutator(
+                    ByteInterestingMutator::new(),
+                )),
+                "ByteNegMutator" => Ok(LibAflMutator::ByteNegMutator(ByteNegMutator::new())),
+                "ByteRandMutator" => Ok(LibAflMutator::ByteRandMutator(ByteRandMutator::new())),
+                "BytesCopyMutator" => Ok(LibAflMutator::BytesCopyMutator(BytesCopyMutator::new())),
+                "BytesDeleteMutator" => {
+                    Ok(LibAflMutator::BytesDeleteMutator(BytesDeleteMutator::new()))
+                }
+                "BytesExpandMutator" => {
+                    Ok(LibAflMutator::BytesExpandMutator(BytesExpandMutator::new()))
+                }
+                "BytesInsertCopyMutator" => Ok(LibAflMutator::BytesInsertCopyMutator(
+                    BytesInsertCopyMutator::new(),
+                )),
+                "BytesInsertMutator" => {
+                    Ok(LibAflMutator::BytesInsertMutator(BytesInsertMutator::new()))
+                }
+
+                "BytesRandInsertMutator" => Ok(LibAflMutator::BytesRandInsertMutator(
+                    BytesRandInsertMutator::new(),
+                )),
+                "BytesRandSetMutator" => Ok(LibAflMutator::BytesRandSetMutator(
+                    BytesRandSetMutator::new(),
+                )),
+                "BytesSetMutator" => Ok(LibAflMutator::BytesSetMutator(BytesSetMutator::new())),
+                "BytesSwapMutator" => Ok(LibAflMutator::BytesSwapMutator(BytesSwapMutator::new())),
+                "CrossoverInsertMutator" => Ok(LibAflMutator::CrossoverInsertMutator(
+                    CrossoverInsertMutator::new(&value),
+                )),
+                "CrossoverReplaceMutator" => Ok(LibAflMutator::CrossoverReplaceMutator(
+                    CrossoverReplaceMutator::new(&value),
+                )),
+                "DwordAddMutator" => Ok(LibAflMutator::DwordAddMutator(DwordAddMutator::new())),
+                "DwordInterestingMutator" => Ok(LibAflMutator::DwordInterestingMutator(
+                    DwordInterestingMutator::new(),
+                )),
+                "QwordAddMutator" => Ok(LibAflMutator::QwordAddMutator(QwordAddMutator::new())),
+                "WordAddMutator" => Ok(LibAflMutator::WordAddMutator(WordAddMutator::new())),
+                "WordInterestingMutator" => Ok(LibAflMutator::WordInterestingMutator(
+                    WordInterestingMutator::new(),
+                )),
+                _ => Err(de::Error::custom(format!(
+                    "unknown LibAflMutator variant: {}:{}",
+                    key, value
+                ))),
+            };
+        }
+        Err(de::Error::custom("unknown LibAflMutator variant"))
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for LibAflMutator {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let mutator = deserializer.deserialize_any(LibAflMutatorVisitor::<String, String>::new())?;
+
+        Ok(mutator)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    // test serialization of the BitFlipMutator
+    fn test_de_ser_smoke_test() {
+        let mutators = &[
+            LibAflMutator::BitFlipMutator(BitFlipMutator::new()),
+            LibAflMutator::ByteAddMutator(ByteAddMutator::new()),
+            LibAflMutator::ByteDecMutator(ByteDecMutator::new()),
+            LibAflMutator::ByteFlipMutator(ByteFlipMutator::new()),
+            LibAflMutator::ByteIncMutator(ByteIncMutator::new()),
+            LibAflMutator::ByteInterestingMutator(ByteInterestingMutator::new()),
+            LibAflMutator::ByteNegMutator(ByteNegMutator::new()),
+            LibAflMutator::ByteRandMutator(ByteRandMutator::new()),
+            LibAflMutator::BytesCopyMutator(BytesCopyMutator::new()),
+            LibAflMutator::BytesDeleteMutator(BytesDeleteMutator::new()),
+            LibAflMutator::BytesExpandMutator(BytesExpandMutator::new()),
+            LibAflMutator::BytesInsertCopyMutator(BytesInsertCopyMutator::new()),
+            LibAflMutator::BytesInsertMutator(BytesInsertMutator::new()),
+            LibAflMutator::BytesRandInsertMutator(BytesRandInsertMutator::new()),
+            LibAflMutator::BytesRandSetMutator(BytesRandSetMutator::new()),
+            LibAflMutator::BytesSetMutator(BytesSetMutator::new()),
+            LibAflMutator::BytesSwapMutator(BytesSwapMutator::new()),
+            LibAflMutator::DwordAddMutator(DwordAddMutator::new()),
+            LibAflMutator::DwordInterestingMutator(DwordInterestingMutator::new()),
+            LibAflMutator::QwordAddMutator(QwordAddMutator::new()),
+            LibAflMutator::WordAddMutator(WordAddMutator::new()),
+            LibAflMutator::WordInterestingMutator(WordInterestingMutator::new()),
+        ];
+
+        for mutator in mutators {
+            // calling unwrap to panic on error
+            let serialized = serde_json::to_string(&mutator).unwrap();
+            let _deserialized: LibAflMutator = serde_json::from_str(&serialized).unwrap();
+        }
     }
 }

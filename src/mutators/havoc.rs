@@ -1,13 +1,11 @@
 //! `LibAFL`'s havoc mutations
-use super::Mutator;
-use crate::input::Data;
-use crate::state::SharedState;
-use crate::{atomic_load, error::FeroxFuzzError};
-
+use std::any::Any;
 use std::sync::atomic::Ordering;
 
 use libafl::bolts::rands::Rand;
 use libafl::state::HasRand;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 use super::afl::{
     BitFlipMutator, ByteAddMutator, ByteDecMutator, ByteFlipMutator, ByteIncMutator,
@@ -17,6 +15,13 @@ use super::afl::{
     CrossoverReplaceMutator, DwordAddMutator, DwordInterestingMutator, LibAflMutator,
     QwordAddMutator, WordAddMutator, WordInterestingMutator,
 };
+
+use super::Mutator;
+use crate::input::Data;
+use crate::metadata::AsAny;
+use crate::state::SharedState;
+use crate::std_ext::tuple::Named;
+use crate::{atomic_load, error::FeroxFuzzError};
 
 use cfg_if::cfg_if;
 use tracing::error;
@@ -61,7 +66,8 @@ cfg_if! {
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct HavocMutator {
     corpus_name: String,
     max_power_of_two: u64,
@@ -203,54 +209,23 @@ impl Mutator for HavocMutator {
     }
 }
 
+impl Named for HavocMutator {
+    fn name(&self) -> &str {
+        "HavocMutator"
+    }
+}
+
+impl AsAny for HavocMutator {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::corpora::{RangeCorpus, Wordlist};
-    use crate::std_ext::convert::AsInner;
+    use crate::corpora::RangeCorpus;
     use std::collections::HashMap;
-
-    macro_rules! test_mutator {
-        ($name:ident, $mutator:expr) => {
-            #[test]
-            fn $name() {
-                let mut mutator = $mutator;
-                let corpus = Wordlist::with_words(["foooooooooo", "barrrrrrrrrrr"])
-                    .name("corpus")
-                    .build();
-                let mut state = SharedState::with_corpus(corpus);
-                state.set_seed(0x12);
-                let mut data = Data::Fuzzable(b"stuff and things".to_vec());
-                mutator.mutate(&mut data, &mut state).unwrap();
-                assert_ne!(data.inner(), &b"stuff and things".to_vec());
-            }
-        };
-    }
-
-    test_mutator!(bit_flip, BitFlipMutator::new());
-    test_mutator!(byte_flip, ByteFlipMutator::new());
-    test_mutator!(byte_inc, ByteIncMutator::new());
-    test_mutator!(byte_dec, ByteDecMutator::new());
-    test_mutator!(byte_neg, ByteNegMutator::new());
-    test_mutator!(byte_rand, ByteRandMutator::new());
-    test_mutator!(byte_add, ByteAddMutator::new());
-    test_mutator!(word_add, WordAddMutator::new());
-    test_mutator!(dword_add, DwordAddMutator::new());
-    test_mutator!(qword_add, QwordAddMutator::new());
-    test_mutator!(byte_interesting, ByteInterestingMutator::new());
-    test_mutator!(word_interesting, WordInterestingMutator::new());
-    test_mutator!(dword_interesting, DwordInterestingMutator::new());
-    test_mutator!(bytes_delete, BytesDeleteMutator::new());
-    test_mutator!(bytes_expand, BytesExpandMutator::new());
-    test_mutator!(bytes_insert, BytesInsertMutator::new());
-    test_mutator!(bytes_rand_insert, BytesRandInsertMutator::new());
-    test_mutator!(bytes_set, BytesSetMutator::new());
-    test_mutator!(bytes_rand_set, BytesRandSetMutator::new());
-    test_mutator!(bytes_copy, BytesCopyMutator::new());
-    test_mutator!(bytes_insert_copy, BytesInsertCopyMutator::new());
-    test_mutator!(bytes_swap, BytesSwapMutator::new());
-    test_mutator!(crossover_replace, CrossoverReplaceMutator::new("corpus"));
-    test_mutator!(crossover_insert, CrossoverInsertMutator::new("corpus"));
 
     #[test]
     fn test_havoc_mutator_new() {
@@ -262,6 +237,13 @@ mod tests {
     fn test_havoc_mutator_max_power_of_two() {
         let mutator = HavocMutator::new("corpus");
         assert_eq!(mutator.max_power_of_two, 6);
+    }
+
+    #[test]
+    fn test_smoke_test_for_ser_de() {
+        let mutator = HavocMutator::new("corpus");
+        let serialized = serde_json::to_string(&mutator).unwrap();
+        let _deserialized: HavocMutator = serde_json::from_str(&serialized).unwrap();
     }
 
     #[test]

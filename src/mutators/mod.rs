@@ -5,8 +5,10 @@ mod wordlist_token;
 
 use crate::error::FeroxFuzzError;
 use crate::input::Data;
+use crate::metadata::AsAny;
 use crate::requests::Request;
 use crate::state::SharedState;
+use crate::std_ext::tuple::Named;
 use crate::MutatorsList;
 
 pub use self::afl::*;
@@ -14,6 +16,7 @@ pub use self::havoc::HavocMutator;
 pub use self::wordlist_token::ReplaceKeyword;
 
 use cfg_if::cfg_if;
+use dyn_clone::DynClone;
 use tracing::instrument;
 
 cfg_if! {
@@ -24,7 +27,7 @@ cfg_if! {
 }
 
 /// A trait to perform some type of mutation of the given fuzzable [`Data`]
-pub trait Mutator {
+pub trait Mutator: DynClone + AsAny + Named + Send + Sync {
     /// given the fuzzer's current [`SharedState`], mutate the given [`Data`] input
     ///
     /// # Errors
@@ -174,5 +177,11 @@ where
     ) -> Result<Request, FeroxFuzzError> {
         let mutated_request = self.0.mutate_fields(state, request)?;
         self.1.call_mutate_hooks(state, mutated_request)
+    }
+}
+
+impl Clone for Box<dyn Mutator> {
+    fn clone(&self) -> Self {
+        dyn_clone::clone_box(&**self)
     }
 }
