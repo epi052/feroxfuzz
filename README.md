@@ -214,7 +214,7 @@ SharedState::{
 
 <table>
   <tr>
-    <td align="center"><a href="https://github.com/iustin24/chameleon"><img src="img/chameleon.png" width="150px;" alt=""/><br /><sub><b>chameleon</b></sub><br /><sub><b>A tech-stack aware content discovery tool</b></sub></a><br /></td>
+    <td align="center"><a href="https://github.com/iustin24/chameleon"><img src="img/chameleon.png" width="150px;" alt=""/><br /><sub><b>chameleon</b></sub></a><br /></td>
   </tr>
 </table>
 
