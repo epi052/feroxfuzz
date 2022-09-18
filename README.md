@@ -49,6 +49,12 @@ FeroxFuzz's overall design is derived from [LibAFL](https://github.com/AFLpluspl
 
 Similar to LibAFL, FeroxFuzz is a composable fuzzing library. However, unlike LibAFL, FeroxFuzz is solely focused on **black box HTTP fuzzing**.
 
+## Fuzz-loop execution flow
+
+Below is a visual depiction of the different components, hooks, and control flow employed by FeroxFuzz.
+
+![fuzz-flow](img/fuzz-flow.png)
+
 ## 🚧 Warning: Under Construction 🚧
 
 FeroxFuzz is very capable, and was made to suit all of my planned needs for a new `feroxbuster`. However, I still expect FeroxFuzz's API to change, at least slightly, as work on the new version of `feroxbuster` begins.
