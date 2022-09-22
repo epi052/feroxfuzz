@@ -414,6 +414,15 @@ impl WordlistBuilder<HasItems, HasName> {
     }
 }
 
+impl WordlistBuilder<NoItems, HasName> {
+    pub fn build(self) -> CorpusType {
+        CorpusType::Wordlist(Wordlist {
+            items: Vec::new(),
+            corpus_name: self.corpus_name.unwrap(),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
