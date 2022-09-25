@@ -29,7 +29,7 @@
   <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
   <a href="https://github.com/epi052/feroxfuzz/graphs/contributors">
-    <img src="https://img.shields.io/badge/all_contributors-1-orange.svg" />
+    <img src="https://img.shields.io/badge/all_contributors-2-orange.svg" />
   </a>
 </p>
 
