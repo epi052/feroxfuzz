@@ -74,7 +74,7 @@ where
     S: Scheduler,
 {
     #[instrument(skip_all, fields(?self.post_send_logic, ?self.pre_send_logic), name = "fuzz-loop", level = "trace")]
-    fn fuzz_once(&mut self, state: &mut SharedState) -> Result<(), FeroxFuzzError> {
+    fn fuzz_once(&mut self, state: &mut SharedState) -> Result<Option<Action>, FeroxFuzzError> {
         while self.scheduler.next().is_ok() {
             let mut mutated_request = self
                 .mutators
@@ -112,6 +112,9 @@ where
                     }
                     // ignore when flow control is Keep, same as we do for Action::Keep below
                 }
+                Some(Action::StopFuzzing) => {
+                    return Ok(Some(Action::StopFuzzing));
+                }
                 _ => {
                     // do nothing if it's None or an Action::Keep
                 }
@@ -142,12 +145,21 @@ where
             self.processors
                 .call_post_send_hooks(state, &self.observers, decision.as_ref());
 
-            if let Some(Action::AddToCorpus(name, _flow_control)) = decision {
-                // if we've reached this point, flow control doesn't matter anymore; the
-                // only thing we need to check at this point is if we need to alter the
-                // corpus
+            match decision {
+                // if we've reached this point, the only flow control that matters anymore is
+                // if the fuzzer should stop fuzzing; that means the only thing we need
+                // to check at this point is if we need to alter the corpus
+                Some(Action::AddToCorpus(name, flow_control)) => {
+                    state.add_to_corpus(name, &mutated_request)?;
 
-                state.add_to_corpus(name, &mutated_request)?;
+                    if matches!(flow_control, FlowControl::StopFuzzing) {
+                        return Ok(Some(Action::StopFuzzing));
+                    }
+                }
+                Some(Action::StopFuzzing) => {
+                    return Ok(Some(Action::StopFuzzing));
+                }
+                _ => {}
             }
 
             self.request_id += 1;
@@ -156,7 +168,7 @@ where
         // in case we're fuzzing more than once, reset the scheduler
         self.scheduler.reset();
 
-        Ok(())
+        Ok(None) // no action to take
     }
 }
 

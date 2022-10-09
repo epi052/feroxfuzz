@@ -132,53 +132,63 @@ impl Len for usize {
 /// [`Action::Keep`] and [`Action::Discard`] are analogous to true and false
 /// and bitwise operations work on them the same way they would on true and false.
 ///
+/// [`Action::StopFuzzing`] takes precedence over all other actions.
+///
 /// # Truth tables
 ///
 /// ## `LogicOperation::And` operation on an [`Action`]
 ///
-/// |-------------------------------------|-------------------------------------|-------------------------------------|
-/// | A                                   | B                                   | A & B                               |
-/// |-------------------------------------|-------------------------------------|-------------------------------------|
-/// | `Keep`                              | `Keep`                              | `Keep`                              |
-/// | `Keep`                              | `Discard`                           | `Discard`                           |
-/// | `Keep`                              | `AddToCorpus(FlowControl::Keep)`    | `AddToCorpus(FlowControl::Keep)`    |
-/// | `Keep`                              | `AddToCorpus(FlowControl::Discard)` | `AddToCorpus(FlowControl::Discard)` |
-/// | `Discard`                           | `Keep`                              | `Discard`                           |
-/// | `Discard`                           | `Discard`                           | `Discard`                           |
-/// | `Discard`                           | `AddToCorpus(FlowControl::Keep)`    | `AddToCorpus(FlowControl::Discard)` |
-/// | `Discard`                           | `AddToCorpus(FlowControl::Discard)` | `AddToCorpus(FlowControl::Discard)` |
-/// | `AddToCorpus(FlowControl::Keep)`    | `Keep`                              | `AddToCorpus(FlowControl::Keep)`    |
-/// | `AddToCorpus(FlowControl::Keep)`    | `Discard`                           | `AddToCorpus(FlowControl::Discard)` |
-/// | `AddToCorpus(FlowControl::Keep)`    | `AddToCorpus(FlowControl::Keep)`    | `AddToCorpus(FlowControl::Keep)`    |
-/// | `AddToCorpus(FlowControl::Keep)`    | `AddToCorpus(FlowControl::Discard)` | `AddToCorpus(FlowControl::Discard)` |
-/// | `AddToCorpus(FlowControl::Discard)` | `Keep`                              | `AddToCorpus(FlowControl::Discard)` |
-/// | `AddToCorpus(FlowControl::Discard)` | `Discard`                           | `AddToCorpus(FlowControl::Discard)` |
-/// | `AddToCorpus(FlowControl::Discard)` | `AddToCorpus(FlowControl::Keep)`    | `AddToCorpus(FlowControl::Discard)` |
-/// | `AddToCorpus(FlowControl::Discard)` | `AddToCorpus(FlowControl::Discard)` | `AddToCorpus(FlowControl::Discard)` |
-/// |-------------------------------------|-------------------------------------|-------------------------------------|
+/// |-----------------------------------------|-----------------------------------------|-----------------------------------------|
+/// | A                                       | B                                       | A & B                                   |
+/// |-----------------------------------------|-----------------------------------------|-----------------------------------------|
+/// | `StopFuzzing`                           | `*`                                     | `StopFuzzing`                           |
+/// | `*`                                     | `StopFuzzing`                           | `StopFuzzing`                           |
+/// | `AddToCorpus(FlowControl::StopFuzzing)` | `*`                                     | `AddToCorpus(FlowControl::StopFuzzing)` |
+/// | `*`                                     | `AddToCorpus(FlowControl::StopFuzzing)` | `AddToCorpus(FlowControl::StopFuzzing)` |
+/// | `Keep`                                  | `Keep`                                  | `Keep`                                  |
+/// | `Keep`                                  | `Discard`                               | `Discard`                               |
+/// | `Keep`                                  | `AddToCorpus(FlowControl::Keep)`        | `AddToCorpus(FlowControl::Keep)`        |
+/// | `Keep`                                  | `AddToCorpus(FlowControl::Discard)`     | `AddToCorpus(FlowControl::Discard)`     |
+/// | `Discard`                               | `Keep`                                  | `Discard`                               |
+/// | `Discard`                               | `Discard`                               | `Discard`                               |
+/// | `Discard`                               | `AddToCorpus(FlowControl::Keep)`        | `AddToCorpus(FlowControl::Discard)`     |
+/// | `Discard`                               | `AddToCorpus(FlowControl::Discard)`     | `AddToCorpus(FlowControl::Discard)`     |
+/// | `AddToCorpus(FlowControl::Keep)`        | `Keep`                                  | `AddToCorpus(FlowControl::Keep)`        |
+/// | `AddToCorpus(FlowControl::Keep)`        | `Discard`                               | `AddToCorpus(FlowControl::Discard)`     |
+/// | `AddToCorpus(FlowControl::Keep)`        | `AddToCorpus(FlowControl::Keep)`        | `AddToCorpus(FlowControl::Keep)`        |
+/// | `AddToCorpus(FlowControl::Keep)`        | `AddToCorpus(FlowControl::Discard)`     | `AddToCorpus(FlowControl::Discard)`     |
+/// | `AddToCorpus(FlowControl::Discard)`     | `Keep`                                  | `AddToCorpus(FlowControl::Discard)`     |
+/// | `AddToCorpus(FlowControl::Discard)`     | `Discard`                               | `AddToCorpus(FlowControl::Discard)`     |
+/// | `AddToCorpus(FlowControl::Discard)`     | `AddToCorpus(FlowControl::Keep)`        | `AddToCorpus(FlowControl::Discard)`     |
+/// | `AddToCorpus(FlowControl::Discard)`     | `AddToCorpus(FlowControl::Discard)`     | `AddToCorpus(FlowControl::Discard)`     |
+/// |-----------------------------------------|-----------------------------------------|-----------------------------------------|
 ///
 /// ## `LogicOperation::Or` operation on an [`Action`]
 ///
-/// |-------------------------------------|-------------------------------------|-------------------------------------|
-/// | A                                   | B                                   | A | B                               |
-/// |-------------------------------------|-------------------------------------|-------------------------------------|
-/// | `Keep`                              | `Keep`                              | `Keep`                              |
-/// | `Keep`                              | `Discard`                           | `Keep`                              |
-/// | `Keep`                              | `AddToCorpus(FlowControl::Keep)`    | `AddToCorpus(FlowControl::Keep)`    |
-/// | `Keep`                              | `AddToCorpus(FlowControl::Discard)` | `AddToCorpus(FlowControl::Keep)`    |
-/// | `Discard`                           | `Keep`                              | `Keep`                              |
-/// | `Discard`                           | `Discard`                           | `Discard`                           |
-/// | `Discard`                           | `AddToCorpus(FlowControl::Keep)`    | `AddToCorpus(FlowControl::Keep)`    |
-/// | `Discard`                           | `AddToCorpus(FlowControl::Discard)` | `AddToCorpus(FlowControl::Discard)` |
-/// | `AddToCorpus(FlowControl::Keep)`    | `Keep`                              | `AddToCorpus(FlowControl::Keep)`    |
-/// | `AddToCorpus(FlowControl::Keep)`    | `Discard`                           | `AddToCorpus(FlowControl::Keep)`    |
-/// | `AddToCorpus(FlowControl::Keep)`    | `AddToCorpus(FlowControl::Keep)`    | `AddToCorpus(FlowControl::Keep)`    |
-/// | `AddToCorpus(FlowControl::Keep)`    | `AddToCorpus(FlowControl::Discard)` | `AddToCorpus(FlowControl::Keep)`    |
-/// | `AddToCorpus(FlowControl::Discard)` | `Keep`                              | `AddToCorpus(FlowControl::Keep)`    |
-/// | `AddToCorpus(FlowControl::Discard)` | `Discard`                           | `AddToCorpus(FlowControl::Discard)` |
-/// | `AddToCorpus(FlowControl::Discard)` | `AddToCorpus(FlowControl::Keep)`    | `AddToCorpus(FlowControl::Keep)`    |
-/// | `AddToCorpus(FlowControl::Discard)` | `AddToCorpus(FlowControl::Discard)` | `AddToCorpus(FlowControl::Discard)` |
-/// |-------------------------------------|-------------------------------------|-------------------------------------|
+/// |-----------------------------------------|-----------------------------------------|-----------------------------------------|
+/// | A                                       | B                                       | A | B                                   |
+/// |-----------------------------------------|-----------------------------------------|-----------------------------------------|
+/// | `StopFuzzing`                           | `*`                                     | `StopFuzzing`                           |
+/// | `*`                                     | `StopFuzzing`                           | `StopFuzzing`                           |
+/// | `AddToCorpus(FlowControl::StopFuzzing)` | `*`                                     | `AddToCorpus(FlowControl::StopFuzzing)` |
+/// | `*`                                     | `AddToCorpus(FlowControl::StopFuzzing)` | `AddToCorpus(FlowControl::StopFuzzing)` |
+/// | `Keep`                                  | `Keep`                                  | `Keep`                                  |
+/// | `Keep`                                  | `Discard`                               | `Keep`                                  |
+/// | `Keep`                                  | `AddToCorpus(FlowControl::Keep)`        | `AddToCorpus(FlowControl::Keep)`        |
+/// | `Keep`                                  | `AddToCorpus(FlowControl::Discard)`     | `AddToCorpus(FlowControl::Keep)`        |
+/// | `Discard`                               | `Keep`                                  | `Keep`                                  |
+/// | `Discard`                               | `Discard`                               | `Discard`                               |
+/// | `Discard`                               | `AddToCorpus(FlowControl::Keep)`        | `AddToCorpus(FlowControl::Keep)`        |
+/// | `Discard`                               | `AddToCorpus(FlowControl::Discard)`     | `AddToCorpus(FlowControl::Discard)`     |
+/// | `AddToCorpus(FlowControl::Keep)`        | `Keep`                                  | `AddToCorpus(FlowControl::Keep)`        |
+/// | `AddToCorpus(FlowControl::Keep)`        | `Discard`                               | `AddToCorpus(FlowControl::Keep)`        |
+/// | `AddToCorpus(FlowControl::Keep)`        | `AddToCorpus(FlowControl::Keep)`        | `AddToCorpus(FlowControl::Keep)`        |
+/// | `AddToCorpus(FlowControl::Keep)`        | `AddToCorpus(FlowControl::Discard)`     | `AddToCorpus(FlowControl::Keep)`        |
+/// | `AddToCorpus(FlowControl::Discard)`     | `Keep`                                  | `AddToCorpus(FlowControl::Keep)`        |
+/// | `AddToCorpus(FlowControl::Discard)`     | `Discard`                               | `AddToCorpus(FlowControl::Discard)`     |
+/// | `AddToCorpus(FlowControl::Discard)`     | `AddToCorpus(FlowControl::Keep)`        | `AddToCorpus(FlowControl::Keep)`        |
+/// | `AddToCorpus(FlowControl::Discard)`     | `AddToCorpus(FlowControl::Discard)`     | `AddToCorpus(FlowControl::Discard)`     |
+/// |-----------------------------------------|-----------------------------------------|-----------------------------------------|
 ///
 #[derive(Copy, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -208,6 +218,8 @@ impl BitAnd for Action {
             (lhs, Self::AddToCorpus(name, flow_control)) => {
                 Self::AddToCorpus(name, flow_control & lhs)
             }
+            (Self::StopFuzzing, _) => Self::StopFuzzing,
+            (_, Self::StopFuzzing) => Self::StopFuzzing,
         }
     }
 }
@@ -223,6 +235,8 @@ impl BitAnd<FlowControl> for Action {
             (Self::AddToCorpus(name, flow_control), other) => {
                 Self::AddToCorpus(name, flow_control & other)
             }
+            (Self::StopFuzzing, _) => Self::StopFuzzing,
+            (_, FlowControl::StopFuzzing) => Self::StopFuzzing,
         }
     }
 }
@@ -237,6 +251,8 @@ impl BitAnd for FlowControl {
             (Self::Keep | Self::Discard, Self::Discard) | (Self::Discard, Self::Keep) => {
                 Self::Discard
             }
+            (Self::StopFuzzing, _) => Self::StopFuzzing,
+            (_, Self::StopFuzzing) => Self::StopFuzzing,
         }
     }
 }
@@ -256,6 +272,8 @@ impl BitAnd<Action> for FlowControl {
                 // just use the bitwise operation
                 lhs & flow_control
             }
+            (_, Action::StopFuzzing) => Self::StopFuzzing,
+            (Self::StopFuzzing, Action::Keep | Action::Discard) => Self::StopFuzzing,
         }
     }
 }
@@ -274,6 +292,8 @@ impl BitOr for Action {
             (lhs, Self::AddToCorpus(name, flow_control)) => {
                 Self::AddToCorpus(name, flow_control | lhs)
             }
+            (Self::StopFuzzing, _) => Self::StopFuzzing,
+            (_, Self::StopFuzzing) => Self::StopFuzzing,
         }
     }
 }
@@ -290,6 +310,8 @@ impl BitOr<FlowControl> for Action {
             (Self::AddToCorpus(name, flow_control), other) => {
                 Self::AddToCorpus(name, flow_control | other)
             }
+            (Self::StopFuzzing, _) => Self::StopFuzzing,
+            (_, FlowControl::StopFuzzing) => Self::StopFuzzing,
         }
     }
 }
@@ -302,6 +324,8 @@ impl BitOr for FlowControl {
         match (&self, &rhs) {
             (Self::Keep | Self::Discard, Self::Keep) | (Self::Keep, Self::Discard) => Self::Keep,
             (Self::Discard, Self::Discard) => Self::Discard,
+            (Self::StopFuzzing, _) => Self::StopFuzzing,
+            (_, Self::StopFuzzing) => Self::StopFuzzing,
         }
     }
 }
@@ -321,6 +345,8 @@ impl BitOr<Action> for FlowControl {
                 // just use the bitwise operation
                 lhs | flow_control
             }
+            (_, Action::StopFuzzing) => Self::StopFuzzing,
+            (Self::StopFuzzing, Action::Keep | Action::Discard) => Self::StopFuzzing,
         }
     }
 }
@@ -336,6 +362,7 @@ mod tests {
         // action & action::keep
         assert_eq!(Action::Keep & Action::Keep, Action::Keep);
         assert_eq!(Action::Discard & Action::Keep, Action::Discard);
+        assert_eq!(Action::StopFuzzing & Action::Keep, Action::StopFuzzing);
         assert_eq!(
             Action::AddToCorpus("stuff", FlowControl::Keep) & Action::Keep,
             Action::AddToCorpus("stuff", FlowControl::Keep)
@@ -344,10 +371,15 @@ mod tests {
             Action::AddToCorpus("stuff", FlowControl::Discard) & Action::Keep,
             Action::AddToCorpus("stuff", FlowControl::Discard)
         );
+        assert_eq!(
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing) & Action::Keep,
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+        );
 
         // action & action::discard
         assert_eq!(Action::Keep & Action::Discard, Action::Discard);
         assert_eq!(Action::Discard & Action::Discard, Action::Discard);
+        assert_eq!(Action::StopFuzzing & Action::Discard, Action::StopFuzzing);
         assert_eq!(
             Action::AddToCorpus("stuff", FlowControl::Keep) & Action::Discard,
             Action::AddToCorpus("stuff", FlowControl::Discard)
@@ -355,6 +387,10 @@ mod tests {
         assert_eq!(
             Action::AddToCorpus("stuff", FlowControl::Discard) & Action::Discard,
             Action::AddToCorpus("stuff", FlowControl::Discard)
+        );
+        assert_eq!(
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing) & Action::Discard,
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
         );
 
         // action & addtocorpus::keep
@@ -367,6 +403,10 @@ mod tests {
             Action::AddToCorpus("stuff", FlowControl::Discard)
         );
         assert_eq!(
+            Action::StopFuzzing & Action::AddToCorpus("stuff", FlowControl::Keep),
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+        );
+        assert_eq!(
             Action::AddToCorpus("stuff", FlowControl::Keep)
                 & Action::AddToCorpus("stuff", FlowControl::Keep),
             Action::AddToCorpus("stuff", FlowControl::Keep)
@@ -375,6 +415,11 @@ mod tests {
             Action::AddToCorpus("stuff", FlowControl::Discard)
                 & Action::AddToCorpus("stuff", FlowControl::Keep),
             Action::AddToCorpus("stuff", FlowControl::Discard)
+        );
+        assert_eq!(
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+                & Action::AddToCorpus("stuff", FlowControl::Keep),
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
         );
 
         // action & addtocorpus::discard
@@ -387,6 +432,10 @@ mod tests {
             Action::AddToCorpus("stuff", FlowControl::Discard)
         );
         assert_eq!(
+            Action::StopFuzzing & Action::AddToCorpus("stuff", FlowControl::Discard),
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+        );
+        assert_eq!(
             Action::AddToCorpus("stuff", FlowControl::Keep)
                 & Action::AddToCorpus("stuff", FlowControl::Discard),
             Action::AddToCorpus("stuff", FlowControl::Discard)
@@ -395,6 +444,40 @@ mod tests {
             Action::AddToCorpus("stuff", FlowControl::Discard)
                 & Action::AddToCorpus("stuff", FlowControl::Discard),
             Action::AddToCorpus("stuff", FlowControl::Discard)
+        );
+        assert_eq!(
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+                & Action::AddToCorpus("stuff", FlowControl::Discard),
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+        );
+
+        // action & addtocorpus::stopfuzzing
+        assert_eq!(
+            Action::Keep & Action::AddToCorpus("stuff", FlowControl::StopFuzzing),
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+        );
+        assert_eq!(
+            Action::Discard & Action::AddToCorpus("stuff", FlowControl::StopFuzzing),
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+        );
+        assert_eq!(
+            Action::StopFuzzing & Action::AddToCorpus("stuff", FlowControl::StopFuzzing),
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+        );
+        assert_eq!(
+            Action::AddToCorpus("stuff", FlowControl::Keep)
+                & Action::AddToCorpus("stuff", FlowControl::StopFuzzing),
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+        );
+        assert_eq!(
+            Action::AddToCorpus("stuff", FlowControl::Discard)
+                & Action::AddToCorpus("stuff", FlowControl::StopFuzzing),
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+        );
+        assert_eq!(
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+                & Action::AddToCorpus("stuff", FlowControl::StopFuzzing),
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
         );
     }
 
@@ -405,6 +488,7 @@ mod tests {
         // action & flowcontrol::keep
         assert_eq!(Action::Keep & FlowControl::Keep, Action::Keep);
         assert_eq!(Action::Discard & FlowControl::Keep, Action::Discard);
+        assert_eq!(Action::StopFuzzing & FlowControl::Keep, Action::StopFuzzing);
         assert_eq!(
             Action::AddToCorpus("stuff", FlowControl::Keep) & FlowControl::Keep,
             Action::AddToCorpus("stuff", FlowControl::Keep)
@@ -413,10 +497,18 @@ mod tests {
             Action::AddToCorpus("stuff", FlowControl::Discard) & FlowControl::Keep,
             Action::AddToCorpus("stuff", FlowControl::Discard)
         );
+        assert_eq!(
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing) & FlowControl::Keep,
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+        );
 
         // action & flowcontrol::discard
         assert_eq!(Action::Keep & FlowControl::Discard, Action::Discard);
         assert_eq!(Action::Discard & FlowControl::Discard, Action::Discard);
+        assert_eq!(
+            Action::StopFuzzing & FlowControl::Discard,
+            Action::StopFuzzing
+        );
         assert_eq!(
             Action::AddToCorpus("stuff", FlowControl::Keep) & FlowControl::Discard,
             Action::AddToCorpus("stuff", FlowControl::Discard)
@@ -424,6 +516,10 @@ mod tests {
         assert_eq!(
             Action::AddToCorpus("stuff", FlowControl::Discard) & FlowControl::Discard,
             Action::AddToCorpus("stuff", FlowControl::Discard)
+        );
+        assert_eq!(
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing) & FlowControl::Discard,
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
         );
     }
 
@@ -437,6 +533,10 @@ mod tests {
             FlowControl::Discard & FlowControl::Keep,
             FlowControl::Discard
         );
+        assert_eq!(
+            FlowControl::StopFuzzing & FlowControl::Keep,
+            FlowControl::StopFuzzing
+        );
 
         // flowcontrol & flowcontrol::discard
         assert_eq!(
@@ -447,6 +547,10 @@ mod tests {
             FlowControl::Discard & FlowControl::Discard,
             FlowControl::Discard
         );
+        assert_eq!(
+            FlowControl::StopFuzzing & FlowControl::Discard,
+            FlowControl::StopFuzzing
+        );
     }
 
     /// test that the `BitAnd` implementation for `Action` and `FlowControl`
@@ -456,10 +560,18 @@ mod tests {
         // flowcontrol & action::keep
         assert_eq!(FlowControl::Keep & Action::Keep, FlowControl::Keep);
         assert_eq!(FlowControl::Discard & Action::Keep, FlowControl::Discard);
+        assert_eq!(
+            FlowControl::StopFuzzing & Action::Keep,
+            FlowControl::StopFuzzing
+        );
 
         // flowcontrol & action::discard
         assert_eq!(FlowControl::Keep & Action::Discard, FlowControl::Discard);
         assert_eq!(FlowControl::Discard & Action::Discard, FlowControl::Discard);
+        assert_eq!(
+            FlowControl::StopFuzzing & Action::Discard,
+            FlowControl::StopFuzzing
+        );
 
         // flowcontrol & action::addtocorpus::keep
         assert_eq!(
@@ -470,6 +582,10 @@ mod tests {
             FlowControl::Discard & Action::AddToCorpus("stuff", FlowControl::Keep),
             FlowControl::Discard
         );
+        assert_eq!(
+            FlowControl::StopFuzzing & Action::AddToCorpus("stuff", FlowControl::Keep),
+            FlowControl::StopFuzzing
+        );
 
         // flowcontrol & action::addtocorpus::discard
         assert_eq!(
@@ -479,6 +595,10 @@ mod tests {
         assert_eq!(
             FlowControl::Discard & Action::AddToCorpus("stuff", FlowControl::Discard),
             FlowControl::Discard
+        );
+        assert_eq!(
+            FlowControl::StopFuzzing & Action::AddToCorpus("stuff", FlowControl::Discard),
+            FlowControl::StopFuzzing
         );
     }
 
@@ -491,6 +611,7 @@ mod tests {
         // action | action::keep
         assert_eq!(Action::Keep | Action::Keep, Action::Keep);
         assert_eq!(Action::Discard | Action::Keep, Action::Keep);
+        assert_eq!(Action::StopFuzzing | Action::Keep, Action::StopFuzzing);
         assert_eq!(
             Action::AddToCorpus("stuff", FlowControl::Keep) | Action::Keep,
             Action::AddToCorpus("stuff", FlowControl::Keep)
@@ -499,10 +620,15 @@ mod tests {
             Action::AddToCorpus("stuff", FlowControl::Discard) | Action::Keep,
             Action::AddToCorpus("stuff", FlowControl::Keep)
         );
+        assert_eq!(
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing) | Action::Keep,
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+        );
 
         // action | action::discard
         assert_eq!(Action::Keep | Action::Discard, Action::Keep);
         assert_eq!(Action::Discard | Action::Discard, Action::Discard);
+        assert_eq!(Action::StopFuzzing | Action::Discard, Action::StopFuzzing);
         assert_eq!(
             Action::AddToCorpus("stuff", FlowControl::Keep) | Action::Discard,
             Action::AddToCorpus("stuff", FlowControl::Keep)
@@ -510,6 +636,10 @@ mod tests {
         assert_eq!(
             Action::AddToCorpus("stuff", FlowControl::Discard) | Action::Discard,
             Action::AddToCorpus("stuff", FlowControl::Discard)
+        );
+        assert_eq!(
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing) | Action::Discard,
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
         );
 
         // action | addtocorpus::keep
@@ -522,6 +652,10 @@ mod tests {
             Action::AddToCorpus("stuff", FlowControl::Keep)
         );
         assert_eq!(
+            Action::StopFuzzing | Action::AddToCorpus("stuff", FlowControl::Keep),
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+        );
+        assert_eq!(
             Action::AddToCorpus("stuff", FlowControl::Keep)
                 | Action::AddToCorpus("stuff", FlowControl::Keep),
             Action::AddToCorpus("stuff", FlowControl::Keep)
@@ -530,6 +664,11 @@ mod tests {
             Action::AddToCorpus("stuff", FlowControl::Discard)
                 | Action::AddToCorpus("stuff", FlowControl::Keep),
             Action::AddToCorpus("stuff", FlowControl::Keep)
+        );
+        assert_eq!(
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+                | Action::AddToCorpus("stuff", FlowControl::Keep),
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
         );
 
         // action | addtocorpus::discard
@@ -542,6 +681,10 @@ mod tests {
             Action::AddToCorpus("stuff", FlowControl::Discard)
         );
         assert_eq!(
+            Action::StopFuzzing | Action::AddToCorpus("stuff", FlowControl::Discard),
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+        );
+        assert_eq!(
             Action::AddToCorpus("stuff", FlowControl::Keep)
                 | Action::AddToCorpus("stuff", FlowControl::Discard),
             Action::AddToCorpus("stuff", FlowControl::Keep)
@@ -550,6 +693,11 @@ mod tests {
             Action::AddToCorpus("stuff", FlowControl::Discard)
                 | Action::AddToCorpus("stuff", FlowControl::Discard),
             Action::AddToCorpus("stuff", FlowControl::Discard)
+        );
+        assert_eq!(
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+                | Action::AddToCorpus("stuff", FlowControl::Discard),
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
         );
     }
 
@@ -560,6 +708,7 @@ mod tests {
         // action | flowcontrol::keep
         assert_eq!(Action::Keep | FlowControl::Keep, Action::Keep);
         assert_eq!(Action::Discard | FlowControl::Keep, Action::Keep);
+        assert_eq!(Action::StopFuzzing | FlowControl::Keep, Action::StopFuzzing);
         assert_eq!(
             Action::AddToCorpus("stuff", FlowControl::Keep) | FlowControl::Keep,
             Action::AddToCorpus("stuff", FlowControl::Keep)
@@ -568,10 +717,18 @@ mod tests {
             Action::AddToCorpus("stuff", FlowControl::Discard) | FlowControl::Keep,
             Action::AddToCorpus("stuff", FlowControl::Keep)
         );
+        assert_eq!(
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing) | FlowControl::Keep,
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+        );
 
         // action | flowcontrol::discard
         assert_eq!(Action::Keep | FlowControl::Discard, Action::Keep);
         assert_eq!(Action::Discard | FlowControl::Discard, Action::Discard);
+        assert_eq!(
+            Action::StopFuzzing | FlowControl::Discard,
+            Action::StopFuzzing
+        );
         assert_eq!(
             Action::AddToCorpus("stuff", FlowControl::Keep) | FlowControl::Discard,
             Action::AddToCorpus("stuff", FlowControl::Keep)
@@ -579,6 +736,10 @@ mod tests {
         assert_eq!(
             Action::AddToCorpus("stuff", FlowControl::Discard) | FlowControl::Discard,
             Action::AddToCorpus("stuff", FlowControl::Discard)
+        );
+        assert_eq!(
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing) | FlowControl::Discard,
+            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
         );
     }
 
@@ -589,12 +750,20 @@ mod tests {
         // flowcontrol | flowcontrol::keep
         assert_eq!(FlowControl::Keep | FlowControl::Keep, FlowControl::Keep);
         assert_eq!(FlowControl::Discard | FlowControl::Keep, FlowControl::Keep);
+        assert_eq!(
+            FlowControl::StopFuzzing | FlowControl::Keep,
+            FlowControl::StopFuzzing
+        );
 
         // flowcontrol | flowcontrol::discard
         assert_eq!(FlowControl::Keep | FlowControl::Discard, FlowControl::Keep);
         assert_eq!(
             FlowControl::Discard | FlowControl::Discard,
             FlowControl::Discard
+        );
+        assert_eq!(
+            FlowControl::StopFuzzing | FlowControl::Discard,
+            FlowControl::StopFuzzing
         );
     }
 
@@ -605,10 +774,18 @@ mod tests {
         // flowcontrol | action::keep
         assert_eq!(FlowControl::Keep | Action::Keep, FlowControl::Keep);
         assert_eq!(FlowControl::Discard | Action::Keep, FlowControl::Keep);
+        assert_eq!(
+            FlowControl::StopFuzzing | Action::Keep,
+            FlowControl::StopFuzzing
+        );
 
         // flowcontrol | action::discard
         assert_eq!(FlowControl::Keep | Action::Discard, FlowControl::Keep);
         assert_eq!(FlowControl::Discard | Action::Discard, FlowControl::Discard);
+        assert_eq!(
+            FlowControl::StopFuzzing | Action::Discard,
+            FlowControl::StopFuzzing
+        );
 
         // flowcontrol | action::addtocorpus::keep
         assert_eq!(
@@ -619,6 +796,10 @@ mod tests {
             FlowControl::Discard | Action::AddToCorpus("stuff", FlowControl::Keep),
             FlowControl::Keep
         );
+        assert_eq!(
+            FlowControl::StopFuzzing | Action::AddToCorpus("stuff", FlowControl::Keep),
+            FlowControl::StopFuzzing
+        );
 
         // flowcontrol | action::addtocorpus::discard
         assert_eq!(
@@ -628,6 +809,10 @@ mod tests {
         assert_eq!(
             FlowControl::Discard | Action::AddToCorpus("stuff", FlowControl::Discard),
             FlowControl::Discard
+        );
+        assert_eq!(
+            FlowControl::StopFuzzing | Action::AddToCorpus("stuff", FlowControl::Discard),
+            FlowControl::StopFuzzing
         );
     }
 }

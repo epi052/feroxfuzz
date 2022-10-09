@@ -45,9 +45,13 @@ pub enum Action {
     /// resulting `Action` will still be passed to any configured
     /// [`Processor`]s.
     AddToCorpus(&'static str, FlowControl),
+
+    /// break out of the current fuzz loop; no more iterations other than
+    /// what's already in flight will be performed
+    StopFuzzing,
 }
 
-/// analogous to the [`Action::Keep`] and [`Action::Discard`] variants
+/// analogous to the [`Action::Keep`], [`Action::Discard`], and [`Action::StopFuzzing`] variants
 ///
 /// used when the [`Action`] isn't a flow control directive itself
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
@@ -61,4 +65,8 @@ pub enum FlowControl {
     /// when used in a pre-send context, ignore the current [`Request`], if
     /// used in a post-send context, ignore the current [`Response`]
     Discard,
+
+    /// break out of the current fuzz loop; no more iterations other than
+    /// what's already in flight will be performed
+    StopFuzzing,
 }

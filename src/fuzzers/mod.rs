@@ -1,4 +1,5 @@
 //! [`Corpus`] based iterators of different flavors
+use crate::actions::Action;
 use crate::deciders::LogicOperation;
 use crate::error::FeroxFuzzError;
 use crate::state::SharedState;
@@ -63,7 +64,9 @@ pub trait AsyncFuzzing: Fuzzer {
     /// see [`Fuzzer`]'s Errors section for more details
     async fn fuzz(&mut self, state: &mut SharedState) -> Result<(), FeroxFuzzError> {
         loop {
-            self.fuzz_once(state).await?;
+            if let Some(Action::StopFuzzing) = self.fuzz_once(state).await? {
+                break Ok(());
+            }
         }
     }
 
@@ -74,7 +77,10 @@ pub trait AsyncFuzzing: Fuzzer {
     ///
     /// implementors of this function may return an error from any of the composable
     /// fuzzer components, as this is the primary driver function of any fuzzer
-    async fn fuzz_once(&mut self, state: &mut SharedState) -> Result<(), FeroxFuzzError>;
+    async fn fuzz_once(
+        &mut self,
+        state: &mut SharedState,
+    ) -> Result<Option<Action>, FeroxFuzzError>;
 
     /// fuzz for `n` cycles, where a cycle is one full iteration of the corpus along
     /// with all fuzzer stages
@@ -89,7 +95,9 @@ pub trait AsyncFuzzing: Fuzzer {
         state: &mut SharedState,
     ) -> Result<(), FeroxFuzzError> {
         for _ in 0..num_iterations {
-            self.fuzz_once(state).await?;
+            if let Some(Action::StopFuzzing) = self.fuzz_once(state).await? {
+                break;
+            }
         }
 
         Ok(())
@@ -108,7 +116,9 @@ pub trait BlockingFuzzing: Fuzzer {
     /// see [`Fuzzer`]'s Errors section for more details
     fn fuzz(&mut self, state: &mut SharedState) -> Result<(), FeroxFuzzError> {
         loop {
-            self.fuzz_once(state)?;
+            if let Some(Action::StopFuzzing) = self.fuzz_once(state)? {
+                break Ok(());
+            }
         }
     }
 
@@ -119,7 +129,7 @@ pub trait BlockingFuzzing: Fuzzer {
     ///
     /// implementors of this function may return an error from any of the composable
     /// fuzzer components, as this is the primary driver function of any fuzzer
-    fn fuzz_once(&mut self, state: &mut SharedState) -> Result<(), FeroxFuzzError>;
+    fn fuzz_once(&mut self, state: &mut SharedState) -> Result<Option<Action>, FeroxFuzzError>;
 
     /// fuzz for `n` cycles, where a cycle is one full iteration of the corpus along
     /// with all fuzzer stages
@@ -134,7 +144,9 @@ pub trait BlockingFuzzing: Fuzzer {
         state: &mut SharedState,
     ) -> Result<(), FeroxFuzzError> {
         for _ in 0..num_iterations {
-            self.fuzz_once(state)?;
+            if let Some(Action::StopFuzzing) = self.fuzz_once(state)? {
+                break;
+            }
         }
 
         Ok(())

@@ -1,8 +1,11 @@
 use std::fmt::Debug;
 use std::iter::Iterator;
 use std::marker::Send;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use async_trait::async_trait;
+use futures::future;
 use futures::stream;
 use futures::StreamExt;
 use tokio::task::JoinHandle;
@@ -133,12 +136,21 @@ where
     <S as Iterator>::Item: Debug,
 {
     #[instrument(skip_all, fields(%self.threads, ?self.post_send_logic, ?self.pre_send_logic) name = "fuzz-loop", level = "trace")]
-    async fn fuzz_once(&mut self, state: &mut SharedState) -> Result<(), FeroxFuzzError> {
+    async fn fuzz_once(
+        &mut self,
+        state: &mut SharedState,
+    ) -> Result<Option<Action>, FeroxFuzzError> {
         let num_threads = self.threads;
         let post_send_logic = self.post_send_logic().unwrap_or_default();
         let scheduler = self.scheduler.clone();
 
-        stream::iter(scheduler)
+        // facilitates a way to 'break' out of the iterator
+        let mut err = Ok(());
+        let mut pre_send_action = None;
+        // let mut post_send_action = &mut None;
+        let should_quit = Arc::new(AtomicBool::new(false));
+
+        let maybe_action = stream::iter(scheduler)
             .map(
                 |_| -> Result<
                     (
@@ -148,6 +160,7 @@ where
                         P,
                         Request,
                         SharedState,
+                        Arc<AtomicBool>,
                     ),
                     FeroxFuzzError,
                 > {
@@ -184,11 +197,22 @@ where
 
                             state.add_to_corpus(name, &mutated_request)?;
 
-                            if matches!(flow_control, FlowControl::Discard) {
-                                self.request_id += 1;
-                                return Err(FeroxFuzzError::DiscardedRequest);
+                            match flow_control {
+                                FlowControl::StopFuzzing => {
+                                    pre_send_action = Some(Action::StopFuzzing);
+                                    return Err(FeroxFuzzError::FuzzingStopped);
+                                }
+                                FlowControl::Discard => {
+                                    self.request_id += 1;
+                                    return Err(FeroxFuzzError::DiscardedRequest);
+                                }
+                                _ => {}
                             }
+
                             // ignore when flow control is Keep, same as we do for Action::Keep below
+                        }
+                        Some(Action::StopFuzzing) => {
+                            return Err(FeroxFuzzError::FuzzingStopped);
                         }
                         _ => {
                             // do nothing if it's None or an Action::Keep
@@ -201,6 +225,7 @@ where
                     let cloned_processors = self.processors.clone();
                     let cloned_state = state.clone();
                     let cloned_request = mutated_request.clone();
+                    let cloned_quit_flag = should_quit.clone();
 
                     let response_handle = tokio::spawn(async move {
                         let result = cloned_client.send(mutated_request).await?;
@@ -216,17 +241,42 @@ where
                         cloned_processors,
                         cloned_request,
                         cloned_state,
+                        cloned_quit_flag,
                     ))
                 },
-            )
-            .for_each_concurrent(num_threads, |result| async move {
+            ).scan(&mut err, |err, result| {
+                // println!("post send action: {:?}", post_send_action);
+                if should_quit.load(Ordering::Relaxed) {
+                    // this check accounts for us setting the action to StopFuzzing in the PostSend phase
+                    **err = Err(FeroxFuzzError::FuzzingStopped);
+                    println!("[REAL3] Stopping fuzzing due to FlowControl::StopFuzzing");
+                    return future::ready(None);
+                }
+
+                match result {
+                    Ok((response_handle, observers, deciders, processors, request, state, quit_flag)) => {
+                        future::ready(Some(Ok((response_handle, observers, deciders, processors, request, state, quit_flag))))
+                    }
+                    Err(e) => {
+                        if matches!(e, FeroxFuzzError::DiscardedRequest) {
+                            future::ready(Some(Err(e)))
+                        } else {
+                            // this is the check that comes from PreSend
+                            **err = Err(FeroxFuzzError::FuzzingStopped);
+                            future::ready(None)
+                        }
+                    }
+                }
+            })
+            .for_each_concurrent(num_threads, |result|
+                async move {
                 // the is_err -> return paradigm below isn't necessarily idiomatic rust, however, i didn't like the
                 // heavily indented match -> match -> if let Ok ..., so to keep the code more left-aligned, i
                 // chose to write it the way you see here
 
                 if result.is_err() {
                     // as of right now, the only possible error states the .map iterator above can get into is
-                    // when a mutator fails for w/e random reason and when a Action::Discard is encounter; in
+                    // when a mutator fails for w/e random reason and when a Action::Discard is encountered; in
                     // either event, the request was never sent, so we can't reasonably continue
 
                     // failed mutation errors are logged at the error point, not here
@@ -234,8 +284,12 @@ where
                 }
 
                 // result cannot be Err after this point, so is safe to unwrap
-                let (resp, mut c_observers, mut c_deciders, mut c_processors, c_request, c_state) =
+                let (resp, mut c_observers, mut c_deciders, mut c_processors, c_request, c_state, c_should_quit) =
                     result.unwrap();
+                
+                if c_should_quit.load(Ordering::Relaxed) {
+                    return;
+                }
 
                 // await the actual response, which is a double-nested Result
                 // Result<Result<AsyncResponse, FeroxFuzzError>, tokio::task::JoinError>
@@ -277,21 +331,38 @@ where
 
                 c_processors.call_post_send_hooks(&c_state, &c_observers, decision.as_ref());
 
-                if let Some(Action::AddToCorpus(name, _flow_control)) = decision {
-                    // if we've reached this point, flow control doesn't matter anymore; the
-                    // only thing we need to check at this point is if we need to alter the
-                    // corpus
+                match decision {
+                    Some(Action::AddToCorpus(name, flow_control)) => {
+                        // if we've reached this point, flow control doesn't matter anymore; the
+                        // only thing we need to check at this point is if we need to alter the
+                        // corpus
 
-                    if let Err(err) = c_state.add_to_corpus(name, &c_request) {
-                        warn!("Could not add {:?} to corpus[{name}]: {:?}", c_request, err);
+                        if let Err(err) = c_state.add_to_corpus(name, &c_request) {
+                            warn!("Could not add {:?} to corpus[{name}]: {:?}", c_request, err);
+                        }
+
+                        if matches!(flow_control, FlowControl::StopFuzzing) {
+                            c_should_quit.store(true, Ordering::Relaxed);
+                        }    
                     }
+                    Some(Action::StopFuzzing) => {
+                        c_should_quit.store(true, Ordering::Relaxed);
+                    }    
+                    _ => {}
+
                 }
-            })
+        })
             .await;
+
+        println!("Fuzzing complete: {:?}", maybe_action);
+
+        if let Err(FeroxFuzzError::FuzzingStopped) = err {
+            return Ok(Some(Action::StopFuzzing));
+        }
 
         // in case we're fuzzing more than once, reset the scheduler
         self.scheduler.reset();
 
-        Ok(())
+        Ok(None) // no action taken
     }
 }
