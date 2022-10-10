@@ -218,8 +218,7 @@ impl BitAnd for Action {
             (lhs, Self::AddToCorpus(name, flow_control)) => {
                 Self::AddToCorpus(name, flow_control & lhs)
             }
-            (Self::StopFuzzing, _) => Self::StopFuzzing,
-            (_, Self::StopFuzzing) => Self::StopFuzzing,
+            (_, Self::StopFuzzing) | (Self::StopFuzzing, _) => Self::StopFuzzing,
         }
     }
 }
@@ -235,8 +234,7 @@ impl BitAnd<FlowControl> for Action {
             (Self::AddToCorpus(name, flow_control), other) => {
                 Self::AddToCorpus(name, flow_control & other)
             }
-            (Self::StopFuzzing, _) => Self::StopFuzzing,
-            (_, FlowControl::StopFuzzing) => Self::StopFuzzing,
+            (Self::StopFuzzing, _) | (_, FlowControl::StopFuzzing) => Self::StopFuzzing,
         }
     }
 }
@@ -251,8 +249,7 @@ impl BitAnd for FlowControl {
             (Self::Keep | Self::Discard, Self::Discard) | (Self::Discard, Self::Keep) => {
                 Self::Discard
             }
-            (Self::StopFuzzing, _) => Self::StopFuzzing,
-            (_, Self::StopFuzzing) => Self::StopFuzzing,
+            (_, Self::StopFuzzing) | (Self::StopFuzzing, _) => Self::StopFuzzing,
         }
     }
 }
@@ -272,8 +269,9 @@ impl BitAnd<Action> for FlowControl {
                 // just use the bitwise operation
                 lhs & flow_control
             }
-            (_, Action::StopFuzzing) => Self::StopFuzzing,
-            (Self::StopFuzzing, Action::Keep | Action::Discard) => Self::StopFuzzing,
+            (Self::StopFuzzing, Action::Keep | Action::Discard) | (_, Action::StopFuzzing) => {
+                Self::StopFuzzing
+            }
         }
     }
 }
@@ -292,8 +290,7 @@ impl BitOr for Action {
             (lhs, Self::AddToCorpus(name, flow_control)) => {
                 Self::AddToCorpus(name, flow_control | lhs)
             }
-            (Self::StopFuzzing, _) => Self::StopFuzzing,
-            (_, Self::StopFuzzing) => Self::StopFuzzing,
+            (Self::StopFuzzing, _) | (_, Self::StopFuzzing) => Self::StopFuzzing,
         }
     }
 }
@@ -310,8 +307,7 @@ impl BitOr<FlowControl> for Action {
             (Self::AddToCorpus(name, flow_control), other) => {
                 Self::AddToCorpus(name, flow_control | other)
             }
-            (Self::StopFuzzing, _) => Self::StopFuzzing,
-            (_, FlowControl::StopFuzzing) => Self::StopFuzzing,
+            (_, FlowControl::StopFuzzing) | (Self::StopFuzzing, _) => Self::StopFuzzing,
         }
     }
 }
@@ -324,8 +320,7 @@ impl BitOr for FlowControl {
         match (&self, &rhs) {
             (Self::Keep | Self::Discard, Self::Keep) | (Self::Keep, Self::Discard) => Self::Keep,
             (Self::Discard, Self::Discard) => Self::Discard,
-            (Self::StopFuzzing, _) => Self::StopFuzzing,
-            (_, Self::StopFuzzing) => Self::StopFuzzing,
+            (_, Self::StopFuzzing) | (Self::StopFuzzing, _) => Self::StopFuzzing,
         }
     }
 }
@@ -345,8 +340,9 @@ impl BitOr<Action> for FlowControl {
                 // just use the bitwise operation
                 lhs | flow_control
             }
-            (_, Action::StopFuzzing) => Self::StopFuzzing,
-            (Self::StopFuzzing, Action::Keep | Action::Discard) => Self::StopFuzzing,
+            (_, Action::StopFuzzing) | (Self::StopFuzzing, Action::Keep | Action::Discard) => {
+                Self::StopFuzzing
+            }
         }
     }
 }
@@ -358,6 +354,8 @@ mod tests {
     /// test that the `BitAnd` implementation for `Action` produces the correct
     /// results when action is both the lhs and rhs
     #[test]
+    #[allow(clippy::cognitive_complexity)]
+    #[allow(clippy::too_many_lines)]
     fn test_bitand_action_and_action() {
         // action & action::keep
         assert_eq!(Action::Keep & Action::Keep, Action::Keep);

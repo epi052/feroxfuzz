@@ -64,7 +64,7 @@ pub trait AsyncFuzzing: Fuzzer {
     /// see [`Fuzzer`]'s Errors section for more details
     async fn fuzz(&mut self, state: &mut SharedState) -> Result<(), FeroxFuzzError> {
         loop {
-            if let Some(Action::StopFuzzing) = self.fuzz_once(state).await? {
+            if self.fuzz_once(state).await? == Some(Action::StopFuzzing) {
                 break Ok(());
             }
         }
@@ -95,8 +95,8 @@ pub trait AsyncFuzzing: Fuzzer {
         state: &mut SharedState,
     ) -> Result<(), FeroxFuzzError> {
         for _ in 0..num_iterations {
-            if let Some(Action::StopFuzzing) = self.fuzz_once(state).await? {
-                break;
+            if self.fuzz_once(state).await? == Some(Action::StopFuzzing) {
+                return Ok(());
             }
         }
 
@@ -116,7 +116,7 @@ pub trait BlockingFuzzing: Fuzzer {
     /// see [`Fuzzer`]'s Errors section for more details
     fn fuzz(&mut self, state: &mut SharedState) -> Result<(), FeroxFuzzError> {
         loop {
-            if let Some(Action::StopFuzzing) = self.fuzz_once(state)? {
+            if self.fuzz_once(state)? == Some(Action::StopFuzzing) {
                 break Ok(());
             }
         }
@@ -144,8 +144,8 @@ pub trait BlockingFuzzing: Fuzzer {
         state: &mut SharedState,
     ) -> Result<(), FeroxFuzzError> {
         for _ in 0..num_iterations {
-            if let Some(Action::StopFuzzing) = self.fuzz_once(state)? {
-                break;
+            if self.fuzz_once(state)? == Some(Action::StopFuzzing) {
+                return Ok(());
             }
         }
 

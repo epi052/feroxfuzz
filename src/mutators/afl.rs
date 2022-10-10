@@ -4,8 +4,8 @@
 use std::any::Any;
 use std::cmp::min;
 use std::fmt;
-use std::sync::atomic::Ordering;
 use std::marker::PhantomData;
+use std::sync::atomic::Ordering;
 
 use super::Mutator;
 use crate::corpora::Corpus;

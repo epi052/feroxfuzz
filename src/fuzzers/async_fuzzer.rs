@@ -150,7 +150,7 @@ where
         // let mut post_send_action = &mut None;
         let should_quit = Arc::new(AtomicBool::new(false));
 
-        let maybe_action = stream::iter(scheduler)
+        stream::iter(scheduler)
             .map(
                 |_| -> Result<
                     (
@@ -249,7 +249,6 @@ where
                 if should_quit.load(Ordering::Relaxed) {
                     // this check accounts for us setting the action to StopFuzzing in the PostSend phase
                     **err = Err(FeroxFuzzError::FuzzingStopped);
-                    println!("[REAL3] Stopping fuzzing due to FlowControl::StopFuzzing");
                     return future::ready(None);
                 }
 
@@ -262,6 +261,7 @@ where
                             future::ready(Some(Err(e)))
                         } else {
                             // this is the check that comes from PreSend
+                            should_quit.store(true, Ordering::Relaxed);
                             **err = Err(FeroxFuzzError::FuzzingStopped);
                             future::ready(None)
                         }
@@ -286,7 +286,7 @@ where
                 // result cannot be Err after this point, so is safe to unwrap
                 let (resp, mut c_observers, mut c_deciders, mut c_processors, c_request, c_state, c_should_quit) =
                     result.unwrap();
-                
+
                 if c_should_quit.load(Ordering::Relaxed) {
                     return;
                 }
@@ -343,26 +343,235 @@ where
 
                         if matches!(flow_control, FlowControl::StopFuzzing) {
                             c_should_quit.store(true, Ordering::Relaxed);
-                        }    
+                        }
                     }
                     Some(Action::StopFuzzing) => {
                         c_should_quit.store(true, Ordering::Relaxed);
-                    }    
+                    }
                     _ => {}
 
                 }
         })
             .await;
 
-        println!("Fuzzing complete: {:?}", maybe_action);
-
-        if let Err(FeroxFuzzError::FuzzingStopped) = err {
-            return Ok(Some(Action::StopFuzzing));
-        }
-
         // in case we're fuzzing more than once, reset the scheduler
         self.scheduler.reset();
 
+        if should_quit.load(Ordering::SeqCst) {
+            return Ok(Some(Action::StopFuzzing));
+        }
+
         Ok(None) // no action taken
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::AsyncClient;
+    use crate::corpora::RangeCorpus;
+    use crate::deciders::{RequestRegexDecider, ResponseRegexDecider};
+    use crate::fuzzers::AsyncFuzzer;
+    use crate::mutators::ReplaceKeyword;
+    use crate::observers::ResponseObserver;
+    use crate::prelude::*;
+    use crate::requests::ShouldFuzz;
+    use crate::responses::AsyncResponse;
+    use crate::schedulers::OrderedScheduler;
+    use ::regex::Regex;
+    use httpmock::Method::GET;
+    use httpmock::MockServer;
+    use reqwest;
+    use std::time::Duration;
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    /// test that the fuzz loop will stop if the decider returns a StopFuzzing action in
+    /// the pre-send phase
+    async fn test_async_fuzzer_stops_fuzzing_pre_send() -> Result<(), Box<dyn std::error::Error>> {
+        let srv = MockServer::start();
+
+        let _mock = srv.mock(|when, then| {
+            // registers hits for 0, 1, 2
+            when.method(GET).path_matches(Regex::new("[012]").unwrap());
+            then.status(200).body("this is a test");
+        });
+
+        // 0, 1, 2
+        let range = RangeCorpus::with_stop(3).name("range").build()?;
+        let mut state = SharedState::with_corpus(range);
+
+        let req_client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(1))
+            .build()?;
+
+        let client = AsyncClient::with_client(req_client);
+
+        let mutator = ReplaceKeyword::new(&"FUZZ", "range");
+
+        let request = Request::from_url(&srv.url("/FUZZ"), Some(&[ShouldFuzz::URLPath(b"/FUZZ")]))?;
+
+        // stop fuzzing if path matches '1'
+        let decider = RequestRegexDecider::new("1", |regex, request, _state| {
+            if regex.is_match(request.path().inner()) {
+                Action::StopFuzzing
+            } else {
+                Action::Keep
+            }
+        });
+
+        let mut fuzzer = AsyncFuzzer::new(
+            1,
+            client.clone(),
+            request.clone(),
+            OrderedScheduler::new(state.clone())?,
+            build_mutators!(mutator.clone()),
+            build_observers!(ResponseObserver::new()),
+            (),
+            build_deciders!(decider.clone()),
+        );
+
+        fuzzer.fuzz_once(&mut state.clone()).await?;
+
+        // /1 and /2 never sent
+        assert_eq!(
+            state
+                .stats()
+                .read()
+                .unwrap()
+                .status_code_count(200)
+                .unwrap(),
+            1
+        );
+
+        fuzzer.scheduler.reset();
+        fuzzer.fuzz_n_iterations(3, &mut state).await?;
+
+        // /1 and /2 never sent, but /0 was sent again
+        assert_eq!(
+            state
+                .stats()
+                .read()
+                .unwrap()
+                .status_code_count(200)
+                .unwrap(),
+            2
+        );
+
+        fuzzer.scheduler.reset();
+        fuzzer.fuzz(&mut state).await?;
+
+        // /1 and /2 never sent, but /0 was sent again
+        assert_eq!(
+            state
+                .stats()
+                .read()
+                .unwrap()
+                .status_code_count(200)
+                .unwrap(),
+            3
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    /// test that the fuzz loop will stop if the decider returns a StopFuzzing action
+    /// in the post-send phase
+    async fn test_async_fuzzer_stops_fuzzing_post_send() -> Result<(), Box<dyn std::error::Error>> {
+        let srv = MockServer::start();
+
+        let _mock = srv.mock(|when, then| {
+            // registers hits for 0
+            when.method(GET).path_matches(Regex::new("[02]").unwrap());
+            then.status(200).body("this is a test");
+        });
+
+        let _mock2 = srv.mock(|when, then| {
+            // registers hits for 1, 2
+            #[allow(clippy::trivial_regex)]
+            when.method(GET).path_matches(Regex::new("1").unwrap());
+            then.status(201).body("derp");
+        });
+
+        // 0, 1, 2
+        let range = RangeCorpus::with_stop(3).name("range").build()?;
+        let mut state = SharedState::with_corpus(range.clone());
+
+        let req_client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(1))
+            .build()?;
+
+        let client = AsyncClient::with_client(req_client);
+
+        let mutator = ReplaceKeyword::new(&"FUZZ", "range");
+
+        let request = Request::from_url(&srv.url("/FUZZ"), Some(&[ShouldFuzz::URLPath(b"/FUZZ")]))?;
+
+        // stop fuzzing if path matches '1'
+        let decider = ResponseRegexDecider::new("derp", |regex, response, _state| {
+            if regex.is_match(response.body()) {
+                Action::StopFuzzing
+            } else {
+                Action::Keep
+            }
+        });
+
+        let scheduler = OrderedScheduler::new(state.clone())?;
+        let response_observer: ResponseObserver<AsyncResponse> = ResponseObserver::new();
+
+        let observers = build_observers!(response_observer);
+        let deciders = build_deciders!(decider);
+        let mutators = build_mutators!(mutator);
+
+        let mut fuzzer = AsyncFuzzer::new(
+            1,
+            client,
+            request,
+            scheduler,
+            mutators,
+            observers,
+            (),
+            deciders,
+        );
+
+        fuzzer.fuzz_once(&mut state).await?;
+
+        // /0 sent/recv'd and ok
+        // /1 sent/recv'd and bad
+        // /2 never *processed*
+        //
+        // in an async context, this works ok by itself with a threadcount of 1, but the other request
+        // is still in-flight and will likely hit the target, this matters for the following test
+        // assertions as the expected count is more than what one may think is accurate
+        if let Ok(guard) = state.stats().read() {
+            assert!((guard.requests() - 2.0).abs() < std::f64::EPSILON);
+            assert_eq!(guard.status_code_count(200).unwrap(), 1);
+            assert_eq!(guard.status_code_count(201).unwrap(), 1);
+        }
+
+        fuzzer.scheduler.reset();
+        fuzzer.fuzz_n_iterations(2, &mut state).await?;
+
+        // at this point, /2 was hit from the previous test, so we're 1 higher than expected
+        if let Ok(guard) = state.stats().read() {
+            assert!((guard.requests() - 4.0).abs() < std::f64::EPSILON);
+            assert_eq!(guard.status_code_count(200).unwrap(), 2);
+            assert_eq!(guard.status_code_count(201).unwrap(), 2);
+        }
+
+        fuzzer.scheduler.reset();
+        fuzzer.fuzz(&mut state).await?;
+
+        // at this point, /2 was hit from both previous tests, so we're 2 higher than expected
+        if let Ok(guard) = state.stats().read() {
+            assert!((guard.requests() - 6.0).abs() < std::f64::EPSILON);
+            assert_eq!(guard.status_code_count(200).unwrap(), 3);
+            assert_eq!(guard.status_code_count(201).unwrap(), 3);
+        }
+
+        // the take away is that the fuzz/fuzz_n_iterations methods stop when told to, even though
+        // the request is still in-flight, i.e. we don't have a never-ending test or anything
+        // which proves that the logic is working and correct
+        Ok(())
     }
 }

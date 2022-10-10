@@ -153,10 +153,18 @@ where
                     state.add_to_corpus(name, &mutated_request)?;
 
                     if matches!(flow_control, FlowControl::StopFuzzing) {
+                        tracing::info!(
+                            "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
+                            self.request_id
+                        );
                         return Ok(Some(Action::StopFuzzing));
                     }
                 }
                 Some(Action::StopFuzzing) => {
+                    tracing::info!(
+                        "[ID: {}] stopping fuzzing due to StopFuzzing action",
+                        self.request_id
+                    );
                     return Ok(Some(Action::StopFuzzing));
                 }
                 _ => {}
@@ -208,5 +216,185 @@ where
     /// get a mutable reference to the baseline request used for mutation
     pub fn request_mut(&mut self) -> &mut Request {
         &mut self.request
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::BlockingClient;
+    use crate::corpora::RangeCorpus;
+    use crate::deciders::{RequestRegexDecider, ResponseRegexDecider};
+    use crate::fuzzers::BlockingFuzzer;
+    use crate::mutators::ReplaceKeyword;
+    use crate::observers::ResponseObserver;
+    use crate::prelude::*;
+    use crate::requests::ShouldFuzz;
+    use crate::responses::BlockingResponse;
+    use crate::schedulers::OrderedScheduler;
+    use ::regex::Regex;
+    use httpmock::Method::GET;
+    use httpmock::MockServer;
+    use reqwest;
+    use std::time::Duration;
+
+    #[test]
+    /// test that the fuzz loop will stop if the decider returns a `StopFuzzing` action in
+    /// the pre-send phase
+    fn test_blocking_fuzzer_stops_fuzzing_pre_send() -> Result<(), Box<dyn std::error::Error>> {
+        let srv = MockServer::start();
+
+        let mock = srv.mock(|when, then| {
+            // registers hits for 0, 1, 2
+            when.method(GET).path_matches(Regex::new("[012]").unwrap());
+            then.status(200).body("this is a test");
+        });
+
+        // 0, 1, 2
+        let range = RangeCorpus::with_stop(3).name("range").build()?;
+        let mut state = SharedState::with_corpus(range);
+
+        let req_client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(1))
+            .build()?;
+
+        let client = BlockingClient::with_client(req_client);
+
+        let mutator = ReplaceKeyword::new(&"FUZZ", "range");
+
+        let request = Request::from_url(&srv.url("/FUZZ"), Some(&[ShouldFuzz::URLPath(b"/FUZZ")]))?;
+
+        // stop fuzzing if path matches '1'
+        let decider = RequestRegexDecider::new("1", |regex, request, _state| {
+            if regex.is_match(request.path().inner()) {
+                Action::StopFuzzing
+            } else {
+                Action::Keep
+            }
+        });
+
+        let scheduler = OrderedScheduler::new(state.clone())?;
+        let response_observer: ResponseObserver<BlockingResponse> = ResponseObserver::new();
+
+        let observers = build_observers!(response_observer);
+        let deciders = build_deciders!(decider);
+        let mutators = build_mutators!(mutator);
+
+        let mut fuzzer = BlockingFuzzer::new(
+            client,
+            request,
+            scheduler,
+            mutators,
+            observers,
+            (),
+            deciders,
+        );
+
+        fuzzer.fuzz_once(&mut state.clone())?;
+
+        // /1 and /2 never sent
+        mock.assert_hits(1);
+
+        fuzzer.scheduler.reset();
+        fuzzer.fuzz_n_iterations(1, &mut state.clone())?;
+
+        // /1 and /2 never sent, but /0 was sent again
+        mock.assert_hits(2);
+
+        fuzzer.scheduler.reset();
+        fuzzer.fuzz(&mut state)?;
+
+        // /1 and /2 never sent, but /0 was sent again
+        mock.assert_hits(3);
+
+        Ok(())
+    }
+
+    #[test]
+    /// test that the fuzz loop will stop if the decider returns a `StopFuzzing` action
+    /// in the post-send phase
+    fn test_blocking_fuzzer_stops_fuzzing_post_send() -> Result<(), Box<dyn std::error::Error>> {
+        let srv = MockServer::start();
+
+        let mock = srv.mock(|when, then| {
+            // registers hits for 0/2
+            when.method(GET).path_matches(Regex::new("[02]").unwrap());
+            then.status(200).body("this is a test");
+        });
+
+        let mock2 = srv.mock(|when, then| {
+            // registers hits for 1
+            #[allow(clippy::trivial_regex)]
+            when.method(GET).path_matches(Regex::new("1").unwrap());
+            then.status(200).body("derp");
+        });
+
+        // 0, 1, 2
+        let range = RangeCorpus::with_stop(3).name("range").build()?;
+        let mut state = SharedState::with_corpus(range);
+
+        let req_client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(1))
+            .build()?;
+
+        let client = BlockingClient::with_client(req_client);
+
+        let mutator = ReplaceKeyword::new(&"FUZZ", "range");
+
+        let request = Request::from_url(&srv.url("/FUZZ"), Some(&[ShouldFuzz::URLPath(b"/FUZZ")]))?;
+
+        // stop fuzzing if path matches '1'
+        let decider = ResponseRegexDecider::new("derp", |regex, response, _state| {
+            if regex.is_match(response.body()) {
+                Action::StopFuzzing
+            } else {
+                Action::Keep
+            }
+        });
+
+        let scheduler = OrderedScheduler::new(state.clone())?;
+        let response_observer: ResponseObserver<BlockingResponse> = ResponseObserver::new();
+
+        let observers = build_observers!(response_observer);
+        let deciders = build_deciders!(decider);
+        let mutators = build_mutators!(mutator);
+
+        let mut fuzzer = BlockingFuzzer::new(
+            client,
+            request,
+            scheduler,
+            mutators,
+            observers,
+            (),
+            deciders,
+        );
+
+        fuzzer.fuzz_once(&mut state)?;
+
+        // /0 sent/recv'd and ok
+        // /1 sent/recv'd and bad
+        // /2 never sent
+        mock.assert_hits(1);
+        mock2.assert_hits(1);
+
+        // fuzzer.scheduler.reset();
+        // fuzzer.fuzz_n_iterations(2, &mut state)?;
+
+        // // /0 sent/recv'd and ok
+        // // /1 sent/recv'd and bad
+        // // /2 never sent
+        // mock.assert_hits(2);
+        // mock2.assert_hits(2);
+
+        // fuzzer.scheduler.reset();
+        // fuzzer.fuzz(&mut state)?;
+
+        // // /0 sent/recv'd and ok
+        // // /1 sent/recv'd and bad
+        // // /2 never sent
+        // mock.assert_hits(3);
+        // mock2.assert_hits(3);
+
+        Ok(())
     }
 }
