@@ -215,6 +215,14 @@ pub enum FeroxFuzzError {
     /// async fuzz_once loop.
     #[error("Discarded request based on user-provided criteria")]
     DiscardedRequest,
+
+    /// Represents a recommended [`Action::StopFuzzing`] during asynchronous fuzzing
+    ///
+    /// Note: this is only used because of how the async fuzz_once loop
+    /// is implemented. It is not intended to be used outside of the
+    /// async fuzz_once loop.
+    #[error("Stopped fuzzing based on user-provided criteria")]
+    FuzzingStopped,
 }
 
 /// Used to differentiate between different types of errors that occur when making requests.
