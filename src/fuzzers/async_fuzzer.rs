@@ -371,7 +371,7 @@ where
         // in case we're fuzzing more than once, reset the scheduler
         self.scheduler.reset();
 
-        if err.is_err() {
+        if err.is_err() || should_quit.load(Ordering::SeqCst) {
             return Ok(Some(Action::StopFuzzing));
         }
 
