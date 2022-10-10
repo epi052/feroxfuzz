@@ -197,6 +197,10 @@ where
 
                             match flow_control {
                                 FlowControl::StopFuzzing => {
+                                    tracing::info!(
+                                        "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
+                                        self.request_id
+                                    );                
                                     return Err(FeroxFuzzError::FuzzingStopped);
                                 }
                                 FlowControl::Discard => {
@@ -209,6 +213,10 @@ where
                             // ignore when flow control is Keep, same as we do for Action::Keep below
                         }
                         Some(Action::StopFuzzing) => {
+                            tracing::info!(
+                                "[ID: {}] stopping fuzzing due to StopFuzzing action",
+                                self.request_id
+                            );        
                             return Err(FeroxFuzzError::FuzzingStopped);
                         }
                         _ => {
@@ -349,7 +357,7 @@ where
                     }
                     Some(Action::StopFuzzing) => {
                         tracing::info!(
-                            "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
+                            "[ID: {}] stopping fuzzing due to StopFuzzing action",
                             request_id
                         );
                         c_should_quit.store(true, Ordering::Relaxed);
