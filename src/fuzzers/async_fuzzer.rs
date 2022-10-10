@@ -21,7 +21,7 @@ use crate::mutators::Mutators;
 use crate::observers::Observers;
 use crate::processors::Processors;
 use crate::requests::Request;
-use crate::responses::AsyncResponse;
+use crate::responses::{AsyncResponse, Response};
 use crate::schedulers::Scheduler;
 use crate::state::SharedState;
 use crate::std_ext::ops::LogicOperation;
@@ -144,11 +144,9 @@ where
         let post_send_logic = self.post_send_logic().unwrap_or_default();
         let scheduler = self.scheduler.clone();
 
-        // facilitates a way to 'break' out of the iterator
-        let mut err = Ok(());
-        let mut pre_send_action = None;
-        // let mut post_send_action = &mut None;
+        // facilitates a threadsafe way to 'break' out of the iterator
         let should_quit = Arc::new(AtomicBool::new(false));
+        let mut err = Ok(());
 
         stream::iter(scheduler)
             .map(
@@ -199,7 +197,6 @@ where
 
                             match flow_control {
                                 FlowControl::StopFuzzing => {
-                                    pre_send_action = Some(Action::StopFuzzing);
                                     return Err(FeroxFuzzError::FuzzingStopped);
                                 }
                                 FlowControl::Discard => {
@@ -245,7 +242,6 @@ where
                     ))
                 },
             ).scan(&mut err, |err, result| {
-                // println!("post send action: {:?}", post_send_action);
                 if should_quit.load(Ordering::Relaxed) {
                     // this check accounts for us setting the action to StopFuzzing in the PostSend phase
                     **err = Err(FeroxFuzzError::FuzzingStopped);
@@ -315,6 +311,8 @@ where
                     return;
                 }
 
+                let request_id = response.unwrap().id();  // only used for logging
+
                 // response cannot be Err after this point, so is safe to unwrap
                 c_observers.call_post_send_hooks(response.unwrap());
 
@@ -342,10 +340,18 @@ where
                         }
 
                         if matches!(flow_control, FlowControl::StopFuzzing) {
+                            tracing::info!(
+                                "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
+                                request_id
+                            );    
                             c_should_quit.store(true, Ordering::Relaxed);
                         }
                     }
                     Some(Action::StopFuzzing) => {
+                        tracing::info!(
+                            "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
+                            request_id
+                        );
                         c_should_quit.store(true, Ordering::Relaxed);
                     }
                     _ => {}
@@ -357,7 +363,7 @@ where
         // in case we're fuzzing more than once, reset the scheduler
         self.scheduler.reset();
 
-        if should_quit.load(Ordering::SeqCst) {
+        if err.is_err() {
             return Ok(Some(Action::StopFuzzing));
         }
 
