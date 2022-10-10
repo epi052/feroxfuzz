@@ -200,7 +200,7 @@ where
                                     tracing::info!(
                                         "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
                                         self.request_id
-                                    );                
+                                    );
                                     return Err(FeroxFuzzError::FuzzingStopped);
                                 }
                                 FlowControl::Discard => {
@@ -216,7 +216,7 @@ where
                             tracing::info!(
                                 "[ID: {}] stopping fuzzing due to StopFuzzing action",
                                 self.request_id
-                            );        
+                            );
                             return Err(FeroxFuzzError::FuzzingStopped);
                         }
                         _ => {
@@ -319,7 +319,7 @@ where
                     return;
                 }
 
-                let request_id = response.unwrap().id();  // only used for logging
+                let request_id = response.as_ref().unwrap().id();  // only used for logging
 
                 // response cannot be Err after this point, so is safe to unwrap
                 c_observers.call_post_send_hooks(response.unwrap());
@@ -351,7 +351,7 @@ where
                             tracing::info!(
                                 "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
                                 request_id
-                            );    
+                            );
                             c_should_quit.store(true, Ordering::Relaxed);
                         }
                     }
