@@ -18,8 +18,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //
     // http://google.com:80       <-- schemes[0], hosts[0], ports[0]
     // https://google.com:443     <-- schemes[1], hosts[1], ports[1]
-    // http://localhost:9999    <-- schemes[2], hosts[2], ports[2]
-    // https://localhost:9999   <-- schemes[3], hosts[3], ports[3]
+    // http://localhost:9999      <-- schemes[2], hosts[2], ports[2]
+    // https://localhost:9999     <-- schemes[3], hosts[3], ports[3]
     //
     // into the following three wordlists
     let schemes = Wordlist::new()
@@ -41,9 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut state = SharedState::with_corpora([schemes, hosts, ports]);
 
     // bring-your-own client, this example uses the reqwest library
-    let req_client = reqwest::Client::builder()
-        .proxy(reqwest::Proxy::http("http://127.0.0.1:8080")?)
-        .build()?;
+    let req_client = reqwest::Client::builder().build()?;
 
     // with some client that can handle the actual http request/response stuff
     // we can build a feroxfuzz client, specifically an asynchronous client in this
@@ -94,6 +92,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     );
 
+    // a `RequestProcessor` provides access to the fuzzer's mutated `Request` that is about to be
+    // sent to the target, as well as the `Action` returned from calling `Deciders` (like the
+    // `StatusCodeDecider` above). Those two objects may be used to produce side-effects, such as
+    // printing, logging, calling out to some other service, or whatever else you can think of.
     let request_printer = RequestProcessor::new(|request, _action, _state| {
         println!("Built request: {:?}", request);
     });
