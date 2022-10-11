@@ -97,7 +97,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // `StatusCodeDecider` above). Those two objects may be used to produce side-effects, such as
     // printing, logging, calling out to some other service, or whatever else you can think of.
     let request_printer = RequestProcessor::new(|request, _action, _state| {
-        println!("Built request: {:?}", request);
+        println!("Built request: {}", request.url_to_string().unwrap());
     });
 
     // `Scheduler`s manage how the fuzzer gets entries from the corpus. The `OrderedScheduler` provides
