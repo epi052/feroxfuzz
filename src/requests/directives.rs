@@ -27,7 +27,14 @@ pub enum ShouldFuzz<'a> {
     HTTPVersion(&'a [u8]),
 
     /// directive associated with a fuzzable URL scheme, ex: http/https
-    URLScheme(&'a [u8]),
+    ///
+    /// # Note
+    ///
+    /// this variant doesn't accept a starting value due to the fact that a [`Request`]
+    /// can only be instantiated through its `from_url` method. In order to provide
+    /// an initial value to the `Request`'s `host` field, simply use the first
+    /// parameter of the [`Request::from_url`] method
+    URLScheme,
 
     /// directive associated with a fuzzable URL username
     URLUsername(&'a [u8]),
@@ -46,7 +53,14 @@ pub enum ShouldFuzz<'a> {
     URLHost,
 
     /// directive associated with a fuzzable URL port
-    URLPort(&'a [u8]),
+    ///
+    /// # Note
+    ///
+    /// this variant doesn't accept a starting value due to the fact that a [`Request`]
+    /// can only be instantiated through its `from_url` method. In order to provide
+    /// an initial value to the `Request`'s `host` field, simply use the first
+    /// parameter of the [`Request::from_url`] method
+    URLPort,
 
     /// directive associated with a fuzzable URL path
     URLPath(&'a [u8]),
