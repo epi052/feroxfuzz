@@ -127,6 +127,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // example output:
     //
+    // Built request: http://google.com:80
+    // Built request: https://google.com:443
+    // Built request: http://localhost:9999
+    // Built request: https://localhost:9999
     // [200] 922 - http://localhost:9999/ - 23.310749ms
     // [200] 54709 - http://www.google.com/ - 216.350722ms
     // [200] 54738 - https://www.google.com/ - 223.503601ms
