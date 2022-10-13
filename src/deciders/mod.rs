@@ -281,7 +281,7 @@ mod tests {
 
         let mutator = ReplaceKeyword::new(&"FUZZ", "range");
 
-        let request = Request::from_url(&srv.url("/FUZZ"), Some(&[ShouldFuzz::URLPath(b"/FUZZ")]))?;
+        let request = Request::from_url(&srv.url("/FUZZ"), Some(&[ShouldFuzz::URLPath]))?;
 
         // discard if path matches '1'
         let decider1 = RequestRegexDecider::new("1", |regex, request, _state| {
@@ -352,7 +352,7 @@ mod tests {
 
         let mutator = ReplaceKeyword::new(&"FUZZ", "range");
 
-        let request = Request::from_url(&srv.url("/FUZZ"), Some(&[ShouldFuzz::URLPath(b"/FUZZ")]))?;
+        let request = Request::from_url(&srv.url("/FUZZ"), Some(&[ShouldFuzz::URLPath]))?;
 
         let decider1 = RequestRegexDecider::new("1", |regex, request, _state| {
             if regex.is_match(request.path().inner()) {
@@ -437,7 +437,7 @@ mod tests {
 
         let mutator = ReplaceKeyword::new(&"FUZZ", "range");
 
-        let request = Request::from_url(&srv.url("/FUZZ"), Some(&[ShouldFuzz::URLPath(b"/FUZZ")]))?;
+        let request = Request::from_url(&srv.url("/FUZZ"), Some(&[ShouldFuzz::URLPath]))?;
 
         // discard if response's status code matches 401
         let decider1 = StatusCodeDecider::new(401, |status, observed, _state| {
@@ -537,7 +537,7 @@ mod tests {
 
         let mutator = ReplaceKeyword::new(&"FUZZ", "range");
 
-        let request = Request::from_url(&srv.url("/FUZZ"), Some(&[ShouldFuzz::URLPath(b"/FUZZ")]))?;
+        let request = Request::from_url(&srv.url("/FUZZ"), Some(&[ShouldFuzz::URLPath]))?;
 
         // keep if response's status code matches 200
         let decider1 = StatusCodeDecider::new(200, |status, observed, _state| {

@@ -519,10 +519,10 @@ mod tests {
 
         // request with 2 fuzzable fields
         let request = Request::from_url(
-            "http://localhost",
+            "http://localhost/admin",
             Some(&[
                 ShouldFuzz::RequestBody(b"administrator"),
-                ShouldFuzz::URLPath(b"/admin"),
+                ShouldFuzz::URLPath,
             ]),
         )
         .unwrap();

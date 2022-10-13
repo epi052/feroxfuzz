@@ -27,13 +27,34 @@ pub enum ShouldFuzz<'a> {
     HTTPVersion(&'a [u8]),
 
     /// directive associated with a fuzzable URL scheme, ex: http/https
-    URLScheme(&'a [u8]),
+    ///
+    /// # Note
+    ///
+    /// this variant doesn't accept a starting value due to the fact that a [`Request`]
+    /// can only be instantiated through its `from_url` method. In order to provide
+    /// an initial value to the `Request`'s `host` field, simply use the first
+    /// parameter of the [`Request::from_url`] method
+    URLScheme,
 
     /// directive associated with a fuzzable URL username
-    URLUsername(&'a [u8]),
+    ///
+    /// # Note
+    ///
+    /// this variant doesn't accept a starting value due to the fact that a [`Request`]
+    /// can only be instantiated through its `from_url` method. In order to provide
+    /// an initial value to the `Request`'s `host` field, simply use the first
+    /// parameter of the [`Request::from_url`] method
+    URLUsername,
 
     /// directive associated with a fuzzable URL password
-    URLPassword(&'a [u8]),
+    ///
+    /// # Note
+    ///
+    /// this variant doesn't accept a starting value due to the fact that a [`Request`]
+    /// can only be instantiated through its `from_url` method. In order to provide
+    /// an initial value to the `Request`'s `host` field, simply use the first
+    /// parameter of the [`Request::from_url`] method
+    URLPassword,
 
     /// directive associated with a fuzzable URL ip address/domain
     ///
@@ -46,13 +67,34 @@ pub enum ShouldFuzz<'a> {
     URLHost,
 
     /// directive associated with a fuzzable URL port
-    URLPort(&'a [u8]),
+    ///
+    /// # Note
+    ///
+    /// this variant doesn't accept a starting value due to the fact that a [`Request`]
+    /// can only be instantiated through its `from_url` method. In order to provide
+    /// an initial value to the `Request`'s `host` field, simply use the first
+    /// parameter of the [`Request::from_url`] method
+    URLPort,
 
     /// directive associated with a fuzzable URL path
-    URLPath(&'a [u8]),
+    ///
+    /// # Note
+    ///
+    /// this variant doesn't accept a starting value due to the fact that a [`Request`]
+    /// can only be instantiated through its `from_url` method. In order to provide
+    /// an initial value to the `Request`'s `host` field, simply use the first
+    /// parameter of the [`Request::from_url`] method
+    URLPath,
 
     /// directive associated with a fuzzable URL fragment
-    URLFragment(&'a [u8]),
+    ///
+    /// # Note
+    ///
+    /// this variant doesn't accept a starting value due to the fact that a [`Request`]
+    /// can only be instantiated through its `from_url` method. In order to provide
+    /// an initial value to the `Request`'s `host` field, simply use the first
+    /// parameter of the [`Request::from_url`] method
+    URLFragment,
 
     /// directive associated with a fuzzable User-Agent header where only the
     /// the value is fuzzable; the `User-Agent` key is static and does not
@@ -69,6 +111,38 @@ pub enum ShouldFuzz<'a> {
 
     /// directive associated with a URL query where both the key and value are fuzzable
     URLParameterKeyAndValue(&'a [u8], &'a [u8]),
+
+    /// directive associated with all URL queries where all query keys are marked
+    /// fuzzable; unmarked values remain static
+    ///
+    /// # Note
+    ///
+    /// this variant can be used when specifying parameters in the `url` field of
+    /// the [`Request::from_url`] method.
+    ///
+    /// ex: `Request::from_url("http://example.com/stuff.php?FUZZ=derp", &[ShouldFuzz::URLParameterKeys])`
+    URLParameterKeys,
+
+    /// directive associated with all URL queries where all query values are marked
+    /// fuzzable; unmarked keys remain static
+    ///
+    /// # Note
+    ///
+    /// this variant can be used when specifying parameters in the `url` field of
+    /// the [`Request::from_url`] method.
+    ///
+    /// ex: `Request::from_url("http://example.com/stuff.php?derp=FUZZ", &[ShouldFuzz::URLParameterValues])`
+    URLParameterValues,
+
+    /// directive associated with all URL queries where both all keys and values are fuzzable
+    ///
+    /// # Note
+    ///
+    /// this variant can be used when specifying parameters in the `url` field of
+    /// the [`Request::from_url`] method.
+    ///
+    /// ex: `Request::from_url("http://example.com/stuff.php?FUZZ1=FUZZ2", &[ShouldFuzz::URLParameterKeysAndValues])`
+    URLParameterKeysAndValues,
 
     /// directive associated with an http header where only the key is fuzzable; the
     /// value is static

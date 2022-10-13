@@ -6,6 +6,8 @@ use crate::input::Data;
 use crate::std_ext::convert::IntoInner;
 
 use derive_more::{Constructor, From, Into, Not, Sum};
+use lazy_static::lazy_static;
+use regex::Regex;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use tracing::{error, instrument};
@@ -15,6 +17,13 @@ use std::fmt::{self, Display, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::str::FromStr;
 use std::time::Duration;
+
+lazy_static! {
+    /// uri parsing regex found in RFC 3986
+    ///   -> https://www.rfc-editor.org/rfc/rfc3986#appendix-B
+    static ref URL_PARTS_REGEX: Regex =
+        Regex::new(r"^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?").unwrap();
+}
 
 impl IntoInner for Url {
     type Type = Self;
@@ -245,8 +254,8 @@ impl Request {
     /// # use feroxfuzz::input::Data;
     /// # use std::time::Duration;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let directives = [ShouldFuzz::URLPath(b"/path"), ShouldFuzz::HTTPMethod(b"GET"), ShouldFuzz::HTTPVersion(b"HTTP/1.1")];
-    /// let mut request = Request::from_url("https://localhost", Some(&directives))?;
+    /// let directives = [ShouldFuzz::URLPath, ShouldFuzz::HTTPMethod(b"GET"), ShouldFuzz::HTTPVersion(b"HTTP/1.1")];
+    /// let mut request = Request::from_url("https://localhost/path", Some(&directives))?;
     ///
     /// assert_eq!(request.scheme(), &Data::Static(b"https".to_vec()));
     /// assert_eq!(request.username(), None);
@@ -282,41 +291,62 @@ impl Request {
         url: &str,
         fuzz_directives: Option<&[ShouldFuzz]>,
     ) -> Result<Self, FeroxFuzzError> {
-        let parsed = Url::parse(url).map_err(|source| {
-            error!(%url, "Failed to parse URL: {}", source);
-            FeroxFuzzError::InvalidUrl {
-                source,
-                url: url.to_string(),
-            }
-        })?;
+        let maybe_parsed = Url::parse(url);
 
-        let mut request: Self = parsed.into();
+        let mut request: Self = if maybe_parsed.is_ok() {
+            // well-formed URL, can just use the `From` impl
+            maybe_parsed.unwrap().into()
+        } else {
+            // malformed URL, need to try to parse manually
+            tracing::warn!("given URL is malformed, attempting to parse manually");
+            Self::from_malformed_url(url)?
+        };
 
         if let Some(directives) = fuzz_directives {
             for directive in directives {
                 match directive {
-                    ShouldFuzz::URLScheme(scheme) => {
-                        request.scheme = Data::Fuzzable(scheme.to_vec());
+                    ShouldFuzz::URLScheme => {
+                        if !request.scheme.is_fuzzable() {
+                            request.scheme.toggle_type();
+                        }
                     }
-                    ShouldFuzz::URLUsername(username) => {
-                        request.username = Some(Data::Fuzzable(username.to_vec()));
+                    ShouldFuzz::URLUsername => {
+                        if let Some(username) = &mut request.username {
+                            if !username.is_fuzzable() {
+                                username.toggle_type();
+                            }
+                        }
                     }
-                    ShouldFuzz::URLPassword(password) => {
-                        request.password = Some(Data::Fuzzable(password.to_vec()));
+                    ShouldFuzz::URLPassword => {
+                        if let Some(password) = &mut request.password {
+                            if !password.is_fuzzable() {
+                                password.toggle_type();
+                            }
+                        }
                     }
                     ShouldFuzz::URLHost => {
                         if request.host.is_some() {
                             request.host.as_mut().unwrap().toggle_type();
                         }
                     }
-                    ShouldFuzz::URLPort(port) => {
-                        request.port = Some(Data::Fuzzable(port.to_vec()));
+                    ShouldFuzz::URLPort => {
+                        if let Some(port) = &mut request.port {
+                            if !port.is_fuzzable() {
+                                port.toggle_type();
+                            }
+                        }
                     }
-                    ShouldFuzz::URLPath(path) => {
-                        request.path = Data::Fuzzable(path.to_vec());
+                    ShouldFuzz::URLPath => {
+                        if !request.path.is_fuzzable() {
+                            request.path.toggle_type();
+                        }
                     }
-                    ShouldFuzz::URLFragment(fragment) => {
-                        request.fragment = Some(Data::Fuzzable(fragment.to_vec()));
+                    ShouldFuzz::URLFragment => {
+                        if let Some(fragment) = &mut request.fragment {
+                            if !fragment.is_fuzzable() {
+                                fragment.toggle_type();
+                            }
+                        }
                     }
                     ShouldFuzz::URLParameterKey(parameter, delimiter) => {
                         request.add_fuzzable_param(parameter, delimiter, ShouldFuzz::Key)?;
@@ -330,6 +360,36 @@ impl Request {
                             delimiter,
                             ShouldFuzz::KeyAndValue,
                         )?;
+                    }
+                    ShouldFuzz::URLParameterKeys => {
+                        if let Some(params) = &mut request.params {
+                            for param in params {
+                                if !param.0.is_fuzzable() {
+                                    param.0.toggle_type();
+                                }
+                            }
+                        }
+                    }
+                    ShouldFuzz::URLParameterValues => {
+                        if let Some(params) = &mut request.params {
+                            for param in params {
+                                if !param.1.is_fuzzable() {
+                                    param.1.toggle_type();
+                                }
+                            }
+                        }
+                    }
+                    ShouldFuzz::URLParameterKeysAndValues => {
+                        if let Some(params) = &mut request.params {
+                            for param in params {
+                                if !param.0.is_fuzzable() {
+                                    param.0.toggle_type();
+                                }
+                                if !param.1.is_fuzzable() {
+                                    param.1.toggle_type();
+                                }
+                            }
+                        }
                     }
                     ShouldFuzz::HeaderKey(header, delimiter) => {
                         request.add_fuzzable_header(header, delimiter, ShouldFuzz::Key)?;
@@ -361,6 +421,113 @@ impl Request {
                         });
                     }
                 }
+            }
+        }
+
+        Ok(request)
+    }
+
+    /// this function is to be invoked when a call to [`Url::parse`] fails
+    #[instrument(level = "trace")]
+    fn from_malformed_url(url: &str) -> Result<Self, FeroxFuzzError> {
+        let mut request = Self::default();
+
+        match URL_PARTS_REGEX.captures(url) {
+            Some(captures) => {
+                if let Some(captured) = captures.get(2) {
+                    request.scheme = captured.as_str().into();
+                }
+                if let Some(captured) = captures.get(5) {
+                    request.path = captured.as_str().into();
+                }
+                if let Some(captured) = captures.get(9) {
+                    request.fragment = Some(captured.as_str().into());
+                }
+
+                // parse authority into smaller parts, if present
+                //
+                // authority   = [ userinfo "@" ] host [ ":" port ]
+                // userinfo    = *( unreserved / pct-encoded / sub-delims / ":" )
+                // host        = IP-literal / IPv4address / reg-name
+                // port        = *DIGIT
+                let authority = captures.get(4).map_or("", |captured| captured.as_str());
+
+                match (
+                    authority.matches(':').count(),
+                    authority.matches('@').count(),
+                ) {
+                    (0, 0) => {
+                        request.host = Some(authority.into());
+                    }
+                    (0, 1) => {
+                        // no port, no password, just a username
+                        let mut parts = authority.split('@');
+                        request.username = Some(parts.next().unwrap().into());
+                        request.host = Some(parts.next().unwrap().into());
+                    }
+                    (1, 0) => {
+                        // port but no user
+                        let mut parts = authority.split(':');
+                        request.host = Some(parts.next().unwrap().into());
+                        request.port = Some(parts.next().unwrap().into());
+                    }
+                    (1, 1) => {
+                        // definitely a username, but need to determine whether it's a port or a password
+                        // by looking at where the ':' falls
+                        let mut parts = authority.split('@');
+                        let user_info = parts.next().unwrap();
+                        if user_info.contains(':') {
+                            // found a password
+                            let mut username_and_password = user_info.split(':');
+                            request.username = Some(username_and_password.next().unwrap().into());
+                            request.password = Some(username_and_password.next().unwrap().into());
+                            request.host = Some(parts.next().unwrap().into());
+                        } else {
+                            // found a port
+                            let mut host_and_port = parts.next().unwrap().split(':');
+                            request.username = Some(user_info.into());
+                            request.host = Some(host_and_port.next().unwrap().into());
+                            request.port = Some(host_and_port.next().unwrap().into());
+                        }
+                    }
+                    (2, 1) => {
+                        // username, password, and port
+                        let mut parts = authority.split('@');
+                        let user_and_pass = parts.next().unwrap();
+                        let mut host_and_port = parts.next().unwrap().split(':');
+                        let mut user_and_pass_parts = user_and_pass.split(':');
+                        request.username = Some(user_and_pass_parts.next().unwrap().into());
+                        request.password = Some(user_and_pass_parts.next().unwrap().into());
+                        request.host = Some(host_and_port.next().unwrap().into());
+                        request.port = Some(host_and_port.next().unwrap().into());
+                    }
+                    _ => {
+                        error!("url is too borked to try and parse, try using a valid url with add_fuzzable_* methods");
+                        return Err(FeroxFuzzError::InvalidUrl {
+                            source: Url::parse(url).unwrap_err(),
+                            url: url.to_string(),
+                        });
+                    }
+                }
+
+                // parse query into smaller parts, if present
+                let query = captures.get(7).map_or("", | captured | captured.as_str());
+
+                if !query.is_empty() {
+                    query.split('&').for_each(|pair| {
+                        request
+                            .add_static_param(pair.as_bytes(), b"=")
+                            .unwrap_or_default();
+                    });
+                }
+            }
+            None => {
+                error!("couldn't parse malformed URL");
+
+                return Err(FeroxFuzzError::InvalidUrl {
+                    source: Url::parse(url).unwrap_err(),
+                    url: url.to_string(),
+                });
             }
         }
 
@@ -743,7 +910,7 @@ impl Request {
     /// # use feroxfuzz::requests::{Request, RequestId, ShouldFuzz};
     /// # use feroxfuzz::input::Data;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut request = Request::from_url("http://localhost.com", Some(&[ShouldFuzz::URLUsername(b"user")]))?;
+    /// let mut request = Request::from_url("http://user@localhost.com", Some(&[ShouldFuzz::URLUsername]))?;
     ///
     /// assert_eq!(request.username(), Some(&Data::Fuzzable(b"user".to_vec())));
     ///
@@ -806,8 +973,9 @@ impl Request {
     /// # use feroxfuzz::requests::{Request, RequestId, ShouldFuzz};
     /// # use feroxfuzz::input::Data;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut request = Request::from_url("http://localhost.com", Some(&[ShouldFuzz::URLPassword(b"pass")]))?;
+    /// let mut request = Request::from_url("http://user:pass@localhost.com", Some(&[ShouldFuzz::URLPassword]))?;
     ///
+    /// assert_eq!(request.username(), Some(&Data::Static(b"user".to_vec())));
     /// assert_eq!(request.password(), Some(&Data::Fuzzable(b"pass".to_vec())));
     ///
     /// request.static_password(b"pass2");
@@ -932,7 +1100,7 @@ impl Request {
     /// # use feroxfuzz::requests::{Request, RequestId, ShouldFuzz};
     /// # use feroxfuzz::input::Data;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut request = Request::from_url("http://localhost.com", Some(&[ShouldFuzz::URLPort(b"12345")]))?;
+    /// let mut request = Request::from_url("http://localhost.com:12345", Some(&[ShouldFuzz::URLPort]))?;
     ///
     /// assert_eq!(request.port(), Some(&Data::Fuzzable(b"12345".to_vec())));
     ///
@@ -995,7 +1163,7 @@ impl Request {
     /// # use feroxfuzz::requests::{Request, ShouldFuzz};
     /// # use feroxfuzz::input::Data;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut request = Request::from_url("http://localhost.com", Some(&[ShouldFuzz::URLPath(b"/path")]))?;
+    /// let mut request = Request::from_url("http://localhost.com/path", Some(&[ShouldFuzz::URLPath]))?;
     ///
     /// assert_eq!(request.path(), &Data::Fuzzable(b"/path".to_vec()));
     ///
@@ -1058,7 +1226,7 @@ impl Request {
     /// # use feroxfuzz::requests::{Request, RequestId, ShouldFuzz};
     /// # use feroxfuzz::input::Data;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut request = Request::from_url("http://localhost.com/path", Some(&[ShouldFuzz::URLFragment(b"frag")]))?;
+    /// let mut request = Request::from_url("http://localhost.com/path#frag", Some(&[ShouldFuzz::URLFragment]))?;
     ///
     /// assert_eq!(request.fragment(), Some(&Data::Fuzzable(b"frag".to_vec())));
     ///
@@ -2048,5 +2216,85 @@ mod tests {
         request = Request::from_url("http://localhost/", None).unwrap();
         request.fuzzable_username(b"admin");
         assert!(request.url_is_fuzzable());
+    }
+
+    #[test]
+    /// `from_malformed_url` returns expected results in happy-path with standard url
+    fn from_malformed_url_happy_path() {
+        let url = "http://localhost/stuff.php?derp=pred#things";
+        let request = Request::from_malformed_url(url).unwrap();
+        assert_eq!(request.url_to_string().unwrap(), url);
+        assert_eq!(request.path(), "/stuff.php");
+        assert_eq!(
+            request.params(),
+            Some(vec![("derp".into(), "pred".into())].as_slice())
+        );
+        assert_eq!(request.fragment().unwrap(), "things");
+        assert_eq!(request.scheme(), "http");
+        assert_eq!(request.host().unwrap(), "localhost");
+    }
+
+    #[test]
+    /// `from_malformed_url` returns expected results in happy-path with non-standard url
+    fn from_malformed_url_happy_path_non_standard() {
+        let url = "FUZZ_SCHEME://FUZZ_HOST/FUZZ_PATH?derp=FUZZ_KEY&FUZZ_PARAM=pred#things";
+        let request = Request::from_malformed_url(url).unwrap();
+        assert_eq!(request.url_to_string().unwrap(), url);
+        assert_eq!(request.path(), "/FUZZ_PATH");
+        assert_eq!(
+            request.params(),
+            Some(
+                vec![
+                    ("derp".into(), "FUZZ_KEY".into()),
+                    ("FUZZ_PARAM".into(), "pred".into())
+                ]
+                .as_slice()
+            )
+        );
+        assert_eq!(request.fragment().unwrap(), "things");
+        assert_eq!(request.scheme(), "FUZZ_SCHEME");
+        assert_eq!(request.host().unwrap(), "FUZZ_HOST");
+    }
+
+    #[test]
+    /// `from_malformed_url` returns expected results when user/pass/port combinations are present
+    fn from_malformed_url_username_password_port_tests() {
+        // just host is tested above
+
+        // tuples are (':'.count(), '@'.count())
+
+        // (0, 1) no port, no password, just a username
+        let mut url = "FUZZ_SCHEME://FUZZ_USER@FUZZ_HOST/";
+        let mut request = Request::from_malformed_url(url).unwrap();
+        assert_eq!(request.host().unwrap(), "FUZZ_HOST");
+        assert_eq!(request.username().unwrap(), "FUZZ_USER");
+
+        // (1, 0) port but no username or password
+        url = "FUZZ_SCHEME://FUZZ_HOST:1111/FUZZ_PATH";
+        request = Request::from_malformed_url(url).unwrap();
+        assert_eq!(request.host().unwrap(), "FUZZ_HOST");
+        assert_eq!(request.port().unwrap(), "1111");
+
+        // (1, 1) port and username, no password
+        url = "FUZZ_SCHEME://FUZZ_USER@FUZZ_HOST:1111/FUZZ_PATH?derp=FUZZ_KEY";
+        request = Request::from_malformed_url(url).unwrap();
+        assert_eq!(request.host().unwrap(), "FUZZ_HOST");
+        assert_eq!(request.port().unwrap(), "1111");
+        assert_eq!(request.username().unwrap(), "FUZZ_USER");
+
+        // (1, 1) username and password, no port
+        url = "FUZZ_SCHEME://FUZZ_USER:FUZZ_PASS@FUZZ_HOST/FUZZ_PATH?derp=FUZZ_KEY#things";
+        request = Request::from_malformed_url(url).unwrap();
+        assert_eq!(request.host().unwrap(), "FUZZ_HOST");
+        assert_eq!(request.username().unwrap(), "FUZZ_USER");
+        assert_eq!(request.password().unwrap(), "FUZZ_PASS");
+
+        // (2, 1) port, username, and password
+        url = "FUZZ_SCHEME://FUZZ_USER:FUZZ_PASS@FUZZ_HOST:1111";
+        request = Request::from_malformed_url(url).unwrap();
+        assert_eq!(request.username().unwrap(), "FUZZ_USER");
+        assert_eq!(request.password().unwrap(), "FUZZ_PASS");
+        assert_eq!(request.host().unwrap(), "FUZZ_HOST");
+        assert_eq!(request.port().unwrap(), "1111");
     }
 }

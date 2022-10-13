@@ -262,7 +262,7 @@ mod tests {
 
         let mutator = ReplaceKeyword::new(&"FUZZ", "range");
 
-        let request = Request::from_url(&srv.url("/FUZZ"), Some(&[ShouldFuzz::URLPath(b"/FUZZ")]))?;
+        let request = Request::from_url(&srv.url("/FUZZ"), Some(&[ShouldFuzz::URLPath]))?;
 
         // stop fuzzing if path matches '1'
         let decider = RequestRegexDecider::new("1", |regex, request, _state| {
@@ -341,7 +341,7 @@ mod tests {
 
         let mutator = ReplaceKeyword::new(&"FUZZ", "range");
 
-        let request = Request::from_url(&srv.url("/FUZZ"), Some(&[ShouldFuzz::URLPath(b"/FUZZ")]))?;
+        let request = Request::from_url(&srv.url("/FUZZ"), Some(&[ShouldFuzz::URLPath]))?;
 
         // stop fuzzing if path matches '1'
         let decider = ResponseRegexDecider::new("derp", |regex, response, _state| {

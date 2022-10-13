@@ -52,11 +52,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // fuzz directives control which parts of the request should be fuzzed
     // anything not marked fuzzable is considered to be static and won't be mutated
     let request = Request::from_url(
-        "http://localhost:8000/",
-        Some(&[
-            ShouldFuzz::URLParameterValue(b"user=USER", b"="),
-            ShouldFuzz::URLParameterValue(b"id=ID", b"="),
-        ]),
+        "http://localhost:8000/?user=USER&id=ID",
+        Some(&[ShouldFuzz::URLParameterValues]),
     )?;
 
     // a RequestProcessor provides a way to inspect each request and decide upon some Action based on the
@@ -127,6 +124,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // the fuzzer will run until it iterates over the entire corpus once
     fuzzer.fuzz_once(&mut state)?;
+
+    println!("{state:#}");
+
+    // example output:
+    //
+    // http://localhost:8000/?user=USER&id=ID?user=user&id=0
+    // http://localhost:8000/?user=USER&id=ID?user=user&id=2
+    // http://localhost:8000/?user=USER&id=ID?user=user&id=4
+    // http://localhost:8000/?user=USER&id=ID?user=user&id=6
+    // http://localhost:8000/?user=USER&id=ID?user=user&id=8
+    // http://localhost:8000/?user=USER&id=ID?user=admin&id=0
+    // http://localhost:8000/?user=USER&id=ID?user=admin&id=2
+    // http://localhost:8000/?user=USER&id=ID?user=admin&id=4
+    // http://localhost:8000/?user=USER&id=ID?user=admin&id=6
+    // http://localhost:8000/?user=USER&id=ID?user=admin&id=8
+    // SharedState::{
+    //     Seed=24301
+    //     Rng=RomuDuoJrRand { x_state: 97704, y_state: 403063 }
+    //     Corpus[ids]=RangeCorpus::{start=0, stop=10, step=2},
+    //     Corpus[users]=Wordlist::{len=2, top-2=[Static("user"), Static("admin")]},
+    //     Statistics={"timeouts":0,"requests":10.0,"errors":3,"informatives":0,"successes":3,"redirects":4,"client_errors":1,"server_errors":2,"redirection_errors":0,"connection_errors":0,"request_errors":0,"start_time":{"secs":1665661333,"nanos":517789344},"avg_reqs_per_sec":610.5293851456247,"statuses":{"308":2,"203":1,"201":1,"403":1,"304":1,"204":1,"301":1,"500":2}}
+    //   }
 
     Ok(())
 }
