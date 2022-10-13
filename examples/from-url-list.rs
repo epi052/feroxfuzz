@@ -107,7 +107,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // the macro calls below are essentially boilerplate. Whatever observers, deciders, mutators,
     // and processors you want to use, you simply pass them to the appropriate macro call and
     // eventually to the Fuzzer constructor.
-    let deciders = ();
     let mutators = build_mutators!(scheme_mutator, host_mutator, port_mutator);
     let observers = build_observers!(response_observer);
     let processors = build_processors!(request_printer, response_printer);
@@ -117,7 +116,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // the `Fuzzer` is the main component of the feroxfuzz library. It wraps most of the other components
     // and takes care of the actual fuzzing process.
     let mut fuzzer = AsyncFuzzer::new(
-        threads, client, request, scheduler, mutators, observers, processors, deciders,
+        threads,
+        client,
+        request,
+        scheduler,
+        mutators,
+        observers,
+        processors,
+        (), // no deciders
     );
 
     // the fuzzer will run until it iterates over the entire corpus once

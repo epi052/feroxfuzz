@@ -624,104 +624,162 @@ mod tests {
         };
     }
 
-    generate_optional_field_test!(
+    macro_rules! generate_field_test_with_optional_unit_variants {
+        // - method is the Request method to test
+        // - field is the mutable Data object associated with the field to encode
+        // - url is the URL to use for the Request::from_url() call
+        // - directive is the associated ShouldFuzz directive
+        // - encoder is which encoder is being matched against
+        // - func_name is what the generated test function should be named
+        // - expected is the anticipated result of the overall encoding performed
+        ($method:ident, $field:expr, $url:expr, $directive:expr, $encoder:expr, $func_name:ident, $expected:expr) => {
+            #[test]
+            fn $func_name() {
+                let mut request = Request::from_url($url, Some(&[$directive])).unwrap();
+
+                let allocations = allocation_counter::count(|| {
+                    request.encode($field, $encoder);
+                });
+
+                assert_eq!(allocations, 1); // count # of allocations during encode
+                assert_eq!(request.$method().unwrap().as_str().unwrap(), $expected);
+            }
+        };
+    }
+
+    macro_rules! generate_field_test_with_unit_variants {
+        // - method is the Request method to test
+        // - field is the mutable Data object associated with the field to encode
+        // - url is the URL to use for the Request::from_url() call
+        // - directive is the associated ShouldFuzz directive
+        // - encoder is which encoder is being matched against
+        // - func_name is what the generated test function should be named
+        // - expected is the anticipated result of the overall encoding performed
+        ($method:ident, $field:expr, $url:expr, $directive:expr, $encoder:expr, $func_name:ident, $expected:expr) => {
+            #[test]
+            fn $func_name() {
+                let mut request = Request::from_url($url, Some(&[$directive])).unwrap();
+
+                let allocations = allocation_counter::count(|| {
+                    request.encode($field, $encoder);
+                });
+
+                assert_eq!(allocations, 1); // count # of allocations during encode
+                assert_eq!(request.$method().as_str().unwrap(), $expected);
+            }
+        };
+    }
+
+    generate_field_test_with_optional_unit_variants!(
         username,
         RequestField::Username,
+        "http://admin@localhost:8000/",
         ShouldFuzz::URLUsername,
         Encoder::Base64,
         test_username_with_base64_encoder,
-        "aSdtIGEgbW9yZSBub3JtYWwgc3RyaW5nPw=="
+        "YWRtaW4="
     );
-    generate_optional_field_test!(
+    generate_field_test_with_optional_unit_variants!(
         username,
         RequestField::Username,
+        "http://admin@localhost:8000/",
         ShouldFuzz::URLUsername,
         Encoder::Hex,
         test_username_with_hex_encoder,
-        "69276d2061206d6f7265206e6f726d616c20737472696e673f"
+        "61646d696e"
     );
-    generate_optional_field_test!(
+    generate_field_test_with_optional_unit_variants!(
         username,
         RequestField::Username,
+        "http://admin@localhost:8000/",
         ShouldFuzz::URLUsername,
         Encoder::Url,
         test_username_with_url_encoder,
-        "i%27m+a+more+normal+string%3F"
+        "admin"
     );
 
-    generate_optional_field_test!(
+    generate_field_test_with_optional_unit_variants!(
         password,
         RequestField::Password,
+        "http://admin:password@localhost:8000/",
         ShouldFuzz::URLPassword,
         Encoder::Base64,
         test_password_with_base64_encoder,
-        "aSdtIGEgbW9yZSBub3JtYWwgc3RyaW5nPw=="
+        "cGFzc3dvcmQ="
     );
-    generate_optional_field_test!(
+    generate_field_test_with_optional_unit_variants!(
         password,
         RequestField::Password,
+        "http://admin:password@localhost:8000/",
         ShouldFuzz::URLPassword,
         Encoder::Hex,
         test_password_with_hex_encoder,
-        "69276d2061206d6f7265206e6f726d616c20737472696e673f"
+        "70617373776f7264"
     );
-    generate_optional_field_test!(
+    generate_field_test_with_optional_unit_variants!(
         password,
         RequestField::Password,
+        "http://admin:password@localhost:8000/",
         ShouldFuzz::URLPassword,
         Encoder::Url,
         test_password_with_url_encoder,
-        "i%27m+a+more+normal+string%3F"
+        "password"
     );
 
-    generate_optional_field_test!(
+    generate_field_test_with_optional_unit_variants!(
         port,
         RequestField::Port,
+        "http://localhost:8000/",
         ShouldFuzz::URLPort,
         Encoder::Base64,
         test_port_with_base64_encoder,
-        "aSdtIGEgbW9yZSBub3JtYWwgc3RyaW5nPw=="
+        "ODAwMA=="
     );
-    generate_optional_field_test!(
+    generate_field_test_with_optional_unit_variants!(
         port,
         RequestField::Port,
+        "http://localhost:8000/",
         ShouldFuzz::URLPort,
         Encoder::Hex,
         test_port_with_hex_encoder,
-        "69276d2061206d6f7265206e6f726d616c20737472696e673f"
+        "38303030"
     );
-    generate_optional_field_test!(
+    generate_field_test_with_optional_unit_variants!(
         port,
         RequestField::Port,
+        "http://localhost:8000/",
         ShouldFuzz::URLPort,
         Encoder::Url,
         test_port_with_url_encoder,
-        "i%27m+a+more+normal+string%3F"
+        "8000"
     );
 
-    generate_optional_field_test!(
+    generate_field_test_with_optional_unit_variants!(
         fragment,
         RequestField::Fragment,
+        "http://localhost:8000/#fragment",
         ShouldFuzz::URLFragment,
         Encoder::Base64,
         test_fragment_with_base64_encoder,
-        "aSdtIGEgbW9yZSBub3JtYWwgc3RyaW5nPw=="
+        "ZnJhZ21lbnQ="
     );
-    generate_optional_field_test!(
+    generate_field_test_with_optional_unit_variants!(
         fragment,
         RequestField::Fragment,
+        "http://localhost:8000/#fragment",
         ShouldFuzz::URLFragment,
         Encoder::Hex,
         test_fragment_with_hex_encoder,
-        "69276d2061206d6f7265206e6f726d616c20737472696e673f"
+        "667261676d656e74"
     );
-    generate_optional_field_test!(
+    generate_field_test_with_optional_unit_variants!(
         fragment,
         RequestField::Fragment,
+        "http://localhost:8000/#fragment",
         ShouldFuzz::URLFragment,
         Encoder::Url,
         test_fragment_with_url_encoder,
-        "i%27m+a+more+normal+string%3F"
+        "fragment"
     );
 
     generate_optional_field_test!(
@@ -774,54 +832,60 @@ mod tests {
         "i%27m+a+more+normal+string%3F"
     );
 
-    generate_field_test!(
+    generate_field_test_with_unit_variants!(
         scheme,
         RequestField::URLScheme,
+        "http://localhost:8000",
         ShouldFuzz::URLScheme,
         Encoder::Base64,
         test_scheme_with_base64_encoder,
-        "aSdtIGEgbW9yZSBub3JtYWwgc3RyaW5nPw=="
+        "aHR0cA=="
     );
-    generate_field_test!(
+    generate_field_test_with_unit_variants!(
         scheme,
         RequestField::URLScheme,
+        "http://localhost:8000",
         ShouldFuzz::URLScheme,
         Encoder::Hex,
         test_scheme_with_hex_encoder,
-        "69276d2061206d6f7265206e6f726d616c20737472696e673f"
+        "68747470"
     );
-    generate_field_test!(
+    generate_field_test_with_unit_variants!(
         scheme,
         RequestField::URLScheme,
+        "http://localhost:8000",
         ShouldFuzz::URLScheme,
         Encoder::Url,
         test_scheme_with_url_encoder,
-        "i%27m+a+more+normal+string%3F"
+        "http"
     );
 
-    generate_field_test!(
+    generate_field_test_with_unit_variants!(
         path,
         RequestField::Path,
+        "http://localhost:8000/derp",
         ShouldFuzz::URLPath,
         Encoder::Base64,
         test_path_with_base64_encoder,
-        "aSdtIGEgbW9yZSBub3JtYWwgc3RyaW5nPw=="
+        "L2RlcnA="
     );
-    generate_field_test!(
+    generate_field_test_with_unit_variants!(
         path,
         RequestField::Path,
+        "http://localhost:8000/derp",
         ShouldFuzz::URLPath,
         Encoder::Hex,
         test_path_with_hex_encoder,
-        "69276d2061206d6f7265206e6f726d616c20737472696e673f"
+        "2f64657270"
     );
-    generate_field_test!(
+    generate_field_test_with_unit_variants!(
         path,
         RequestField::Path,
+        "http://localhost:8000/derp",
         ShouldFuzz::URLPath,
         Encoder::Url,
         test_path_with_url_encoder,
-        "i%27m+a+more+normal+string%3F"
+        "%2Fderp"
     );
 
     generate_field_test!(

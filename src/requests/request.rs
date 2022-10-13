@@ -254,8 +254,8 @@ impl Request {
     /// # use feroxfuzz::input::Data;
     /// # use std::time::Duration;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let directives = [ShouldFuzz::URLPath(b"/path"), ShouldFuzz::HTTPMethod(b"GET"), ShouldFuzz::HTTPVersion(b"HTTP/1.1")];
-    /// let mut request = Request::from_url("https://localhost", Some(&directives))?;
+    /// let directives = [ShouldFuzz::URLPath, ShouldFuzz::HTTPMethod(b"GET"), ShouldFuzz::HTTPVersion(b"HTTP/1.1")];
+    /// let mut request = Request::from_url("https://localhost/path", Some(&directives))?;
     ///
     /// assert_eq!(request.scheme(), &Data::Static(b"https".to_vec()));
     /// assert_eq!(request.username(), None);
@@ -310,11 +310,19 @@ impl Request {
                             request.scheme.toggle_type();
                         }
                     }
-                    ShouldFuzz::URLUsername(username) => {
-                        request.username = Some(Data::Fuzzable(username.to_vec()));
+                    ShouldFuzz::URLUsername => {
+                        if let Some(username) = &mut request.username {
+                            if !username.is_fuzzable() {
+                                username.toggle_type();
+                            }
+                        }
                     }
-                    ShouldFuzz::URLPassword(password) => {
-                        request.password = Some(Data::Fuzzable(password.to_vec()));
+                    ShouldFuzz::URLPassword => {
+                        if let Some(password) = &mut request.password {
+                            if !password.is_fuzzable() {
+                                password.toggle_type();
+                            }
+                        }
                     }
                     ShouldFuzz::URLHost => {
                         if request.host.is_some() {
@@ -328,11 +336,17 @@ impl Request {
                             }
                         }
                     }
-                    ShouldFuzz::URLPath(path) => {
-                        request.path = Data::Fuzzable(path.to_vec());
+                    ShouldFuzz::URLPath => {
+                        if !request.path.is_fuzzable() {
+                            request.path.toggle_type();
+                        }
                     }
-                    ShouldFuzz::URLFragment(fragment) => {
-                        request.fragment = Some(Data::Fuzzable(fragment.to_vec()));
+                    ShouldFuzz::URLFragment => {
+                        if let Some(fragment) = &mut request.fragment {
+                            if !fragment.is_fuzzable() {
+                                fragment.toggle_type();
+                            }
+                        }
                     }
                     ShouldFuzz::URLParameterKey(parameter, delimiter) => {
                         request.add_fuzzable_param(parameter, delimiter, ShouldFuzz::Key)?;
@@ -346,6 +360,36 @@ impl Request {
                             delimiter,
                             ShouldFuzz::KeyAndValue,
                         )?;
+                    }
+                    ShouldFuzz::URLParameterKeys => {
+                        if let Some(params) = &mut request.params {
+                            for param in params {
+                                if !param.0.is_fuzzable() {
+                                    param.0.toggle_type();
+                                }
+                            }
+                        }
+                    }
+                    ShouldFuzz::URLParameterValues => {
+                        if let Some(params) = &mut request.params {
+                            for param in params {
+                                if !param.1.is_fuzzable() {
+                                    param.1.toggle_type();
+                                }
+                            }
+                        }
+                    }
+                    ShouldFuzz::URLParameterKeysAndValues => {
+                        if let Some(params) = &mut request.params {
+                            for param in params {
+                                if !param.0.is_fuzzable() {
+                                    param.0.toggle_type();
+                                }
+                                if !param.1.is_fuzzable() {
+                                    param.1.toggle_type();
+                                }
+                            }
+                        }
                     }
                     ShouldFuzz::HeaderKey(header, delimiter) => {
                         request.add_fuzzable_header(header, delimiter, ShouldFuzz::Key)?;
@@ -406,11 +450,7 @@ impl Request {
                 // userinfo    = *( unreserved / pct-encoded / sub-delims / ":" )
                 // host        = IP-literal / IPv4address / reg-name
                 // port        = *DIGIT
-                let authority = if let Some(captured) = captures.get(4) {
-                    captured.as_str()
-                } else {
-                    ""
-                };
+                let authority = captures.get(4).map_or("", |captured| captured.as_str());
 
                 match (
                     authority.matches(':').count(),
@@ -471,11 +511,7 @@ impl Request {
                 }
 
                 // parse query into smaller parts, if present
-                let query = if let Some(captured) = captures.get(7) {
-                    captured.as_str()
-                } else {
-                    ""
-                };
+                let query = captures.get(7).map_or("", | captured | captured.as_str());
 
                 if !query.is_empty() {
                     query.split('&').for_each(|pair| {
@@ -874,7 +910,7 @@ impl Request {
     /// # use feroxfuzz::requests::{Request, RequestId, ShouldFuzz};
     /// # use feroxfuzz::input::Data;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut request = Request::from_url("http://localhost.com", Some(&[ShouldFuzz::URLUsername(b"user")]))?;
+    /// let mut request = Request::from_url("http://user@localhost.com", Some(&[ShouldFuzz::URLUsername]))?;
     ///
     /// assert_eq!(request.username(), Some(&Data::Fuzzable(b"user".to_vec())));
     ///
@@ -937,8 +973,9 @@ impl Request {
     /// # use feroxfuzz::requests::{Request, RequestId, ShouldFuzz};
     /// # use feroxfuzz::input::Data;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut request = Request::from_url("http://localhost.com", Some(&[ShouldFuzz::URLPassword(b"pass")]))?;
+    /// let mut request = Request::from_url("http://user:pass@localhost.com", Some(&[ShouldFuzz::URLPassword]))?;
     ///
+    /// assert_eq!(request.username(), Some(&Data::Static(b"user".to_vec())));
     /// assert_eq!(request.password(), Some(&Data::Fuzzable(b"pass".to_vec())));
     ///
     /// request.static_password(b"pass2");
@@ -1063,7 +1100,7 @@ impl Request {
     /// # use feroxfuzz::requests::{Request, RequestId, ShouldFuzz};
     /// # use feroxfuzz::input::Data;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut request = Request::from_url("http://localhost.com", Some(&[ShouldFuzz::URLPort(b"12345")]))?;
+    /// let mut request = Request::from_url("http://localhost.com:12345", Some(&[ShouldFuzz::URLPort]))?;
     ///
     /// assert_eq!(request.port(), Some(&Data::Fuzzable(b"12345".to_vec())));
     ///
@@ -1126,7 +1163,7 @@ impl Request {
     /// # use feroxfuzz::requests::{Request, ShouldFuzz};
     /// # use feroxfuzz::input::Data;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut request = Request::from_url("http://localhost.com", Some(&[ShouldFuzz::URLPath(b"/path")]))?;
+    /// let mut request = Request::from_url("http://localhost.com/path", Some(&[ShouldFuzz::URLPath]))?;
     ///
     /// assert_eq!(request.path(), &Data::Fuzzable(b"/path".to_vec()));
     ///
@@ -1189,7 +1226,7 @@ impl Request {
     /// # use feroxfuzz::requests::{Request, RequestId, ShouldFuzz};
     /// # use feroxfuzz::input::Data;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut request = Request::from_url("http://localhost.com/path", Some(&[ShouldFuzz::URLFragment(b"frag")]))?;
+    /// let mut request = Request::from_url("http://localhost.com/path#frag", Some(&[ShouldFuzz::URLFragment]))?;
     ///
     /// assert_eq!(request.fragment(), Some(&Data::Fuzzable(b"frag".to_vec())));
     ///
