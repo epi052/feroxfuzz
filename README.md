@@ -67,7 +67,7 @@ The easiest way to get started is to include FeroxFuzz in your project's `Cargo.
 
 ```toml
 [dependencies]
-feroxfuzz = { version = "1.0.0-rc.1" }
+feroxfuzz = { version = "1.0.0-rc.2" }
 ```
 
 ## Docs
