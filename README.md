@@ -121,8 +121,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //
     // ShouldFuzz directives map to the various components of an HTTP request
     let request = Request::from_url(
-        "http://localhost:8000/",
-        Some(&[ShouldFuzz::URLParameterValue(b"admin=FUZZ", b"=")]),
+        "http://localhost:8000/?admin=FUZZ",
+        Some(&[ShouldFuzz::URLParameterValue]),
     )?;
 
     // a `StatusCodeDecider` provides a way to inspect each response's status code and decide upon some Action
