@@ -16,6 +16,9 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: check
+  semver:
+    name: Check semver
+    uses: obi1kenobi/cargo-semver-checks-action@v1
 
   test:
     name: Test Suite
