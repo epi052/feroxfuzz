@@ -19,7 +19,7 @@ jobs:
   semver:
     name: Check semver
     steps:
-      uses: obi1kenobi/cargo-semver-checks-action@v1
+      - uses: obi1kenobi/cargo-semver-checks-action@v1
 
   test:
     name: Test Suite
