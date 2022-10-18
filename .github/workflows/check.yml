@@ -16,11 +16,6 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: check
-  semver:
-    name: Check semver
-    runs-on: ubuntu-latest
-    steps:
-      - 
 
   test:
     name: Test Suite
