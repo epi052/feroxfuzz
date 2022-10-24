@@ -73,6 +73,26 @@ enum HttpMethodGroup {
 /// # Ok(())
 /// # }
 /// ```
+///
+/// ```
+/// # use feroxfuzz::corpora::HttpMethodsCorpus;
+/// # use feroxfuzz::prelude::*;
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+///
+/// // create a Corpus of all HTTP methods
+/// let corpus = HttpMethodsCorpus::new().method("GET").method("POST").name("corpus").build();
+///
+/// let expected = vec![
+///     "GET",
+///     "POST",
+/// ];
+///
+/// // resulting HttpMethodsCorpus has 9 entries
+/// assert_eq!(corpus.len(), 2);
+/// assert_eq!(corpus.items(), &expected);
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct HttpMethodsCorpus {
@@ -425,14 +445,14 @@ where
     IS: CorpusBuildState,
     NS: CorpusBuildState,
 {
-    pub fn method<T>(self, http_method: T) -> Self
+    pub fn method<T>(self, http_method: T) -> HttpMethodsBuilder<HasItems, NS>
     where
         Data: From<T>,
     {
         let mut items = self.items.unwrap_or_default();
         items.push(http_method.into());
 
-        Self {
+        HttpMethodsBuilder {
             items: Some(items),
             corpus_name: self.corpus_name,
             _item_state: PhantomData,
