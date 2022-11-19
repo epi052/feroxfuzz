@@ -60,6 +60,9 @@ pub use tuple_list::TupleList as ObserversList;
 pub use tuple_list::TupleList as MutatorsList;
 pub use tuple_list::TupleList as ProcessorsList;
 
+// re-exported 3rd party crate traits
+pub use libafl::bolts::rands::Rand;
+
 /// Wrapper `Atomic*.fetch_add` to save me from writing `Ordering::SeqCst` a bajillion times
 ///
 /// default is to increment by 1, second arg can be used to increment by a different value
