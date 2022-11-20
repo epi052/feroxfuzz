@@ -43,6 +43,7 @@ pub mod responses;
 pub mod schedulers;
 pub mod state;
 pub mod statistics;
+pub mod events;
 mod std_ext;
 
 // re-exported traits, to be available as top-level imports for users

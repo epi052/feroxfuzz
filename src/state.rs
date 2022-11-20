@@ -8,6 +8,7 @@ use tracing::{debug, error, instrument, warn};
 
 use crate::corpora::{CorpusIndices, CorpusMap, CorpusType};
 use crate::error::FeroxFuzzError;
+use crate::events::{Event, Publisher, EventPublisher};
 use crate::metadata::{Metadata, MetadataMap};
 use crate::observers::Observers;
 use crate::requests::Request;
@@ -61,6 +62,9 @@ pub struct SharedState {
     // of the corpus. this is necessary to support multiple corpora with
     // more complex scheduling.
     corpus_indices: CorpusIndices,
+
+    #[cfg_attr(feature = "serde", serde(skip))]
+    publisher: Arc<RwLock<Publisher>>,
 }
 
 impl SharedState {
@@ -109,6 +113,7 @@ impl SharedState {
             seed,
             rng: RomuDuoJrRand::with_seed(seed),
             corpus_indices: Arc::new(corpus_indices),
+            publisher: Arc::new(RwLock::new(Publisher::new())),
         }
     }
 
@@ -169,6 +174,7 @@ impl SharedState {
             seed,
             rng: RomuDuoJrRand::with_seed(seed),
             corpus_indices: Arc::new(corpus_indices),
+            publisher: Arc::new(RwLock::new(Publisher::new())),
         }
     }
 
@@ -394,6 +400,11 @@ impl SharedState {
         if let Ok(mut guard) = self.metadata.write() {
             guard.insert(name.to_string(), Box::new(metadata));
         }
+    }
+
+    /// add an implementor of [`Metadata`] to the `[MetadataMap]`
+    pub fn events(&self) -> Arc<RwLock<Publisher>> {
+        self.publisher.clone()
     }
 }
 
