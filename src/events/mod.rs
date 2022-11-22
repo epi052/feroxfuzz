@@ -1,24 +1,11 @@
 mod publisher;
 mod subscriber;
 
-use tracing::Level;
-
 use crate::input::Data;
 use crate::requests::RequestId;
 use crate::std_ext::ops::LogicOperation;
 
 pub use self::publisher::{EventPublisher, Publisher};
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[non_exhaustive]
-pub enum Event {
-    Log { level: Level, message: String },
-    Message(String),
-    Decision,
-    Action,
-    ResponseReceived,
-    RequestSent,
-}
 
 /// This event is emitted when an [`Action::AddToCorpus`] is performed
 /// by the fuzzer.
