@@ -12,21 +12,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::input::Data;
 
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::requests::Request;
-        use crate::std_ext::tuple::MatchName;
-        use crate::corpora::{Corpus, CorpusMap, CorpusIndices};
-        use crate::state::SharedState;
-        use crate::deciders::Decider;
-        use crate::actions::Action;
-        use crate::statistics::Statistics;
-    }
-}
-
 /// primary error-type for the feroxfuzz library
 #[derive(Error, Debug)]
 #[non_exhaustive]
@@ -96,6 +81,8 @@ pub enum FeroxFuzzError {
     },
 
     /// Represents an invalid index passed to [`Corpus::get`]
+    ///
+    /// [`Corpus::get`]: crate::corpora::Corpus::get
     #[error("Requested entry at `{index}` could not be found in Corpus `{name}`")]
     CorpusEntryNotFound {
         /// the name of the corpus
@@ -106,6 +93,8 @@ pub enum FeroxFuzzError {
     },
 
     /// Represents an invalid name passed to [`SharedState::corpus_by_name`]
+    ///
+    /// [`SharedState::corpus_by_name`]: crate::state::SharedState::corpus_by_name
     #[error("Requested Corpus named `{name}` could not be found")]
     CorpusNotFound {
         /// name of the requested corpus that couldn't be found
@@ -113,6 +102,8 @@ pub enum FeroxFuzzError {
     },
 
     /// Represents an invalid name passed to [`SharedState::corpus_index_by_name`]
+    ///
+    /// [`SharedState::corpus_index_by_name`]: crate::state::SharedState::corpus_index_by_name
     #[error("Requested index associated with Corpus named `{name}` could not be found")]
     CorpusIndexNotFound {
         /// name of the requested corpus index that couldn't be found
@@ -141,6 +132,8 @@ pub enum FeroxFuzzError {
     },
 
     /// Represents an empty [`Corpus`], which isn't allowed
+    ///
+    /// [`Corpus`]: crate::corpora::Corpus
     #[error("No entries were found in the Corpus `{name}`")]
     EmptyCorpus {
         /// name of the empty corpus
@@ -148,10 +141,14 @@ pub enum FeroxFuzzError {
     },
 
     /// Represents an empty [`CorpusMap`], which isn't allowed
+    ///
+    /// [`CorpusMap`]: crate::corpora::CorpusMap
     #[error("No corpora were found in the CorpusMap")]
     EmptyCorpusMap,
 
     /// Represents an empty [`CorpusIndices`], which isn't allowed
+    ///
+    /// [`CorpusIndices`]: crate::corpora::CorpusIndices
     #[error("No indices were found in the CorpusIndices map")]
     EmptyCorpusIndices,
 
@@ -163,6 +160,8 @@ pub enum FeroxFuzzError {
     },
 
     /// Represents an invalid request passed to [`MatchName`]
+    ///
+    /// [`MatchName`]: crate::MatchName
     #[error("Requested Named `{name}` object could not be found via MatchName")]
     NamedObjectNotFound {
         /// contains the name of what was requested
@@ -174,6 +173,8 @@ pub enum FeroxFuzzError {
     IterationStopped,
 
     /// Represents a [`Request`] field that could not be parsed into a valid utf-8 &str
+    ///
+    /// [`Request`]: crate::requests::Request
     #[error("Could not parse bytes into valid utf-8 (required by &str)")]
     UnparsableData {
         /// underlying source error-type
@@ -192,6 +193,8 @@ pub enum FeroxFuzzError {
     },
 
     /// Represents a failed mutation of a [`Request`] object
+    ///
+    /// [`Request`]: crate::requests::Request
     #[error("Mutation failed")]
     FailedMutation {
         /// underlying source error-type
@@ -221,6 +224,8 @@ pub enum FeroxFuzzError {
     /// Note: this is only used because of how the async fuzz_once loop
     /// is implemented. It is not intended to be used outside of the
     /// async fuzz_once loop.
+    ///
+    /// [`Action::StopFuzzing`]: crate::actions::Action::StopFuzzing
     #[error("Stopped fuzzing based on user-provided criteria")]
     FuzzingStopped,
 }
@@ -228,6 +233,8 @@ pub enum FeroxFuzzError {
 /// Used to differentiate between different types of errors that occur when making requests.
 ///
 /// That differentiation is then used internally to update the proper error counts in [`Statistics`]
+///
+/// [`Statistics`]: crate::statistics::Statistics
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Copy, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 #[non_exhaustive]

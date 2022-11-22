@@ -1,7 +1,10 @@
 //! [`Corpus`] based iterators of different flavors
+//!
+//! [`Corpus`]: crate::corpora::Corpus
 use crate::actions::Action;
 use crate::deciders::LogicOperation;
 use crate::error::FeroxFuzzError;
+use crate::events::{EventPublisher, FuzzForever, FuzzNTimes, StopFuzzing};
 use crate::state::SharedState;
 
 use async_trait::async_trait;
@@ -23,31 +26,32 @@ cfg_if! {
     }
 }
 
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::client::HttpClient;
-        use crate::deciders::Decider;
-        use crate::corpora::Corpus;
-    }
-}
-
 /// the generic fuzzer trait; simply a marker trait used with [`BlockingFuzzer`] and [`AsyncFuzzer`]
+///
+/// [`BlockingFuzzer`]: crate::fuzzers::BlockingFuzzer
 pub trait Fuzzer {
     /// return the default [`LogicOperation`] that joins [`Decider`]s while using
     /// a [`Fuzzer`]
+    ///
+    /// [`Decider`]: crate::deciders::Decider
     fn pre_send_logic(&self) -> Option<LogicOperation>;
 
     /// return the [`LogicOperation`] that joins [`Decider`]s while using
     /// a [`Fuzzer`]
+    ///
+    /// [`Decider`]: crate::deciders::Decider
     fn post_send_logic(&self) -> Option<LogicOperation>;
 
     /// change the default [`LogicOperation`] that joins [`Decider`]s while using
     /// a [`Fuzzer`]
+    ///
+    /// [`Decider`]: crate::deciders::Decider
     fn set_pre_send_logic(&mut self, logic_operation: LogicOperation);
 
     /// change the default [`LogicOperation`] that joins [`Decider`]s while using
     /// a [`Fuzzer`]
+    ///
+    /// [`Decider`]: crate::deciders::Decider
     fn set_post_send_logic(&mut self, logic_operation: LogicOperation);
 }
 
@@ -55,6 +59,8 @@ pub trait Fuzzer {
 /// multiple fuzzcases at a time
 ///
 /// designed to be used with an async [`HttpClient`]
+///
+/// [`HttpClient`]: crate::client::HttpClient
 #[async_trait]
 pub trait AsyncFuzzing: Fuzzer {
     /// fuzz forever
@@ -63,6 +69,8 @@ pub trait AsyncFuzzing: Fuzzer {
     ///
     /// see [`Fuzzer`]'s Errors section for more details
     async fn fuzz(&mut self, state: &mut SharedState) -> Result<(), FeroxFuzzError> {
+        state.events().notify(FuzzForever);
+
         loop {
             if self.fuzz_once(state).await? == Some(Action::StopFuzzing) {
                 break Ok(());
@@ -94,6 +102,10 @@ pub trait AsyncFuzzing: Fuzzer {
         num_iterations: usize,
         state: &mut SharedState,
     ) -> Result<(), FeroxFuzzError> {
+        state.events().notify(FuzzNTimes {
+            iterations: num_iterations,
+        });
+
         for _ in 0..num_iterations {
             if self.fuzz_once(state).await? == Some(Action::StopFuzzing) {
                 return Ok(());
@@ -108,6 +120,8 @@ pub trait AsyncFuzzing: Fuzzer {
 /// a single fuzzcase at a time
 ///
 /// designed to be used with a blocking [`HttpClient`]
+///
+/// [`HttpClient`]: crate::client::HttpClient
 pub trait BlockingFuzzing: Fuzzer {
     /// fuzz forever
     ///
@@ -115,8 +129,11 @@ pub trait BlockingFuzzing: Fuzzer {
     ///
     /// see [`Fuzzer`]'s Errors section for more details
     fn fuzz(&mut self, state: &mut SharedState) -> Result<(), FeroxFuzzError> {
+        state.events().notify(FuzzForever);
+
         loop {
             if self.fuzz_once(state)? == Some(Action::StopFuzzing) {
+                state.events().notify(&StopFuzzing);
                 break Ok(());
             }
         }
@@ -143,8 +160,13 @@ pub trait BlockingFuzzing: Fuzzer {
         num_iterations: usize,
         state: &mut SharedState,
     ) -> Result<(), FeroxFuzzError> {
+        state.events().notify(FuzzNTimes {
+            iterations: num_iterations,
+        });
+
         for _ in 0..num_iterations {
             if self.fuzz_once(state)? == Some(Action::StopFuzzing) {
+                state.events().notify(&StopFuzzing);
                 return Ok(());
             }
         }

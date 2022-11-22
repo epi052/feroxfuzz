@@ -17,6 +17,10 @@ use crate::actions::FlowControl;
 use crate::client;
 use crate::deciders::Deciders;
 use crate::error::FeroxFuzzError;
+use crate::events::{
+    DiscardedRequest, DiscardedResponse, EventPublisher, FuzzOnce, KeptRequest, KeptResponse,
+    StopFuzzing,
+};
 use crate::mutators::Mutators;
 use crate::observers::Observers;
 use crate::processors::Processors;
@@ -144,6 +148,12 @@ where
         let post_send_logic = self.post_send_logic().unwrap_or_default();
         let scheduler = self.scheduler.clone();
 
+        state.events().notify(FuzzOnce {
+            threads: num_threads,
+            pre_send_logic: self.pre_send_logic().unwrap_or_default(),
+            post_send_logic,
+        });
+
         // facilitates a threadsafe way to 'break' out of the iterator
         let should_quit = Arc::new(AtomicBool::new(false));
         let mut err = Ok(());
@@ -162,11 +172,13 @@ where
                     ),
                     FeroxFuzzError,
                 > {
+                    let mut request = self.request.clone();
+
+                    *request.id_mut() += self.request_id;
+
                     let mut mutated_request = self
                         .mutators
-                        .call_mutate_hooks(state, self.request.clone())?;
-
-                    *mutated_request.id_mut() += self.request_id;
+                        .call_mutate_hooks(state, request)?;
 
                     self.observers.call_pre_send_hooks(&mutated_request);
 
@@ -186,6 +198,11 @@ where
                     match decision {
                         Some(Action::Discard) => {
                             self.request_id += 1;
+
+                            state.events().notify(DiscardedRequest {
+                                id: mutated_request.id(),
+                            });
+
                             return Err(FeroxFuzzError::DiscardedRequest);
                         }
                         Some(Action::AddToCorpus(name, flow_control)) => {
@@ -205,9 +222,18 @@ where
                                 }
                                 FlowControl::Discard => {
                                     self.request_id += 1;
+
+                                    state.events().notify(DiscardedRequest {
+                                        id: mutated_request.id(),
+                                    });
+
                                     return Err(FeroxFuzzError::DiscardedRequest);
                                 }
-                                _ => {}
+                                FlowControl::Keep => {
+                                    state.events().notify(KeptRequest {
+                                        id: mutated_request.id(),
+                                    });
+                                }
                             }
 
                             // ignore when flow control is Keep, same as we do for Action::Keep below
@@ -219,9 +245,12 @@ where
                             );
                             return Err(FeroxFuzzError::FuzzingStopped);
                         }
-                        _ => {
-                            // do nothing if it's None or an Action::Keep
+                        Some(Action::Keep) => {
+                            state.events().notify(KeptRequest {
+                                id: mutated_request.id(),
+                            });
                         }
+                        _ => {}// do nothing
                     }
 
                     let cloned_client = self.client.clone();
@@ -347,12 +376,24 @@ where
                             warn!("Could not add {:?} to corpus[{name}]: {:?}", c_request, err);
                         }
 
-                        if matches!(flow_control, FlowControl::StopFuzzing) {
-                            tracing::info!(
-                                "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
-                                request_id
-                            );
-                            c_should_quit.store(true, Ordering::Relaxed);
+                        match flow_control {
+                            FlowControl::StopFuzzing => {
+                                tracing::info!(
+                                    "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
+                                    request_id
+                                );
+                                c_should_quit.store(true, Ordering::Relaxed);
+                            }
+                            FlowControl::Discard => {
+                                c_state.events().notify(DiscardedResponse {
+                                    id: request_id
+                                });
+                            }
+                            FlowControl::Keep => {
+                                c_state.events().notify(KeptResponse {
+                                    id: request_id
+                                });
+                            }
                         }
                     }
                     Some(Action::StopFuzzing) => {
@@ -362,7 +403,17 @@ where
                         );
                         c_should_quit.store(true, Ordering::Relaxed);
                     }
-                    _ => {}
+                    Some(Action::Discard) => {
+                        c_state.events().notify(DiscardedResponse {
+                            id: request_id
+                        });
+                    }
+                    Some(Action::Keep) => {
+                        c_state.events().notify(KeptResponse {
+                            id: request_id
+                        });
+                    }
+                    None => {}
 
                 }
         })
@@ -372,6 +423,7 @@ where
         self.scheduler.reset();
 
         if err.is_err() || should_quit.load(Ordering::SeqCst) {
+            state.events().notify(&StopFuzzing);
             return Ok(Some(Action::StopFuzzing));
         }
 

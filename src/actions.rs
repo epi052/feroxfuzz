@@ -4,18 +4,6 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::requests::Request;
-        use crate::responses::Response;
-        use crate::corpora::Corpus;
-        use crate::processors::Processor;
-    }
-}
-
 /// all possible actions
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -23,10 +11,16 @@ cfg_if! {
 pub enum Action {
     /// when used in a pre-send context, retain the current [`Request`], if
     /// used in a post-send context, retain the current [`Response`]
+    ///
+    /// [`Request`]: crate::requests::Request
+    /// [`Response`]: crate::responses::Response
     Keep,
 
     /// when used in a pre-send context, ignore the current [`Request`], if
     /// used in a post-send context, ignore the current [`Response`]
+    ///
+    /// [`Request`]: crate::requests::Request
+    /// [`Response`]: crate::responses::Response
     Discard,
 
     /// add the current mutated field(s) to the [`Corpus`] associated
@@ -44,6 +38,9 @@ pub enum Action {
     /// won't progress beyond being added to the corpus. In either case, the
     /// resulting `Action` will still be passed to any configured
     /// [`Processor`]s.
+    ///
+    /// [`Corpus`]: crate::corpora::Corpus
+    /// [`Processor`]: crate::processors::Processor
     AddToCorpus(&'static str, FlowControl),
 
     /// break out of the current fuzz loop; no more iterations other than
@@ -60,10 +57,16 @@ pub enum Action {
 pub enum FlowControl {
     /// when used in a pre-send context, retain the current [`Request`], if
     /// used in a post-send context, retain the current [`Response`]
+    ///
+    /// [`Request`]: crate::requests::Request
+    /// [`Response`]: crate::responses::Response
     Keep,
 
     /// when used in a pre-send context, ignore the current [`Request`], if
     /// used in a post-send context, ignore the current [`Response`]
+    ///
+    /// [`Request`]: crate::requests::Request
+    /// [`Response`]: crate::responses::Response
     Discard,
 
     /// break out of the current fuzz loop; no more iterations other than

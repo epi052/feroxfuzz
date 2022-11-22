@@ -31,6 +31,7 @@ pub mod client;
 pub mod corpora;
 pub mod deciders;
 pub mod error;
+pub mod events;
 pub mod fuzzers;
 pub mod input;
 pub mod metadata;
@@ -43,7 +44,6 @@ pub mod responses;
 pub mod schedulers;
 pub mod state;
 pub mod statistics;
-pub mod events;
 mod std_ext;
 
 // re-exported traits, to be available as top-level imports for users

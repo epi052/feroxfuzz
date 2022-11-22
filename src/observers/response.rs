@@ -11,15 +11,6 @@ use serde::{Deserialize, Serialize};
 use tracing::instrument;
 use url::Url;
 
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::fuzzers::Fuzzer;
-        use crate::build_observers;
-        use crate::observers::Observers;
-    }
-}
-
 const RESPONSE_OBSERVER_NAME: &str = "ResponseObserver";
 
 /// observes the given implementor of implementor of [`Response`] and [`Timed`]
@@ -61,6 +52,10 @@ where
     /// While the example below works, the normal use-case for this struct is to pass
     /// it, and any other [`Observers`] to the [`build_observers`] macro, and pass
     /// the result of that call to your chosen [`Fuzzer`] implementation.
+    ///
+    /// [`build_observers`]: crate::build_observers
+    /// [`Fuzzer`]: crate::fuzzers::Fuzzer
+    /// [`Observers`]: crate::observers::Observers
     ///
     /// ```
     /// # use http;

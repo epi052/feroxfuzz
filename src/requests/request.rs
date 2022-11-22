@@ -511,7 +511,7 @@ impl Request {
                 }
 
                 // parse query into smaller parts, if present
-                let query = captures.get(7).map_or("", | captured | captured.as_str());
+                let query = captures.get(7).map_or("", |captured| captured.as_str());
 
                 if !query.is_empty() {
                     query.split('&').for_each(|pair| {
@@ -1888,6 +1888,77 @@ impl Request {
     #[inline]
     pub fn timeout_mut(&mut self) -> &mut Duration {
         &mut self.timeout
+    }
+
+    /// returns a list of all [`Request`] fields and their values that are marked fuzzable
+    pub fn fuzzable_fields(&self) -> Vec<(String, Data)> {
+        let mut fields = Vec::with_capacity(14);
+
+        let path = self.path();
+        let scheme = self.scheme();
+        let method = self.method();
+        let version = self.version();
+
+        [
+            ("path", path),
+            ("scheme", scheme),
+            ("method", method),
+            ("version", version),
+        ]
+        .iter()
+        .for_each(|(field, value)| {
+            if value.is_fuzzable() {
+                fields.push((field.to_string(), (**value).clone()));
+            }
+        });
+
+        // the next set require checking some/none
+        [
+            ("username", self.username.as_ref()),
+            ("password", self.password.as_ref()),
+            ("host", self.host.as_ref()),
+            ("port", self.port.as_ref()),
+            ("fragment", self.fragment.as_ref()),
+            ("user_agent", self.user_agent.as_ref()),
+            ("body", self.body.as_ref()),
+        ]
+        .iter()
+        .cloned()
+        .for_each(|(field, value)| {
+            if let Some(value) = value {
+                if value.is_fuzzable() {
+                    fields.push((field.to_string(), value.clone()));
+                }
+            }
+        });
+
+        // finally, url query params
+        // pub(crate) headers: Option<Vec<(Data, Data)>>,
+        // pub(crate) params: Option<Vec<(Data, Data)>>,
+
+        if let Some(params) = self.params() {
+            for (key, value) in params {
+                if key.is_fuzzable() {
+                    fields.push(("param-key".to_string(), key.clone()));
+                }
+                if value.is_fuzzable() {
+                    fields.push(("param-value".to_string(), value.clone()));
+                }
+            }
+        }
+
+        if let Some(headers) = self.headers() {
+            for (key, value) in headers {
+                if key.is_fuzzable() {
+                    fields.push(("header-key".to_string(), key.clone()));
+                }
+                if value.is_fuzzable() {
+                    fields.push(("header-value".to_string(), value.clone()));
+                }
+            }
+        }
+
+        fields
     }
 }
 

@@ -1,4 +1,6 @@
 //! Use data from an [`Observer`] to make a decision about the supplied data
+//!
+//! [`Observer`]: crate::observers::Observer
 mod length;
 mod regex;
 mod status_code;
@@ -18,19 +20,13 @@ pub use self::status_code::StatusCodeDecider;
 // re-export LogicOperation from here, for a more logical location from an external user's perspective
 pub use crate::std_ext::ops::LogicOperation;
 
-use cfg_if::cfg_if;
 use dyn_clone::DynClone;
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::client::HttpClient;
-        use crate::observers::Observer;
-    }
-}
 
 /// A `Decider` pulls information from some [`Observer`] in order to
 /// reach a decision about what [`Action`] should be taken
+///
+/// [`Action`]: crate::actions::Action
+/// [`Observer`]: crate::observers::Observer
 pub trait Decider<O, R>: DynClone + AsAny + Named
 where
     O: Observers<R>,
@@ -40,6 +36,10 @@ where
     /// make a decision that returns an [`Action`]
     ///
     /// this is typically called via the `pre_send_hook`
+    ///
+    /// [`SharedState`]: crate::state::SharedState
+    /// [`Request`]: crate::requests::Request
+    /// [`Action`]: crate::actions::Action
     fn decide_with_request(&mut self, _state: &SharedState, _request: &Request) -> Option<Action> {
         None
     }
@@ -48,6 +48,10 @@ where
     /// returns an [`Action`]
     ///
     /// this is typically called via the `post_send_hook`
+    ///
+    /// [`SharedState`]: crate::state::SharedState
+    /// [`Observers`]: crate::observers::Observers
+    /// [`Action`]: crate::actions::Action
     fn decide_with_observers(&mut self, _state: &SharedState, _observers: &O) -> Option<Action> {
         None
     }
@@ -86,6 +90,9 @@ where
     R: Response,
 {
     /// called before an [`HttpClient`] sends a [`Request`]
+    ///
+    /// [`HttpClient`]: crate::client::HttpClient
+    /// [`Request`]: crate::requests::Request
     fn pre_send_hook(
         &mut self,
         state: &SharedState,
@@ -120,6 +127,9 @@ where
     }
 
     /// called after an [`HttpClient`] receives a [`Response`]
+    ///
+    /// [`HttpClient`]: crate::client::HttpClient
+    /// [`Request`]: crate::requests::Request
     fn post_send_hook(
         &mut self,
         state: &SharedState,
@@ -165,6 +175,11 @@ where
 ///
 /// In order to logically group different sets of hooks, with different logic, we need
 /// to make a separate [`Deciders`] tuple for each logical grouping.
+///
+/// [`Deciders`]: crate::deciders::Deciders
+/// [`DeciderHooks`]: crate::deciders::DeciderHooks
+/// [`DecidersList`]: crate::DecidersList
+/// [`LogicOperation`]: crate::deciders::LogicOperation
 pub trait Deciders<O, R>
 where
     O: Observers<R>,
@@ -173,6 +188,10 @@ where
     /// called before an [`HttpClient`] sends a [`Request`]
     ///
     /// recursively calls [`DeciderHooks::pre_send_hook`]
+    ///
+    /// [`HttpClient`]: crate::client::HttpClient
+    /// [`Request`]: crate::requests::Request
+    /// [`DeciderHooks::pre_send_hook`]: crate::deciders::DeciderHooks::pre_send_hook
     fn call_pre_send_hooks(
         &mut self,
         _state: &SharedState,
@@ -186,6 +205,10 @@ where
     /// called after an [`HttpClient`] receives a [`Response`]
     ///
     /// recursively calls [`DeciderHooks::post_send_hook`]
+    ///
+    /// [`HttpClient`]: crate::client::HttpClient
+    /// [`Request`]: crate::requests::Request
+    /// [`DeciderHooks::post_send_hook`]: crate::deciders::DeciderHooks::post_send_hook
     fn call_post_send_hooks(
         &mut self,
         _state: &SharedState,

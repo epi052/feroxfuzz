@@ -2,13 +2,14 @@
 use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
 use std::sync::atomic::AtomicUsize;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Once, RwLock};
 
 use tracing::{debug, error, instrument, warn};
 
 use crate::corpora::{CorpusIndices, CorpusMap, CorpusType};
 use crate::error::FeroxFuzzError;
-use crate::events::{Event, Publisher, EventPublisher};
+use crate::events::{EventPublisher, ModifiedCorpus, Publisher};
+use crate::input::Data;
 use crate::metadata::{Metadata, MetadataMap};
 use crate::observers::Observers;
 use crate::requests::Request;
@@ -16,23 +17,27 @@ use crate::responses::{Response, Timed};
 use crate::statistics::Statistics;
 use crate::Len;
 
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::corpora::Corpus;
-        use crate::observers::{ResponseObserver, Observer};
-        use crate::std_ext::tuple::Named;
-        use crate::input::Data;
-    }
-}
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use libafl::bolts::rands::RomuDuoJrRand;
 use libafl::state::{HasMaxSize, HasRand, DEFAULT_MAX_SIZE};
+
+static mut HAS_LISTENERS: bool = false;
+static INIT: Once = Once::new();
+
+/// caches the answer to whether or not the publisher has any [`ModifiedCorpus`] listeners
+///
+/// [`ModifiedCorpus`]: crate::events::ModifiedCorpus
+fn has_corpus_listeners(publisher: &Arc<RwLock<Publisher>>) -> bool {
+    unsafe {
+        INIT.call_once(|| {
+            HAS_LISTENERS = publisher.has_listeners::<ModifiedCorpus>();
+        });
+
+        HAS_LISTENERS
+    }
+}
 
 /// fuzzer's current state
 #[derive(Clone, Default, Debug)]
@@ -69,6 +74,8 @@ pub struct SharedState {
 
 impl SharedState {
     /// given a single implementor of [`Corpus`], create a new `SharedState` object
+    ///
+    /// [`Corpus`]: crate::corpora::Corpus
     ///
     /// # Note
     ///
@@ -118,6 +125,8 @@ impl SharedState {
     }
 
     /// given a list of types implementing [`Corpus`], create a new `SharedState` object
+    ///
+    /// [`Corpus`]: crate::corpora::Corpus
     ///
     /// # Note
     ///
@@ -218,6 +227,8 @@ impl SharedState {
 
     /// lookup a [`Corpus`] by its associated name (key)
     ///
+    /// [`Corpus`]: crate::corpora::Corpus
+    ///
     /// # Errors
     ///
     /// If the key is not found, a [`FeroxFuzzError`] is returned.
@@ -236,6 +247,8 @@ impl SharedState {
     }
 
     /// lookup a [`Corpus`] by its associated name (key) and return its current index
+    ///
+    /// [`Corpus`]: crate::corpora::Corpus
     ///
     /// # Errors
     ///
@@ -256,11 +269,18 @@ impl SharedState {
     /// given an [`Observers`] object with at least (and probably only) one
     /// [`ResponseObserver`], update the appropriate internal trackers
     ///
+    /// [`ResponseObserver`]: crate::observers::ResponseObserver
+    /// [`Observers`]: crate::observers::Observers
+    ///
     /// # Errors
     ///
     /// `update` can fail if an expected [`Named`] [`Observer`] cannot be found
     /// in the [`Observers`] collection. `update` may also fail if the observed
     /// response's status code is outside of normal bounds (100-599)
+    ///
+    /// [`Named`]: crate::Named
+    /// [`Observer`]: crate::observers::Observer
+    /// [`Observers`]: crate::observers::Observers
     #[instrument(skip_all, level = "trace")]
     pub fn update<O, R>(&self, observers: &O) -> Result<(), FeroxFuzzError>
     where
@@ -280,6 +300,7 @@ impl SharedState {
     ///
     /// `update_from_error` may fail if there is a status code associate with the response
     /// AND the status code is outside of normal bounds (100-599)
+    ///
     #[instrument(skip_all, level = "trace")]
     pub fn update_from_error(&self, error: &FeroxFuzzError) -> Result<(), FeroxFuzzError> {
         if let Ok(mut guard) = self.statistics.write() {
@@ -289,7 +310,31 @@ impl SharedState {
         Ok(())
     }
 
+    fn notify_listeners(
+        &self,
+        request: &Request,
+        corpus_name: String,
+        field: &'static str,
+        entry: Data,
+    ) {
+        let has_listeners = has_corpus_listeners(&self.events());
+
+        if has_listeners {
+            self.events().notify(ModifiedCorpus {
+                id: request.id(),
+                corpus: corpus_name,
+                action: "add",
+                from_field: field,
+                entry: entry,
+            });
+        }
+    }
+
     /// add given [`Request`]'s fuzzable [`Data`] fields to the given [`Corpus`]
+    ///
+    /// [`Corpus`]: crate::corpora::Corpus
+    /// [`Data`]: crate::input::Data
+    /// [`Request`]: crate::requests::Request
     ///
     /// # Errors
     ///
@@ -307,49 +352,88 @@ impl SharedState {
 
             if request.scheme().is_fuzzable() {
                 guard.add(request.scheme().clone());
+                self.notify_listeners(
+                    request,
+                    corpus_name.to_string(),
+                    "scheme",
+                    request.scheme().clone(),
+                );
             }
 
             if let Some(username) = request.username() {
                 if username.is_fuzzable() {
                     guard.add(username.clone());
+                    self.notify_listeners(
+                        request,
+                        corpus_name.to_string(),
+                        "username",
+                        username.clone(),
+                    );
                 }
             }
 
             if let Some(password) = request.password() {
                 if password.is_fuzzable() {
                     guard.add(password.clone());
+                    self.notify_listeners(
+                        request,
+                        corpus_name.to_string(),
+                        "password",
+                        password.clone(),
+                    );
                 }
             }
 
             if let Some(host) = request.host() {
                 if host.is_fuzzable() {
                     guard.add(host.clone());
+                    self.notify_listeners(request, corpus_name.to_string(), "host", host.clone());
                 }
             }
 
             if let Some(port) = request.port() {
                 if port.is_fuzzable() {
                     guard.add(port.clone());
+                    self.notify_listeners(request, corpus_name.to_string(), "port", port.clone());
                 }
             }
 
             if request.path().is_fuzzable() {
                 guard.add(request.path().clone());
+                self.notify_listeners(
+                    request,
+                    corpus_name.to_string(),
+                    "path",
+                    request.path().clone(),
+                );
             }
 
             if let Some(fragment) = request.fragment() {
                 if fragment.is_fuzzable() {
                     guard.add(fragment.clone());
+                    self.notify_listeners(
+                        request,
+                        corpus_name.to_string(),
+                        "fragment",
+                        fragment.clone(),
+                    );
                 }
             }
 
             if request.method().is_fuzzable() {
                 guard.add(request.method().clone());
+                self.notify_listeners(
+                    request,
+                    corpus_name.to_string(),
+                    "method",
+                    request.method().clone(),
+                );
             }
 
             if let Some(body) = request.body() {
                 if body.is_fuzzable() {
                     guard.add(body.clone());
+                    self.notify_listeners(request, corpus_name.to_string(), "body", body.clone());
                 }
             }
 
@@ -357,9 +441,21 @@ impl SharedState {
                 for (key, value) in headers.iter() {
                     if key.is_fuzzable() {
                         guard.add(key.clone());
+                        self.notify_listeners(
+                            request,
+                            corpus_name.to_string(),
+                            "header",
+                            Data::Fuzzable(format!("{}: {}", key, value).into()),
+                        );
                     }
                     if value.is_fuzzable() {
                         guard.add(value.clone());
+                        self.notify_listeners(
+                            request,
+                            corpus_name.to_string(),
+                            "header",
+                            Data::Fuzzable(format!("{}: {}", key, value).into()),
+                        );
                     }
                 }
             }
@@ -368,9 +464,21 @@ impl SharedState {
                 for (key, value) in params.iter() {
                     if key.is_fuzzable() {
                         guard.add(key.clone());
+                        self.notify_listeners(
+                            request,
+                            corpus_name.to_string(),
+                            "parameter",
+                            Data::Fuzzable(format!("{}={}", key, value).into()),
+                        );
                     }
                     if value.is_fuzzable() {
                         guard.add(value.clone());
+                        self.notify_listeners(
+                            request,
+                            corpus_name.to_string(),
+                            "parameter",
+                            Data::Fuzzable(format!("{}={}", key, value).into()),
+                        );
                     }
                 }
             }
@@ -378,11 +486,23 @@ impl SharedState {
             if let Some(user_agent) = request.user_agent() {
                 if user_agent.is_fuzzable() {
                     guard.add(user_agent.clone());
+                    self.notify_listeners(
+                        request,
+                        corpus_name.to_string(),
+                        "user-agent",
+                        user_agent.clone(),
+                    );
                 }
             }
 
             if request.version().is_fuzzable() {
                 guard.add(request.version().clone());
+                self.notify_listeners(
+                    request,
+                    corpus_name.to_string(),
+                    "version",
+                    request.version().clone(),
+                );
             }
         }
 

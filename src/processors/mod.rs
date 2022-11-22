@@ -17,15 +17,6 @@ mod request;
 mod response;
 mod statistics;
 
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::client::HttpClient;
-    }
-}
-
 /// Used to specify when an implementor of `Processor` should execute its hooks
 #[derive(Copy, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -63,6 +54,8 @@ pub trait Processor {}
 /// - `processors.call_post_send_hooks`
 pub trait ProcessorHooks {
     /// called before an [`HttpClient`] sends a [`Request`]
+    ///
+    /// [`HttpClient`]: crate::client::HttpClient
     fn pre_send_hook(
         &mut self,
         _state: &SharedState,
@@ -72,6 +65,8 @@ pub trait ProcessorHooks {
     }
 
     /// called after an [`HttpClient`] receives a [`Response`]
+    ///
+    /// [`HttpClient`]: crate::client::HttpClient
     fn post_send_hook<O, R>(
         &mut self,
         _state: &SharedState,
@@ -92,6 +87,8 @@ pub trait Processors {
     /// called before an [`HttpClient`] sends a [`Request`]
     ///
     /// recursively calls [`ProcessorHooks::pre_send_hook`]
+    ///
+    /// [`HttpClient`]: crate::client::HttpClient
     fn call_pre_send_hooks(
         &mut self,
         _state: &SharedState,
@@ -103,6 +100,10 @@ pub trait Processors {
     /// called after an [`HttpClient`] receives a [`Response`]
     ///
     /// recursively calls [`ProcessorHooks::post_send_hook`]
+    ///
+    /// [`HttpClient`]: crate::client::HttpClient
+    /// [`Response`]: crate::responses::Response
+    ///
     fn call_post_send_hooks<O, R>(
         &mut self,
         _state: &SharedState,

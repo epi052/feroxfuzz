@@ -9,16 +9,9 @@ use crate::std_ext::ops::Len;
 use libafl::bolts::rands::Rand;
 use tracing::{error, instrument, trace};
 
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::corpora::Corpus;
-    }
-}
-
 /// Random access of the associated [`Corpus`]
+///
+/// [`Corpus`]: crate::corpora::Corpus
 ///
 /// # Note
 ///

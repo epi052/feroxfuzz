@@ -18,16 +18,6 @@ pub use ordered::OrderedScheduler;
 pub use product::ProductScheduler;
 pub use random::RandomScheduler;
 
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::corpora::Corpus;
-        use crate::fuzzers::Fuzzer;
-    }
-}
-
 /// manages how the fuzzer gets entries from the corpus
 pub trait Scheduler {
     /// get the next entry from the corpus
@@ -39,6 +29,9 @@ pub trait Scheduler {
 
     /// reset the internal state of the `Scheduler`, typically called by the [`Fuzzer`]
     /// once a full iteration of the [`Corpus`] is complete
+    ///
+    /// [`Corpus`]: crate::corpora::Corpus
+    /// [`Fuzzer`]: crate::fuzzers::Fuzzer
     fn reset(&mut self);
 }
 

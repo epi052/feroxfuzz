@@ -7,18 +7,6 @@ use crate::observers::{Observers, ResponseObserver};
 use crate::responses::Response;
 use crate::state::SharedState;
 
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::build_processors;
-        use crate::fuzzers::Fuzzer;
-        use crate::processors::Processors;
-        use crate::deciders::Deciders;
-    }
-}
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
@@ -33,6 +21,11 @@ use tracing::instrument;
 /// While the example below works, the normal use-case for this struct is to pass
 /// it, and any other [`Processors`] to the [`build_processors`] macro, and pass
 /// the result of that call to your chosen [`Fuzzer`] implementation.
+///
+/// [`Fuzzer`]: crate::fuzzers::Fuzzer
+/// [`Deciders`]: crate::deciders::Deciders
+/// [`Processors`]: crate::processors::Processors
+/// [`build_processors`]: crate::build_processors
 ///
 /// ```
 /// # use http::response;

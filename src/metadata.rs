@@ -4,15 +4,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::{Arc, RwLock};
 
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::state::SharedState;
-    }
-}
-
 /// typedef of the `SharedState`'s `metadata` field
 pub type MetadataMap = Arc<RwLock<HashMap<String, Box<dyn Metadata>>>>;
 
@@ -27,6 +18,8 @@ pub trait AsAny {
 
 /// an implementor of the [`Metadata`] trait will be able to store instances
 /// of itself in the `metadata` field of the [`SharedState`] struct
+///
+/// [`SharedState`]: crate::state::SharedState
 #[cfg_attr(feature = "typetag", typetag::serde(tag = "type"))]
 pub trait Metadata: AsAny + Send + Sync + Debug {
     /// delegates to the MetaData-implementing type, allowing for comparison

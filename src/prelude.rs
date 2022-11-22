@@ -15,6 +15,18 @@
 //! - [`AsInner`] - exposes the `inner` method on implementing types such as [`Data`]
 //! - [`Fuzzer`] - exposes the `fuzz*` methods on implementing types such as [`AsyncFuzzer`]
 //!
+//! [`AsyncFuzzer`]: crate::fuzzers::AsyncFuzzer
+//! [`AsyncResponse`]: crate::responses::AsyncResponse
+//! [`Data`]: crate::input::Data
+//! [`Corpus`]: crate::corpora::Corpus
+//! [`Decider`]: crate::deciders::Decider
+//! [`HttpClient`]: crate::client::HttpClient
+//! [`Response`]: crate::responses::Response
+//! [`Timed`]: crate::responses::Timed
+//! [`AsInner`]: crate::std_ext::convert::AsInner
+//! [`Fuzzer`]: crate::fuzzers::Fuzzer
+//! [`Len`]: crate::std_ext::ops::Len
+//!
 //! # Structs & Enums
 //!
 //! While a bit more controversial, the types included here are
@@ -33,21 +45,6 @@
 //! - [`build_observers`] - builds recursive data structure that exposes the recursive `call_pre_send_hooks` and `call_post_send_hooks` methods
 //! - [`build_deciders`] - builds recursive data structure that exposes the recursive `call_pre_send_hooks` and `call_post_send_hooks` methods
 //! - [`build_processors`] - builds recursive data structure that exposes the recursive `call_pre_send_hooks` and `call_post_send_hooks` methods
-
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::fuzzers::{AsyncFuzzer, Fuzzer};
-        use crate::{AsInner, Len};
-        use crate::deciders::Decider;
-        use crate::responses::{AsyncResponse, Response};
-        use crate::corpora::Corpus;
-        use crate::client::HttpClient;
-        use crate::responses::Timed;
-    }
-}
 
 // traits that are likely to be used by anyone when building a fuzzer
 pub use crate::client::HttpClient as _;

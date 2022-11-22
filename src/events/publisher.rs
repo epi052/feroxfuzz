@@ -57,21 +57,29 @@ impl TypeMap {
     }
 }
 
+/// trait for the publisher side of the observer pattern
+///
+/// made a trait so that we can impl it on an Arc<RwLock<Publisher>>
 pub trait EventPublisher {
     /// subscribe to an event of type `E` where the listener accepts a reference to `E`
     /// as its only argument and returns nothing
-    fn subscribe<E>(&mut self, listener: impl Fn(&E) -> () + 'static + Send + Sync)
+    fn subscribe<E>(&mut self, listener: impl Fn(E) -> () + 'static + Send + Sync)
     where
         E: 'static;
 
     /// notify all listeners of an event of type `E`
-    fn notify<E>(&self, event: &E)
+    fn notify<E>(&self, event: E)
+    where
+        E: 'static + Clone;
+
+    /// determine if there are any listeners for an event of type `E`
+    fn has_listeners<E>(&self) -> bool
     where
         E: 'static;
 }
 
 /// type alias for a subscriber function
-type Subscriber<E> = dyn Fn(&E) -> () + 'static + Send + Sync;
+type Subscriber<E> = dyn Fn(E) -> () + 'static + Send + Sync;
 
 /// type alias for a vector of subscribers
 type ListenerVec<E> = Vec<Box<Subscriber<E>>>;
@@ -101,9 +109,7 @@ impl Publisher {
 }
 
 impl EventPublisher for Publisher {
-    /// subscribe to an event of type `E` where the listener accepts a reference to `E`
-    /// as its only argument and returns nothing
-    fn subscribe<E>(&mut self, listener: impl Fn(&E) -> () + 'static + Send + Sync)
+    fn subscribe<E>(&mut self, listener: impl Fn(E) -> () + 'static + Send + Sync)
     where
         E: 'static,
     {
@@ -115,37 +121,53 @@ impl EventPublisher for Publisher {
         listeners.push(Box::new(listener));
     }
 
-    /// notify all listeners of an event of type `E`
-    fn notify<E>(&self, event: &E)
+    fn notify<E>(&self, event: E)
     where
-        E: 'static,
+        E: 'static + Clone,
     {
         if let Some(listeners) = self.registry.get::<ListenerVec<E>>() {
             for callback in listeners {
-                callback(event);
+                callback(event.clone());
             }
         }
+    }
+
+    fn has_listeners<E>(&self) -> bool
+    where
+        E: 'static,
+    {
+        self.registry.has::<ListenerVec<E>>()
     }
 }
 
 impl EventPublisher for Arc<RwLock<Publisher>> {
-    /// subscribe to an event of type `E` where the listener accepts a reference to `E`
-    /// as its only argument and returns nothing
-    fn subscribe<E>(&mut self, listener: impl Fn(&E) -> () + 'static + Send + Sync)
+    fn subscribe<E>(&mut self, listener: impl Fn(E) -> () + 'static + Send + Sync)
     where
         E: 'static,
     {
-        let mut publisher = self.write().unwrap();
-        publisher.subscribe(listener);
+        if let Ok(mut guard) = self.write() {
+            guard.subscribe(listener);
+        }
     }
 
-    /// notify all listeners of an event of type `E`
-    fn notify<E>(&self, event: &E)
+    fn notify<E>(&self, event: E)
+    where
+        E: 'static + Clone,
+    {
+        if let Ok(guard) = self.read() {
+            guard.notify(event);
+        }
+    }
+
+    fn has_listeners<E>(&self) -> bool
     where
         E: 'static,
     {
-        let publisher = self.read().unwrap();
-        publisher.notify(event);
+        if let Ok(guard) = self.read() {
+            guard.has_listeners::<E>()
+        } else {
+            false
+        }
     }
 }
 
@@ -156,9 +178,7 @@ mod tests {
 
     #[test]
     fn test_publisher() {
-        let mut publisher = Publisher {
-            registry: TypeMap(HashMap::new()),
-        };
+        let mut publisher = Publisher::new();
 
         fn test_fn(event: &Event) {
             assert!(matches!(event, Event::Message(_)));
@@ -173,6 +193,6 @@ mod tests {
         assert!(publisher.registry.get::<ListenerVec<Event>>().is_some());
         assert!(publisher.registry.get_mut::<ListenerVec<Event>>().is_some());
 
-        publisher.notify(&Event::Message("Hello, world!".to_string()));
+        publisher.notify(Event::Message("Hello, world!".to_string()));
     }
 }

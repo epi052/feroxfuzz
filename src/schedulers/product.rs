@@ -8,16 +8,9 @@ use crate::std_ext::ops::Len;
 
 use tracing::{error, instrument, trace};
 
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::corpora::Corpus;
-    }
-}
-
 /// Cartesian product of multiple [`Corpus`] entries
+///
+/// [`Corpus`]: crate::corpora::Corpus
 ///
 /// roughly equivalent to nested for-loops
 ///
