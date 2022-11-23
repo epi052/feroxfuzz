@@ -68,6 +68,8 @@ pub struct SharedState {
     // more complex scheduling.
     corpus_indices: CorpusIndices,
 
+    // the publisher is the central event bus for the fuzzer. it's used
+    // to publish events to all registered listeners.
     #[cfg_attr(feature = "serde", serde(skip))]
     publisher: Arc<RwLock<Publisher>>,
 }
