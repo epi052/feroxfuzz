@@ -432,103 +432,100 @@ impl Request {
     fn from_malformed_url(url: &str) -> Result<Self, FeroxFuzzError> {
         let mut request = Self::default();
 
-        match URL_PARTS_REGEX.captures(url) {
-            Some(captures) => {
-                if let Some(captured) = captures.get(2) {
-                    request.scheme = captured.as_str().into();
-                }
-                if let Some(captured) = captures.get(5) {
-                    request.path = captured.as_str().into();
-                }
-                if let Some(captured) = captures.get(9) {
-                    request.fragment = Some(captured.as_str().into());
-                }
+        if let Some(captures) = URL_PARTS_REGEX.captures(url) {
+            if let Some(captured) = captures.get(2) {
+                request.scheme = captured.as_str().into();
+            }
+            if let Some(captured) = captures.get(5) {
+                request.path = captured.as_str().into();
+            }
+            if let Some(captured) = captures.get(9) {
+                request.fragment = Some(captured.as_str().into());
+            }
 
-                // parse authority into smaller parts, if present
-                //
-                // authority   = [ userinfo "@" ] host [ ":" port ]
-                // userinfo    = *( unreserved / pct-encoded / sub-delims / ":" )
-                // host        = IP-literal / IPv4address / reg-name
-                // port        = *DIGIT
-                let authority = captures.get(4).map_or("", |captured| captured.as_str());
+            // parse authority into smaller parts, if present
+            //
+            // authority   = [ userinfo "@" ] host [ ":" port ]
+            // userinfo    = *( unreserved / pct-encoded / sub-delims / ":" )
+            // host        = IP-literal / IPv4address / reg-name
+            // port        = *DIGIT
+            let authority = captures.get(4).map_or("", |captured| captured.as_str());
 
-                match (
-                    authority.matches(':').count(),
-                    authority.matches('@').count(),
-                ) {
-                    (0, 0) => {
-                        request.host = Some(authority.into());
-                    }
-                    (0, 1) => {
-                        // no port, no password, just a username
-                        let mut parts = authority.split('@');
-                        request.username = Some(parts.next().unwrap().into());
+            match (
+                authority.matches(':').count(),
+                authority.matches('@').count(),
+            ) {
+                (0, 0) => {
+                    request.host = Some(authority.into());
+                }
+                (0, 1) => {
+                    // no port, no password, just a username
+                    let mut parts = authority.split('@');
+                    request.username = Some(parts.next().unwrap().into());
+                    request.host = Some(parts.next().unwrap().into());
+                }
+                (1, 0) => {
+                    // port but no user
+                    let mut parts = authority.split(':');
+                    request.host = Some(parts.next().unwrap().into());
+                    request.port = Some(parts.next().unwrap().into());
+                }
+                (1, 1) => {
+                    // definitely a username, but need to determine whether it's a port or a password
+                    // by looking at where the ':' falls
+                    let mut parts = authority.split('@');
+                    let user_info = parts.next().unwrap();
+                    if user_info.contains(':') {
+                        // found a password
+                        let mut username_and_password = user_info.split(':');
+                        request.username = Some(username_and_password.next().unwrap().into());
+                        request.password = Some(username_and_password.next().unwrap().into());
                         request.host = Some(parts.next().unwrap().into());
-                    }
-                    (1, 0) => {
-                        // port but no user
-                        let mut parts = authority.split(':');
-                        request.host = Some(parts.next().unwrap().into());
-                        request.port = Some(parts.next().unwrap().into());
-                    }
-                    (1, 1) => {
-                        // definitely a username, but need to determine whether it's a port or a password
-                        // by looking at where the ':' falls
-                        let mut parts = authority.split('@');
-                        let user_info = parts.next().unwrap();
-                        if user_info.contains(':') {
-                            // found a password
-                            let mut username_and_password = user_info.split(':');
-                            request.username = Some(username_and_password.next().unwrap().into());
-                            request.password = Some(username_and_password.next().unwrap().into());
-                            request.host = Some(parts.next().unwrap().into());
-                        } else {
-                            // found a port
-                            let mut host_and_port = parts.next().unwrap().split(':');
-                            request.username = Some(user_info.into());
-                            request.host = Some(host_and_port.next().unwrap().into());
-                            request.port = Some(host_and_port.next().unwrap().into());
-                        }
-                    }
-                    (2, 1) => {
-                        // username, password, and port
-                        let mut parts = authority.split('@');
-                        let user_and_pass = parts.next().unwrap();
+                    } else {
+                        // found a port
                         let mut host_and_port = parts.next().unwrap().split(':');
-                        let mut user_and_pass_parts = user_and_pass.split(':');
-                        request.username = Some(user_and_pass_parts.next().unwrap().into());
-                        request.password = Some(user_and_pass_parts.next().unwrap().into());
+                        request.username = Some(user_info.into());
                         request.host = Some(host_and_port.next().unwrap().into());
                         request.port = Some(host_and_port.next().unwrap().into());
                     }
-                    _ => {
-                        error!("url is too borked to try and parse, try using a valid url with add_fuzzable_* methods");
-                        return Err(FeroxFuzzError::InvalidUrl {
-                            source: Url::parse(url).unwrap_err(),
-                            url: url.to_string(),
-                        });
-                    }
                 }
-
-                // parse query into smaller parts, if present
-                let query = captures.get(7).map_or("", | captured | captured.as_str());
-
-                if !query.is_empty() {
-                    query.split('&').for_each(|pair| {
-                        request
-                            .add_static_param(pair.as_bytes(), b"=")
-                            .unwrap_or_default();
+                (2, 1) => {
+                    // username, password, and port
+                    let mut parts = authority.split('@');
+                    let user_and_pass = parts.next().unwrap();
+                    let mut host_and_port = parts.next().unwrap().split(':');
+                    let mut user_and_pass_parts = user_and_pass.split(':');
+                    request.username = Some(user_and_pass_parts.next().unwrap().into());
+                    request.password = Some(user_and_pass_parts.next().unwrap().into());
+                    request.host = Some(host_and_port.next().unwrap().into());
+                    request.port = Some(host_and_port.next().unwrap().into());
+                }
+                _ => {
+                    error!("url is too borked to try and parse, try using a valid url with add_fuzzable_* methods");
+                    return Err(FeroxFuzzError::InvalidUrl {
+                        source: Url::parse(url).unwrap_err(),
+                        url: url.to_string(),
                     });
                 }
             }
-            None => {
-                error!("couldn't parse malformed URL");
 
-                return Err(FeroxFuzzError::InvalidUrl {
-                    source: Url::parse(url).unwrap_err(),
-                    url: url.to_string(),
+            // parse query into smaller parts, if present
+            let query = captures.get(7).map_or("", |captured| captured.as_str());
+
+            if !query.is_empty() {
+                query.split('&').for_each(|pair| {
+                    request
+                        .add_static_param(pair.as_bytes(), b"=")
+                        .unwrap_or_default();
                 });
             }
+        } else {
+            error!("couldn't parse malformed URL");
+
+            return Err(FeroxFuzzError::InvalidUrl {
+                source: Url::parse(url).unwrap_err(),
+                url: url.to_string(),
+            });
         }
 
         Ok(request)

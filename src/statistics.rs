@@ -1,5 +1,9 @@
 //! [`Statistics`] is the primary data container for all [`Request`], [`Response`], and
 //! [`Timed`] statistics
+//!
+//! [`Statistics`]: crate::statistics::Statistics
+//! [`Request`]: crate::requests::Request
+//! [`Response`]: crate::responses::Response
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::time::Duration;
@@ -15,15 +19,6 @@ use crate::observers::Observers;
 use crate::observers::ResponseObserver;
 use crate::responses::{Response, Timed};
 use crate::std_ext::time::current_time;
-
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::requests::Request;
-    }
-}
 
 /// fuzzer's tracked statistics
 #[derive(Default, Debug, Clone)]

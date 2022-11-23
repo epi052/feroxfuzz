@@ -15,17 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::sync::atomic::Ordering;
 
-use cfg_if::cfg_if;
 use tracing::{debug, error, instrument};
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::build_mutators;
-        use crate::fuzzers::Fuzzer;
-        use crate::mutators::Mutators;
-    }
-}
 
 /// Token-based mutator. Examines input [`Data`] for all instances of
 /// its `keyword` and replaces those instances with an item
@@ -36,6 +26,10 @@ cfg_if! {
 /// While the example below works, the normal use-case for this struct is to pass
 /// it, and any other [`Mutators`] to the [`build_mutators`] macro, and pass
 /// the result of that call to your chosen [`Fuzzer`] implementation.
+///
+/// [`Fuzzer`]: crate::fuzzers::Fuzzer
+/// [`Mutators`]: crate::mutators::Mutators
+/// [`build_mutators`]: crate::build_mutators
 ///
 /// ```
 /// # use feroxfuzz::corpora::Wordlist;

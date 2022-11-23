@@ -31,6 +31,7 @@ pub mod client;
 pub mod corpora;
 pub mod deciders;
 pub mod error;
+pub mod events;
 pub mod fuzzers;
 pub mod input;
 pub mod metadata;
@@ -59,6 +60,9 @@ pub use tuple_list::TupleList as DecidersList;
 pub use tuple_list::TupleList as ObserversList;
 pub use tuple_list::TupleList as MutatorsList;
 pub use tuple_list::TupleList as ProcessorsList;
+
+// re-exported 3rd party crate traits
+pub use libafl::bolts::rands::Rand;
 
 /// Wrapper `Atomic*.fetch_add` to save me from writing `Ordering::SeqCst` a bajillion times
 ///

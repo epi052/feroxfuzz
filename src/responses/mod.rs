@@ -10,12 +10,6 @@ use url::Url;
 use tracing::{error, instrument};
 
 cfg_if! {
-    if #[cfg(docsrs)] {
-        use crate::requests::Request;
-    }
-}
-
-cfg_if! {
     if #[cfg(feature = "json")] {
         use crate::error::FeroxFuzzError;
         use serde_json;
@@ -242,6 +236,8 @@ pub trait Response {
     fn word_count(&self) -> usize;
 
     /// Get the associated [`Request`]'s http request method
+    ///
+    /// [`Request`]: crate::requests::Request
     #[must_use]
     fn method(&self) -> &str;
 }

@@ -3,6 +3,9 @@ use crate::actions::{Action, FlowControl};
 use crate::client::BlockingRequests;
 use crate::deciders::Deciders;
 use crate::error::FeroxFuzzError;
+use crate::events::{
+    DiscardedRequest, DiscardedResponse, EventPublisher, FuzzOnce, KeptRequest, KeptResponse,
+};
 use crate::mutators::Mutators;
 use crate::observers::Observers;
 use crate::processors::Processors;
@@ -75,12 +78,18 @@ where
 {
     #[instrument(skip_all, fields(?self.post_send_logic, ?self.pre_send_logic), name = "fuzz-loop", level = "trace")]
     fn fuzz_once(&mut self, state: &mut SharedState) -> Result<Option<Action>, FeroxFuzzError> {
-        while self.scheduler.next().is_ok() {
-            let mut mutated_request = self
-                .mutators
-                .call_mutate_hooks(state, self.request.clone())?;
+        state.events().notify(FuzzOnce {
+            threads: 1,
+            pre_send_logic: self.pre_send_logic().unwrap_or_default(),
+            post_send_logic: self.post_send_logic().unwrap_or_default(),
+        });
 
-            *mutated_request.id_mut() += self.request_id;
+        while self.scheduler.next().is_ok() {
+            let mut request = self.request.clone();
+
+            *request.id_mut() += self.request_id;
+
+            let mut mutated_request = self.mutators.call_mutate_hooks(state, request)?;
 
             self.observers.call_pre_send_hooks(&mutated_request);
 
@@ -97,6 +106,11 @@ where
             match decision {
                 Some(Action::Discard) => {
                     self.request_id += 1;
+
+                    state.events().notify(DiscardedRequest {
+                        id: mutated_request.id(),
+                    });
+
                     continue;
                 }
                 Some(Action::AddToCorpus(name, flow_control)) => {
@@ -106,18 +120,39 @@ where
 
                     state.add_to_corpus(name, &mutated_request)?;
 
-                    if matches!(flow_control, FlowControl::Discard) {
-                        self.request_id += 1;
-                        continue;
+                    match flow_control {
+                        FlowControl::StopFuzzing => {
+                            tracing::info!(
+                                "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
+                                self.request_id
+                            );
+                            return Ok(Some(Action::StopFuzzing));
+                        }
+                        FlowControl::Discard => {
+                            self.request_id += 1;
+
+                            state.events().notify(DiscardedRequest {
+                                id: mutated_request.id(),
+                            });
+
+                            continue;
+                        }
+                        FlowControl::Keep => {
+                            state.events().notify(KeptRequest {
+                                id: mutated_request.id(),
+                            });
+                        }
                     }
-                    // ignore when flow control is Keep, same as we do for Action::Keep below
                 }
                 Some(Action::StopFuzzing) => {
                     return Ok(Some(Action::StopFuzzing));
                 }
-                _ => {
-                    // do nothing if it's None or an Action::Keep
+                Some(Action::Keep) => {
+                    state.events().notify(KeptRequest {
+                        id: mutated_request.id(),
+                    });
                 }
+                None => {} // do nothing
             }
 
             let response = self.client.send(mutated_request.clone());
@@ -152,12 +187,28 @@ where
                 Some(Action::AddToCorpus(name, flow_control)) => {
                     state.add_to_corpus(name, &mutated_request)?;
 
-                    if matches!(flow_control, FlowControl::StopFuzzing) {
-                        tracing::info!(
-                            "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
-                            self.request_id
-                        );
-                        return Ok(Some(Action::StopFuzzing));
+                    match flow_control {
+                        FlowControl::StopFuzzing => {
+                            tracing::info!(
+                                "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
+                                self.request_id
+                            );
+                            return Ok(Some(Action::StopFuzzing));
+                        }
+                        FlowControl::Discard => {
+                            self.request_id += 1;
+
+                            state.events().notify(DiscardedResponse {
+                                id: mutated_request.id(),
+                            });
+
+                            continue;
+                        }
+                        FlowControl::Keep => {
+                            state.events().notify(KeptResponse {
+                                id: mutated_request.id(),
+                            });
+                        }
                     }
                 }
                 Some(Action::StopFuzzing) => {
@@ -166,6 +217,16 @@ where
                         self.request_id
                     );
                     return Ok(Some(Action::StopFuzzing));
+                }
+                Some(Action::Discard) => {
+                    state.events().notify(DiscardedResponse {
+                        id: mutated_request.id(),
+                    });
+                }
+                Some(Action::Keep) => {
+                    state.events().notify(KeptResponse {
+                        id: mutated_request.id(),
+                    });
                 }
                 _ => {}
             }

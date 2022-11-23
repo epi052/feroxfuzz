@@ -1,4 +1,6 @@
 //! data gathering models that supply one or more [`Deciders`] with actionable information
+//!
+//! [`Deciders`]: crate::deciders::Deciders
 use crate::requests::Request;
 use crate::responses::Response;
 use crate::std_ext::tuple::Named;
@@ -7,16 +9,6 @@ use crate::ObserversList;
 
 mod response;
 pub use self::response::ResponseObserver;
-
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::client::HttpClient;
-        use crate::deciders::Deciders;
-    }
-}
 
 /// marker trait; observers are used to gather information about requests, responses,
 /// target state, etc...
@@ -34,9 +26,15 @@ where
     R: Response,
 {
     /// called before an [`HttpClient`] sends a [`Request`]
+    ///
+    /// [`HttpClient`]: crate::client::HttpClient
+    /// [`Request`]: crate::requests::Request
     fn pre_send_hook(&mut self, _request: &Request) {}
 
     /// called after an [`HttpClient`] receives a [`Response`]
+    ///
+    /// [`HttpClient`]: crate::client::HttpClient
+    /// [`Response`]: crate::responses::Response
     fn post_send_hook(&mut self, _response: R) {}
 }
 
@@ -51,11 +49,19 @@ where
     /// called before an [`HttpClient`] sends a [`Request`]
     ///
     /// recursively calls [`ObserverHooks::pre_send_hook`]
+    ///
+    /// [`HttpClient`]: crate::client::HttpClient
+    /// [`Request`]: crate::requests::Request
+    /// [`ObserverHooks::pre_send_hook`]: crate::observers::ObserverHooks::pre_send_hook
     fn call_pre_send_hooks(&mut self, _request: &Request) {}
 
     /// called after an [`HttpClient`] receives a [`Response`]
     ///
     /// recursively calls [`ObserverHooks::post_send_hook`]
+    ///
+    /// [`HttpClient`]: crate::client::HttpClient
+    /// [`Response`]: crate::responses::Response
+    /// [`ObserverHooks::post_send_hook`]: crate::observers::ObserverHooks::post_send_hook
     fn call_post_send_hooks(&mut self, _response: R)
     where
         R: Response,

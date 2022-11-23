@@ -23,17 +23,7 @@ use crate::state::SharedState;
 use crate::std_ext::tuple::Named;
 use crate::{atomic_load, error::FeroxFuzzError};
 
-use cfg_if::cfg_if;
 use tracing::error;
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::build_mutators;
-        use crate::fuzzers::Fuzzer;
-        use crate::mutators::Mutators;
-    }
-}
 
 /// Feroxfuzz's bridge to `LibAFL`'s havoc mutations
 ///
@@ -42,6 +32,10 @@ cfg_if! {
 /// While the example below works, the normal use-case for this struct is to pass
 /// it, and any other [`Mutators`] to the [`build_mutators`] macro, and pass
 /// the result of that call to your chosen [`Fuzzer`] implementation.
+///
+/// [`Fuzzer`]: crate::fuzzers::Fuzzer
+/// [`Mutators`]: crate::mutators::Mutators
+/// [`build_mutators`]: crate::build_mutators
 ///
 /// ```
 /// # use feroxfuzz::corpora::RangeCorpus;

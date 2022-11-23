@@ -13,18 +13,6 @@ use tracing::instrument;
 
 use std::sync::{Arc, RwLock};
 
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::fuzzers::Fuzzer;
-        use crate::build_processors;
-        use crate::deciders::Deciders;
-        use crate::processors::Processors;
-    }
-}
-
 /// a `StatisticsProcessor` provides access to the fuzzer's instance of [`Statistics`]
 /// as well as the [`Action`] returned from calling the analogous hook on [`Deciders`].
 /// Those two objects may be used to produce side-effects, such as printing, logging,
@@ -35,6 +23,11 @@ cfg_if! {
 /// While the example below works, the normal use-case for this struct is to pass
 /// it, and any other [`Processors`] to the [`build_processors`] macro, and pass
 /// the result of that call to your chosen [`Fuzzer`] implementation.
+///
+/// [`Fuzzer`]: crate::fuzzers::Fuzzer
+/// [`Deciders`]: crate::deciders::Deciders
+/// [`Processors`]: crate::processors::Processors
+/// [`build_processors`]: crate::build_processors
 ///
 /// ```
 /// # use http::response;

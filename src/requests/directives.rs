@@ -3,16 +3,9 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use super::Request;
-    }
-}
-
 /// represents directives of which pieces of a [`Request`] should be fuzzed
+///
+/// [`Request`]: crate::requests::Request
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
@@ -34,6 +27,9 @@ pub enum ShouldFuzz<'a> {
     /// can only be instantiated through its `from_url` method. In order to provide
     /// an initial value to the `Request`'s `host` field, simply use the first
     /// parameter of the [`Request::from_url`] method
+    ///
+    /// [`Request::from_url`]: crate::requests::Request::from_url
+    /// [`Request`]: crate::requests::Request
     URLScheme,
 
     /// directive associated with a fuzzable URL username
@@ -44,6 +40,9 @@ pub enum ShouldFuzz<'a> {
     /// can only be instantiated through its `from_url` method. In order to provide
     /// an initial value to the `Request`'s `host` field, simply use the first
     /// parameter of the [`Request::from_url`] method
+    ///
+    /// [`Request::from_url`]: crate::requests::Request::from_url
+    /// [`Request`]: crate::requests::Request
     URLUsername,
 
     /// directive associated with a fuzzable URL password
@@ -54,6 +53,9 @@ pub enum ShouldFuzz<'a> {
     /// can only be instantiated through its `from_url` method. In order to provide
     /// an initial value to the `Request`'s `host` field, simply use the first
     /// parameter of the [`Request::from_url`] method
+    ///
+    /// [`Request::from_url`]: crate::requests::Request::from_url
+    /// [`Request`]: crate::requests::Request
     URLPassword,
 
     /// directive associated with a fuzzable URL ip address/domain
@@ -64,6 +66,9 @@ pub enum ShouldFuzz<'a> {
     /// can only be instantiated through its `from_url` method. In order to provide
     /// an initial value to the `Request`'s `host` field, simply use the first
     /// parameter of the [`Request::from_url`] method
+    ///
+    /// [`Request::from_url`]: crate::requests::Request::from_url
+    /// [`Request`]: crate::requests::Request
     URLHost,
 
     /// directive associated with a fuzzable URL port
@@ -74,6 +79,9 @@ pub enum ShouldFuzz<'a> {
     /// can only be instantiated through its `from_url` method. In order to provide
     /// an initial value to the `Request`'s `host` field, simply use the first
     /// parameter of the [`Request::from_url`] method
+    ///
+    /// [`Request::from_url`]: crate::requests::Request::from_url
+    /// [`Request`]: crate::requests::Request
     URLPort,
 
     /// directive associated with a fuzzable URL path
@@ -84,6 +92,9 @@ pub enum ShouldFuzz<'a> {
     /// can only be instantiated through its `from_url` method. In order to provide
     /// an initial value to the `Request`'s `host` field, simply use the first
     /// parameter of the [`Request::from_url`] method
+    ///
+    /// [`Request::from_url`]: crate::requests::Request::from_url
+    /// [`Request`]: crate::requests::Request
     URLPath,
 
     /// directive associated with a fuzzable URL fragment
@@ -94,6 +105,9 @@ pub enum ShouldFuzz<'a> {
     /// can only be instantiated through its `from_url` method. In order to provide
     /// an initial value to the `Request`'s `host` field, simply use the first
     /// parameter of the [`Request::from_url`] method
+    ///
+    /// [`Request::from_url`]: crate::requests::Request::from_url
+    /// [`Request`]: crate::requests::Request
     URLFragment,
 
     /// directive associated with a fuzzable User-Agent header where only the
@@ -120,6 +134,8 @@ pub enum ShouldFuzz<'a> {
     /// this variant can be used when specifying parameters in the `url` field of
     /// the [`Request::from_url`] method.
     ///
+    /// [`Request::from_url`]: crate::requests::Request::from_url
+    ///
     /// ex: `Request::from_url("http://example.com/stuff.php?FUZZ=derp", &[ShouldFuzz::URLParameterKeys])`
     URLParameterKeys,
 
@@ -131,6 +147,8 @@ pub enum ShouldFuzz<'a> {
     /// this variant can be used when specifying parameters in the `url` field of
     /// the [`Request::from_url`] method.
     ///
+    /// [`Request::from_url`]: crate::requests::Request::from_url
+    ///
     /// ex: `Request::from_url("http://example.com/stuff.php?derp=FUZZ", &[ShouldFuzz::URLParameterValues])`
     URLParameterValues,
 
@@ -140,6 +158,8 @@ pub enum ShouldFuzz<'a> {
     ///
     /// this variant can be used when specifying parameters in the `url` field of
     /// the [`Request::from_url`] method.
+    ///
+    /// [`Request::from_url`]: crate::requests::Request::from_url
     ///
     /// ex: `Request::from_url("http://example.com/stuff.php?FUZZ1=FUZZ2", &[ShouldFuzz::URLParameterKeysAndValues])`
     URLParameterKeysAndValues,

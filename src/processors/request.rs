@@ -8,19 +8,6 @@ use crate::state::SharedState;
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::corpora::Corpus;
-        use crate::fuzzers::Fuzzer;
-        use crate::build_processors;
-        use crate::processors::Processors;
-        use crate::deciders::Deciders;
-    }
-}
-
 /// a `RequestProcessor` provides access to the fuzzer's mutated [`Request`] that
 /// is about to be sent to the target, as well as the [`Action`] returned
 /// from calling the analogous hook on [`Deciders`]. Those two objects may
@@ -31,6 +18,11 @@ cfg_if! {
 /// While the example below works, the normal use-case for this struct is to pass
 /// it, and any other [`Processors`] to the [`build_processors`] macro, and pass
 /// the result of that call to your chosen [`Fuzzer`] implementation.
+///
+/// [`Fuzzer`]: crate::fuzzers::Fuzzer
+/// [`Deciders`]: crate::deciders::Deciders
+/// [`Processors`]: crate::processors::Processors
+/// [`build_processors`]: crate::build_processors
 ///
 /// ```
 /// # use feroxfuzz::prelude::*;

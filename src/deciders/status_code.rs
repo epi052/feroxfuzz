@@ -9,17 +9,6 @@ use crate::std_ext::tuple::Named;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(docsrs)] {
-        // just bringing in types for easier intra-doc linking during doc build
-        use crate::fuzzers::Fuzzer;
-        use crate::build_deciders;
-        use crate::deciders::Deciders;
-    }
-}
-
 /// Decide upon an [`Action`] based on a [`ResponseObserver`]'s status code
 ///
 /// # Examples
@@ -27,6 +16,10 @@ cfg_if! {
 /// While the example below works, the normal use-case for this struct is to pass
 /// it, and any other [`Deciders`] to the [`build_deciders`] macro, and pass
 /// the result of that call to your chosen [`Fuzzer`] implementation.
+///
+/// [`build_deciders`]: crate::build_deciders
+/// [`Fuzzer`]: crate::fuzzers::Fuzzer
+/// [`Deciders`]: crate::deciders::Deciders
 ///
 /// ```
 /// # use http::response;
