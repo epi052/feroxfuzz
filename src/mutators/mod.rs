@@ -37,6 +37,8 @@ fn has_mutation_listeners(publisher: &Arc<RwLock<Publisher>>) -> bool {
     }
 }
 
+/// simple wrapper around the process of publishing a message to any active
+/// listeners
 #[inline]
 fn notify_listeners(
     publisher: &Arc<RwLock<Publisher>>,
