@@ -3,7 +3,7 @@
 //! Custom events can be defined by simply adding a new type to the [`SharedState`]'s
 //! `events` map. The [`EventPublisher`] trait provides a simple interface for subscribing
 //! to and notifying listeners of events.
-//! 
+//!
 //! [`SharedState`]: crate::state::SharedState
 //!
 //! # Examples
@@ -21,11 +21,16 @@
 //!
 //! let mut state = SharedState::with_corpus(wordlist);
 //!
-//! state.events().subscribe(|event: ModifiedCorpus| {
+//! let listener_id = state.events().subscribe(|event: ModifiedCorpus| {
 //!    println!("{:?}", event);
 //! });
 //!
 //! // ... fuzzer calls state.events().notify(ModifiedCorpus { .. }) ...
+//!
+//! // unsubscribe from the event
+//! state.events().unsubscribe::<ModifiedCorpus>(listener_id.unwrap());
+//!
+//! assert!(!state.events().has_listeners::<ModifiedCorpus>());
 //! ```
 //!
 //! Define a custom event
@@ -48,7 +53,7 @@
 //! }
 //!
 //! // subscribe to the event
-//! state.events().subscribe(|event: CustomEvent| {
+//! let listener_id = state.events().subscribe(|event: CustomEvent| {
 //!    assert_eq!(event.message, "hello world");
 //! });
 //!
@@ -56,6 +61,11 @@
 //! state.events().notify(CustomEvent {
 //!   message: "hello world".to_string(),
 //! });
+//!
+//! // unsubscribe from the event
+//! state.events().unsubscribe::<CustomEvent>(listener_id.unwrap());
+//!
+//! assert!(!state.events().has_listeners::<CustomEvent>());
 //! ```
 
 mod publisher;

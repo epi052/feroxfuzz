@@ -6,6 +6,10 @@ use std::sync::{Arc, RwLock};
 // - https://willcrichton.net/rust-api-type-patterns/registries.html
 // - https://refactoring.guru/design-patterns/observer/rust/example
 
+/// Unique identifier associated with a listener of a particular event type
+#[derive(Copy, Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ListenerId(usize);
+
 /// mapping of event types to subscribers
 ///
 /// `TypeId` allows us to get a unique, hashable identifier for each type.
@@ -55,12 +59,17 @@ impl TypeMap {
 }
 
 /// trait for the publisher side of the observer pattern
-///v
-/// made a trait so that we can impl it on an `Arc<RwLock<..>>
+///
+/// made a trait so that we can impl it on an `Arc<RwLock<..>>`
 pub trait EventPublisher {
     /// subscribe to an event of type `E` where the listener accepts a reference to `E`
     /// as its only argument and returns nothing
-    fn subscribe<E>(&mut self, listener: impl Fn(E) + 'static + Send + Sync)
+    fn subscribe<E>(&mut self, listener: impl Fn(E) + 'static + Send + Sync) -> Option<ListenerId>
+    where
+        E: 'static;
+
+    /// unsubscribe from an event of type `E` via the `ListenerId` returned by `subscribe`
+    fn unsubscribe<E>(&mut self, identifier: ListenerId)
     where
         E: 'static;
 
@@ -106,7 +115,7 @@ impl Publisher {
 }
 
 impl EventPublisher for Publisher {
-    fn subscribe<E>(&mut self, listener: impl Fn(E) + 'static + Send + Sync)
+    fn subscribe<E>(&mut self, listener: impl Fn(E) + 'static + Send + Sync) -> Option<ListenerId>
     where
         E: 'static,
     {
@@ -116,6 +125,20 @@ impl EventPublisher for Publisher {
 
         let listeners = self.registry.get_mut::<ListenerVec<E>>().unwrap();
         listeners.push(Box::new(listener));
+        Some(ListenerId(listeners.len() - 1))
+    }
+
+    fn unsubscribe<E>(&mut self, identifier: ListenerId)
+    where
+        E: 'static,
+    {
+        if let Some(listeners) = self.registry.get_mut::<ListenerVec<E>>() {
+            let _listener = listeners.remove(identifier.0);
+
+            if listeners.is_empty() {
+                self.registry.inner.remove(&TypeId::of::<ListenerVec<E>>());
+            }
+        }
     }
 
     fn notify<E>(&self, event: E)
@@ -133,17 +156,30 @@ impl EventPublisher for Publisher {
     where
         E: 'static,
     {
-        self.registry.has::<ListenerVec<E>>()
+        self.registry
+            .get::<ListenerVec<E>>()
+            .map_or(false, |listeners| !listeners.is_empty())
     }
 }
 
 impl EventPublisher for Arc<RwLock<Publisher>> {
-    fn subscribe<E>(&mut self, listener: impl Fn(E) + 'static + Send + Sync)
+    fn subscribe<E>(&mut self, listener: impl Fn(E) + 'static + Send + Sync) -> Option<ListenerId>
     where
         E: 'static,
     {
         if let Ok(mut guard) = self.write() {
-            guard.subscribe(listener);
+            return guard.subscribe(listener);
+        }
+
+        None
+    }
+
+    fn unsubscribe<E>(&mut self, identifier: ListenerId)
+    where
+        E: 'static,
+    {
+        if let Ok(mut guard) = self.write() {
+            guard.unsubscribe::<E>(identifier);
         }
     }
 
@@ -179,7 +215,7 @@ mod tests {
 
         let mut publisher = Publisher::new();
 
-        publisher.subscribe(test_fn);
+        let listener_id = publisher.subscribe(test_fn).unwrap();
 
         assert!(publisher.registry.has::<ListenerVec<FuzzNTimes>>());
         assert!(publisher
@@ -192,5 +228,13 @@ mod tests {
             .is_some());
 
         publisher.notify(FuzzNTimes { iterations: 10 });
+
+        publisher.unsubscribe::<FuzzNTimes>(listener_id);
+
+        assert!(publisher
+            .registry
+            .get::<ListenerVec<FuzzNTimes>>()
+            .is_none());
+        assert!(!publisher.has_listeners::<FuzzNTimes>());
     }
 }
