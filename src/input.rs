@@ -141,17 +141,11 @@ impl Data {
     /// internal helper: formats inner byte-arrays into something more readable
     fn format(&self) -> String {
         match self {
-            Self::Fuzzable(value) | Self::Static(value) => match std::str::from_utf8(value) {
-                Ok(valid_utf8) => {
-                    // the inner bytes are all valid utf-8, so we can simply print them as a string
-                    String::from(valid_utf8)
-                }
-                Err(_) => {
-                    // with `AsInner` implemented, we can use the default implementation of DisplayExt
-                    // which adds `display_top`, among others
-                    self.display_top(3)
-                }
-            },
+            // if the inner bytes are all valid utf-8, we can simply print them as a string
+            // otherwise, we'll print the first 3 bytes as hex
+            Self::Fuzzable(value) | Self::Static(value) => {
+                std::str::from_utf8(value).map_or_else(|_| self.display_top(3), String::from)
+            }
         }
     }
 

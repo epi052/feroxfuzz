@@ -325,7 +325,7 @@ impl SharedState {
                 corpus: corpus_name,
                 action: "add",
                 from_field: field,
-                entry: entry,
+                entry,
             });
         }
     }
@@ -523,6 +523,7 @@ impl SharedState {
     }
 
     /// add an implementor of [`Metadata`] to the `[MetadataMap]`
+    #[must_use]
     pub fn events(&self) -> Arc<RwLock<Publisher>> {
         self.publisher.clone()
     }
@@ -530,11 +531,7 @@ impl SharedState {
 
 impl Len for Arc<RwLock<CorpusType>> {
     fn len(&self) -> usize {
-        if let Ok(guard) = self.read() {
-            guard.len()
-        } else {
-            0
-        }
+        self.read().map_or(0, |corpus| corpus.len())
     }
 }
 

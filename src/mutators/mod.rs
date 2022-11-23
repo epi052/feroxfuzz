@@ -39,12 +39,12 @@ fn has_mutation_listeners(publisher: &Arc<RwLock<Publisher>>) -> bool {
 
 #[inline]
 fn notify_listeners(
-    publisher: Arc<RwLock<Publisher>>,
+    publisher: &Arc<RwLock<Publisher>>,
     id: RequestId,
     field: &'static str,
     entry: Data,
 ) {
-    let has_listeners = has_mutation_listeners(&publisher);
+    let has_listeners = has_mutation_listeners(publisher);
 
     if has_listeners {
         publisher.notify(Mutation { id, field, entry });
@@ -90,58 +90,68 @@ pub trait Mutator: DynClone + AsAny + Named + Send + Sync {
     ) -> Result<Request, FeroxFuzzError> {
         if request.scheme.is_fuzzable() {
             self.mutate(&mut request.scheme, state)?;
-            notify_listeners(state.events(), request.id, "scheme", request.scheme.clone());
+            notify_listeners(
+                &state.events(),
+                request.id,
+                "scheme",
+                request.scheme.clone(),
+            );
         }
 
         if let Some(username) = request.username.as_mut() {
             if username.is_fuzzable() {
                 self.mutate(username, state)?;
-                notify_listeners(state.events(), request.id, "username", username.clone());
+                notify_listeners(&state.events(), request.id, "username", username.clone());
             }
         }
 
         if let Some(password) = request.password.as_mut() {
             if password.is_fuzzable() {
                 self.mutate(password, state)?;
-                notify_listeners(state.events(), request.id, "password", password.clone());
+                notify_listeners(&state.events(), request.id, "password", password.clone());
             }
         }
 
         if let Some(host) = request.host.as_mut() {
             if host.is_fuzzable() {
                 self.mutate(host, state)?;
-                notify_listeners(state.events(), request.id, "host", host.clone());
+                notify_listeners(&state.events(), request.id, "host", host.clone());
             }
         }
 
         if let Some(port) = request.port.as_mut() {
             if port.is_fuzzable() {
                 self.mutate(port, state)?;
-                notify_listeners(state.events(), request.id, "port", port.clone());
+                notify_listeners(&state.events(), request.id, "port", port.clone());
             }
         }
 
         if request.path.is_fuzzable() {
             self.mutate(&mut request.path, state)?;
-            notify_listeners(state.events(), request.id, "path", request.path.clone());
+            notify_listeners(&state.events(), request.id, "path", request.path.clone());
         }
 
         if let Some(fragment) = request.fragment.as_mut() {
             if fragment.is_fuzzable() {
                 self.mutate(fragment, state)?;
-                notify_listeners(state.events(), request.id, "fragment", fragment.clone());
+                notify_listeners(&state.events(), request.id, "fragment", fragment.clone());
             }
         }
 
         if request.method.is_fuzzable() {
             self.mutate(&mut request.method, state)?;
-            notify_listeners(state.events(), request.id, "method", request.method.clone());
+            notify_listeners(
+                &state.events(),
+                request.id,
+                "method",
+                request.method.clone(),
+            );
         }
 
         if let Some(body) = request.body.as_mut() {
             if body.is_fuzzable() {
                 self.mutate(body, state)?;
-                notify_listeners(state.events(), request.id, "body", body.clone());
+                notify_listeners(&state.events(), request.id, "body", body.clone());
             }
         }
 
@@ -150,7 +160,7 @@ pub trait Mutator: DynClone + AsAny + Named + Send + Sync {
                 if key.is_fuzzable() {
                     self.mutate(key, state)?;
                     notify_listeners(
-                        state.events(),
+                        &state.events(),
                         request.id,
                         "header",
                         Data::Fuzzable(format!("{}: {}", key, value).into()),
@@ -160,7 +170,7 @@ pub trait Mutator: DynClone + AsAny + Named + Send + Sync {
                 if value.is_fuzzable() {
                     self.mutate(value, state)?;
                     notify_listeners(
-                        state.events(),
+                        &state.events(),
                         request.id,
                         "header",
                         Data::Fuzzable(format!("{}: {}", key, value).into()),
@@ -174,7 +184,7 @@ pub trait Mutator: DynClone + AsAny + Named + Send + Sync {
                 if key.is_fuzzable() {
                     self.mutate(key, state)?;
                     notify_listeners(
-                        state.events(),
+                        &state.events(),
                         request.id,
                         "parameter",
                         Data::Fuzzable(format!("{}={}", key, value).into()),
@@ -184,7 +194,7 @@ pub trait Mutator: DynClone + AsAny + Named + Send + Sync {
                 if value.is_fuzzable() {
                     self.mutate(value, state)?;
                     notify_listeners(
-                        state.events(),
+                        &state.events(),
                         request.id,
                         "parameter",
                         Data::Fuzzable(format!("{}={}", key, value).into()),
@@ -196,14 +206,19 @@ pub trait Mutator: DynClone + AsAny + Named + Send + Sync {
         if let Some(user_agent) = request.user_agent.as_mut() {
             if user_agent.is_fuzzable() {
                 self.mutate(user_agent, state)?;
-                notify_listeners(state.events(), request.id, "user-agent", user_agent.clone());
+                notify_listeners(
+                    &state.events(),
+                    request.id,
+                    "user-agent",
+                    user_agent.clone(),
+                );
             }
         }
 
         if request.version.is_fuzzable() {
             self.mutate(&mut request.version, state)?;
             notify_listeners(
-                state.events(),
+                &state.events(),
                 request.id,
                 "version",
                 request.version.clone(),

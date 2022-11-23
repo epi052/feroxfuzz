@@ -3,7 +3,9 @@ use crate::actions::{Action, FlowControl};
 use crate::client::BlockingRequests;
 use crate::deciders::Deciders;
 use crate::error::FeroxFuzzError;
-use crate::events::{DiscardedRequest, EventPublisher, FuzzOnce, KeptRequest, DiscardedResponse, KeptResponse};
+use crate::events::{
+    DiscardedRequest, DiscardedResponse, EventPublisher, FuzzOnce, KeptRequest, KeptResponse,
+};
 use crate::mutators::Mutators;
 use crate::observers::Observers;
 use crate::processors::Processors;

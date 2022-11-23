@@ -2,9 +2,6 @@ use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
-
 // this implementation is a mix of the two examples below:
 // - https://willcrichton.net/rust-api-type-patterns/registries.html
 // - https://refactoring.guru/design-patterns/observer/rust/example
@@ -58,12 +55,12 @@ impl TypeMap {
 }
 
 /// trait for the publisher side of the observer pattern
-///
-/// made a trait so that we can impl it on an Arc<RwLock<Publisher>>
+///v
+/// made a trait so that we can impl it on an `Arc<RwLock<..>>
 pub trait EventPublisher {
     /// subscribe to an event of type `E` where the listener accepts a reference to `E`
     /// as its only argument and returns nothing
-    fn subscribe<E>(&mut self, listener: impl Fn(E) -> () + 'static + Send + Sync)
+    fn subscribe<E>(&mut self, listener: impl Fn(E) + 'static + Send + Sync)
     where
         E: 'static;
 
@@ -79,7 +76,7 @@ pub trait EventPublisher {
 }
 
 /// type alias for a subscriber function
-type Subscriber<E> = dyn Fn(E) -> () + 'static + Send + Sync;
+type Subscriber<E> = dyn Fn(E) + 'static + Send + Sync;
 
 /// type alias for a vector of subscribers
 type ListenerVec<E> = Vec<Box<Subscriber<E>>>;
@@ -109,7 +106,7 @@ impl Publisher {
 }
 
 impl EventPublisher for Publisher {
-    fn subscribe<E>(&mut self, listener: impl Fn(E) -> () + 'static + Send + Sync)
+    fn subscribe<E>(&mut self, listener: impl Fn(E) + 'static + Send + Sync)
     where
         E: 'static,
     {
@@ -141,7 +138,7 @@ impl EventPublisher for Publisher {
 }
 
 impl EventPublisher for Arc<RwLock<Publisher>> {
-    fn subscribe<E>(&mut self, listener: impl Fn(E) -> () + 'static + Send + Sync)
+    fn subscribe<E>(&mut self, listener: impl Fn(E) + 'static + Send + Sync)
     where
         E: 'static,
     {
@@ -163,36 +160,37 @@ impl EventPublisher for Arc<RwLock<Publisher>> {
     where
         E: 'static,
     {
-        if let Ok(guard) = self.read() {
-            guard.has_listeners::<E>()
-        } else {
-            false
-        }
+        self.read()
+            .map_or(false, |guard| guard.has_listeners::<E>())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::Event;
+    use crate::events::FuzzNTimes;
+
     use super::*;
 
     #[test]
     fn test_publisher() {
-        let mut publisher = Publisher::new();
-
-        fn test_fn(event: &Event) {
-            assert!(matches!(event, Event::Message(_)));
-            if let Event::Message(message) = event {
-                assert_eq!(message, "Hello, world!");
-            }
+        fn test_fn(event: FuzzNTimes) {
+            assert_eq!(event.iterations, 10);
         }
+
+        let mut publisher = Publisher::new();
 
         publisher.subscribe(test_fn);
 
-        assert!(publisher.registry.has::<ListenerVec<Event>>());
-        assert!(publisher.registry.get::<ListenerVec<Event>>().is_some());
-        assert!(publisher.registry.get_mut::<ListenerVec<Event>>().is_some());
+        assert!(publisher.registry.has::<ListenerVec<FuzzNTimes>>());
+        assert!(publisher
+            .registry
+            .get::<ListenerVec<FuzzNTimes>>()
+            .is_some());
+        assert!(publisher
+            .registry
+            .get_mut::<ListenerVec<FuzzNTimes>>()
+            .is_some());
 
-        publisher.notify(Event::Message("Hello, world!".to_string()));
+        publisher.notify(FuzzNTimes { iterations: 10 });
     }
 }

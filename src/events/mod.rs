@@ -1,5 +1,64 @@
+//! subscribable events for introspection into some of the more opaque parts of the fuzzer
+//!
+//! Custom events can be defined by simply adding a new type to the [`SharedState`]'s
+//! `events` map. The [`EventPublisher`] trait provides a simple interface for subscribing
+//! to and notifying listeners of events.
+//! 
+//! [`SharedState`]: crate::state::SharedState
+//!
+//! # Examples
+//!
+//! Subscribe to the [`ModifiedCorpus`] event:
+//!
+//! ```
+//! use feroxfuzz::events::{EventPublisher, ModifiedCorpus};
+//! use feroxfuzz::state::SharedState;
+//! use feroxfuzz::corpora::Wordlist;
+//!
+//! let wordlist = Wordlist::with_words(["test"])
+//!     .name("words")
+//!     .build();
+//!
+//! let mut state = SharedState::with_corpus(wordlist);
+//!
+//! state.events().subscribe(|event: ModifiedCorpus| {
+//!    println!("{:?}", event);
+//! });
+//!
+//! // ... fuzzer calls state.events().notify(ModifiedCorpus { .. }) ...
+//! ```
+//!
+//! Define a custom event
+//!
+//! ```
+//! use feroxfuzz::events::{EventPublisher, Publisher};
+//! use feroxfuzz::state::SharedState;
+//! use feroxfuzz::corpora::Wordlist;
+//!
+//! let wordlist = Wordlist::with_words(["test"])
+//!     .name("words")
+//!     .build();
+//!
+//! let mut state = SharedState::with_corpus(wordlist);
+//!
+//! // define a custom event (must be Clone)
+//! #[derive(Clone)]
+//! struct CustomEvent {
+//!    message: String,
+//! }
+//!
+//! // subscribe to the event
+//! state.events().subscribe(|event: CustomEvent| {
+//!    assert_eq!(event.message, "hello world");
+//! });
+//!
+//! // notify listeners of the event
+//! state.events().notify(CustomEvent {
+//!   message: "hello world".to_string(),
+//! });
+//! ```
+
 mod publisher;
-mod subscriber;
 
 use crate::input::Data;
 use crate::requests::RequestId;
