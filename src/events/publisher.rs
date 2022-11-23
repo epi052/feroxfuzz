@@ -141,6 +141,7 @@ impl EventPublisher for Publisher {
         }
     }
 
+    #[inline]
     fn notify<E>(&self, event: E)
     where
         E: 'static + Clone,
@@ -152,6 +153,7 @@ impl EventPublisher for Publisher {
         }
     }
 
+    #[inline]
     fn has_listeners<E>(&self) -> bool
     where
         E: 'static,
@@ -183,6 +185,7 @@ impl EventPublisher for Arc<RwLock<Publisher>> {
         }
     }
 
+    #[inline]
     fn notify<E>(&self, event: E)
     where
         E: 'static + Clone,
@@ -192,6 +195,7 @@ impl EventPublisher for Arc<RwLock<Publisher>> {
         }
     }
 
+    #[inline]
     fn has_listeners<E>(&self) -> bool
     where
         E: 'static,

@@ -310,6 +310,8 @@ impl SharedState {
         Ok(())
     }
 
+    /// simple wrapper around the process of publishing a message to any active
+    /// listeners
     fn notify_listeners(
         &self,
         request: &Request,
