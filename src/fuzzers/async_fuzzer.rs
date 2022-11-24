@@ -28,6 +28,7 @@ use crate::requests::Request;
 use crate::responses::{AsyncResponse, Response};
 use crate::schedulers::Scheduler;
 use crate::state::SharedState;
+use crate::std_ext::ops::Len;
 use crate::std_ext::ops::LogicOperation;
 
 /// A fuzzer that sends requests asynchronously
@@ -152,6 +153,7 @@ where
             threads: num_threads,
             pre_send_logic: self.pre_send_logic().unwrap_or_default(),
             post_send_logic,
+            corpora_length: state.corpora().iter().map(|(_, v)| v.len()).sum(),
         });
 
         // facilitates a threadsafe way to 'break' out of the iterator
@@ -189,6 +191,18 @@ where
                         self.pre_send_logic().unwrap_or_default(),
                     );
 
+                    if decision.is_some() {
+                        // if there is an action to take, based off the deciders, then
+                        // we need to set the action on the request, and then call the
+                        // state->stats->update method
+                        mutated_request.set_action(decision.clone());
+
+                        // currently, the only stats update this call performs is to
+                        // update the Action tracker with the request's id, so we
+                        // can hide it behind the if-let-some 
+                        state.update_from_request(&mutated_request);
+                    }
+
                     self.processors.call_pre_send_hooks(
                         state,
                         &mut mutated_request,
@@ -210,7 +224,7 @@ where
                             // pre-send side of things... maybe a 'seen' corpus or something?
                             // leaving it here for now.
 
-                            state.add_to_corpus(name, &mutated_request)?;
+                            state.add_to_corpus(&name, &mutated_request)?;
 
                             match flow_control {
                                 FlowControl::StopFuzzing => {
@@ -353,16 +367,16 @@ where
                 // response cannot be Err after this point, so is safe to unwrap
                 c_observers.call_post_send_hooks(response.unwrap());
 
-                if c_state.update(&c_observers).is_err() {
+                let decision =
+                    c_deciders.call_post_send_hooks(&c_state, &c_observers, None, post_send_logic);
+
+                if c_state.update(&c_observers, decision.as_ref()).is_err() {
                     // could not update the state via the observers; cannot reliably make
                     // decisions or perform actions on this response as a result and must
                     // skip any post processing actions
                     warn!("Could not update state via observers; skipping Deciders and Processors");
                     return;
                 }
-
-                let decision =
-                    c_deciders.call_post_send_hooks(&c_state, &c_observers, None, post_send_logic);
 
                 c_processors.call_post_send_hooks(&c_state, &c_observers, decision.as_ref());
 
@@ -372,7 +386,7 @@ where
                         // only thing we need to check at this point is if we need to alter the
                         // corpus
 
-                        if let Err(err) = c_state.add_to_corpus(name, &c_request) {
+                        if let Err(err) = c_state.add_to_corpus(&name, &c_request) {
                             warn!("Could not add {:?} to corpus[{name}]: {:?}", c_request, err);
                         }
 

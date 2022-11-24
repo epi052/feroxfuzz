@@ -13,7 +13,7 @@ use crate::requests::Request;
 use crate::responses::BlockingResponse;
 use crate::schedulers::Scheduler;
 use crate::state::SharedState;
-use crate::std_ext::ops::LogicOperation;
+use crate::std_ext::ops::{Len, LogicOperation};
 
 use tracing::instrument;
 use tracing::log::warn;
@@ -82,6 +82,7 @@ where
             threads: 1,
             pre_send_logic: self.pre_send_logic().unwrap_or_default(),
             post_send_logic: self.post_send_logic().unwrap_or_default(),
+            corpora_length: state.corpora().iter().map(|(_, v)| v.len()).sum(),
         });
 
         while self.scheduler.next().is_ok() {
@@ -99,6 +100,18 @@ where
                 None,
                 self.pre_send_logic().unwrap_or_default(),
             );
+
+            if decision.is_some() {
+                // if there is an action to take, based off the deciders, then
+                // we need to set the action on the request, and then call the
+                // state->stats->update method
+                mutated_request.set_action(decision.clone());
+
+                // currently, the only stats update this call performs is to
+                // update the Action tracker with the request's id, so we
+                // can hide it behind the if-let-some
+                state.update_from_request(&mutated_request);
+            }
 
             self.processors
                 .call_pre_send_hooks(state, &mut mutated_request, decision.as_ref());
@@ -118,7 +131,7 @@ where
                     // pre-send side of things... maybe a 'seen' corpus or something?
                     // leaving it here for now.
 
-                    state.add_to_corpus(name, &mutated_request)?;
+                    state.add_to_corpus(&name, &mutated_request)?;
 
                     match flow_control {
                         FlowControl::StopFuzzing => {
@@ -168,14 +181,14 @@ where
 
             self.observers.call_post_send_hooks(response.unwrap());
 
-            state.update(&self.observers)?;
-
             let decision = self.deciders.call_post_send_hooks(
                 state,
                 &self.observers,
                 None,
                 self.post_send_logic().unwrap_or_default(),
             );
+
+            state.update(&self.observers, decision.as_ref())?;
 
             self.processors
                 .call_post_send_hooks(state, &self.observers, decision.as_ref());
@@ -185,7 +198,7 @@ where
                 // if the fuzzer should stop fuzzing; that means the only thing we need
                 // to check at this point is if we need to alter the corpus
                 Some(Action::AddToCorpus(name, flow_control)) => {
-                    state.add_to_corpus(name, &mutated_request)?;
+                    state.add_to_corpus(&name, &mutated_request)?;
 
                     match flow_control {
                         FlowControl::StopFuzzing => {

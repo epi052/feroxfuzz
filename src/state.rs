@@ -6,6 +6,7 @@ use std::sync::{Arc, Once, RwLock};
 
 use tracing::{debug, error, instrument, warn};
 
+use crate::actions::Action;
 use crate::corpora::{CorpusIndices, CorpusMap, CorpusType};
 use crate::error::FeroxFuzzError;
 use crate::events::{EventPublisher, ModifiedCorpus, Publisher};
@@ -284,13 +285,13 @@ impl SharedState {
     /// [`Observer`]: crate::observers::Observer
     /// [`Observers`]: crate::observers::Observers
     #[instrument(skip_all, level = "trace")]
-    pub fn update<O, R>(&self, observers: &O) -> Result<(), FeroxFuzzError>
+    pub fn update<O, R>(&self, observers: &O, action: Option<&Action>) -> Result<(), FeroxFuzzError>
     where
         O: Observers<R>,
         R: Response + Timed,
     {
         if let Ok(mut guard) = self.statistics.write() {
-            guard.update(observers)?;
+            guard.update(observers, action)?;
         }
 
         Ok(())
@@ -310,6 +311,14 @@ impl SharedState {
         }
 
         Ok(())
+    }
+
+    /// update the [`Statistics`] object with the given [`Request`]
+    #[instrument(skip_all, level = "trace")]
+    pub fn update_from_request(&self, request: &Request) {
+        if let Ok(mut guard) = self.statistics.write() {
+            guard.update_from_request(request);
+        }
     }
 
     /// simple wrapper around the process of publishing a message to any active

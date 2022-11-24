@@ -122,6 +122,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // n times. In this case, we're going to iterate over the corpus entries twice.
     fuzzer.fuzz_n_iterations(2, &mut state)?;
 
+    println!("{:?}", state);
+
     // example output:
     //
     // [500] 0 - http://localhost:8000/?injectable=/0/a/4 - 1.223366ms

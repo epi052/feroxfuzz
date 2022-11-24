@@ -1,6 +1,7 @@
 //! Request object where most fields of the request may be set to [`Data::Fuzzable`]
 //! or [`Data::Static`]
 use super::ShouldFuzz;
+use crate::actions::Action;
 use crate::error::FeroxFuzzError;
 use crate::input::Data;
 use crate::std_ext::convert::IntoInner;
@@ -128,6 +129,7 @@ pub struct Request {
     pub(crate) user_agent: Option<Data>,
     pub(crate) version: Data,
     pub(crate) timeout: Duration,
+    pub(crate) action: Option<Action>,
 }
 
 impl Default for Request {
@@ -150,6 +152,7 @@ impl Default for Request {
             port: None,
             path: Data::from_str("/").unwrap(),
             fragment: None,
+            action: None,
         }
     }
 }
@@ -1885,6 +1888,39 @@ impl Request {
     #[inline]
     pub fn timeout_mut(&mut self) -> &mut Duration {
         &mut self.timeout
+    }
+
+    /// get a reference to the fuzzers's decided upon action
+    /// for this request, if any
+    #[must_use]
+    #[inline]
+    pub const fn action(&self) -> Option<&Action> {
+        self.action.as_ref()
+    }
+
+    /// get a mutable reference to the fuzzers's decided upon action
+    /// for this request
+    ///
+    /// use this as the action setter, if necessary
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use feroxfuzz::requests::Request;
+    /// # use feroxfuzz::actions::Action;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut request = Request::new();
+    /// let new_action = Some(Action::Discard);
+    ///
+    /// request.set_action(new_action.clone());
+    ///
+    /// assert_eq!(request.action(), new_action.as_ref());
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn set_action(&mut self, action: Option<Action>) {
+        self.action = action;
     }
 }
 

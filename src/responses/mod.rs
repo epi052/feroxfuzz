@@ -1,7 +1,7 @@
 //! Asynchronous and blocking http response traits, with optional implementations using [`reqwest`]
 use cfg_if::cfg_if;
 
-use crate::requests::RequestId;
+use crate::{actions::Action, requests::RequestId};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -57,6 +57,10 @@ pub trait Response {
     /// Get the content-length of this response
     #[must_use]
     fn content_length(&self) -> usize;
+
+    /// Get the [`Action`] to be taken as a result of this response
+    #[must_use]
+    fn action(&self) -> Option<&Action>;
 
     /// try to deserialize the response body as JSON
     ///

@@ -14,11 +14,20 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use tracing::{error, instrument, warn};
 
+use crate::actions::{Action, FlowControl};
 use crate::error::{FeroxFuzzError, RequestErrorKind};
 use crate::observers::Observers;
 use crate::observers::ResponseObserver;
+use crate::requests::{Request, RequestId};
 use crate::responses::{Response, Timed};
 use crate::std_ext::time::current_time;
+
+/// just used for typesafe calls to [`Statistics::update_actions`]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub(crate) enum RequestOrResponse {
+    Request,
+    Response,
+}
 
 /// fuzzer's tracked statistics
 #[derive(Default, Debug, Clone)]
@@ -65,6 +74,14 @@ pub struct Statistics {
 
     /// tracker for overall number of any status code seen by the client
     statuses: HashMap<u16, usize>,
+
+    /// tracker for overall number of any [`Action`]s performed by the fuzzer
+    /// on any [`Request`] or [`Response`]
+    ///
+    /// [`Action`]: crate::actions::Action
+    /// [`Request`]: crate::requests::Request
+    /// [`Response`]: crate::responses::Response
+    actions: HashMap<String, HashMap<Action, usize>>,
 }
 
 impl Statistics {
@@ -181,6 +198,17 @@ impl Statistics {
             .map_or_else(|| 0.0, |duration| duration.as_secs_f64())
     }
 
+    /// get a summary of the [`Action`]s performed by the fuzzer on any
+    /// [`Response`]
+    ///
+    /// [`Action`]: crate::actions::Action
+    /// [`Response`]: crate::responses::Response
+    #[must_use]
+    #[inline]
+    pub const fn actions(&self) -> &HashMap<String, HashMap<Action, usize>> {
+        &self.actions
+    }
+
     /// Inspect the given status code and increment the appropriate fields
     ///
     /// Implies incrementing:
@@ -229,7 +257,11 @@ impl Statistics {
     /// given an [`Observers`] object with at least (and probably only) one
     /// [`ResponseObserver`], update the appropriate internal trackers
     #[instrument(skip_all, level = "trace")]
-    fn update_from_response_observer<O, R>(&mut self, observers: &O) -> Result<(), FeroxFuzzError>
+    fn update_from_response_observer<O, R>(
+        &mut self,
+        observers: &O,
+        action: Option<&Action>,
+    ) -> Result<(), FeroxFuzzError>
     where
         O: Observers<R>,
         R: Response + Timed,
@@ -247,8 +279,53 @@ impl Statistics {
             })?;
 
         self.add_status_code(observer.status_code())?;
+        self.update_actions(observer.id(), action, RequestOrResponse::Response);
 
         Ok(())
+    }
+
+    /// given an [`Observers`] object with at least (and probably only) one
+    /// [`RequestObserver`], update the appropriate internal [`Action`] tracker
+    #[instrument(skip(self), level = "trace")]
+    pub(crate) fn update_actions(
+        &mut self,
+        id: RequestId,
+        action: Option<&Action>,
+        update_type: RequestOrResponse,
+    ) {
+        let mut update = |to_update: Action| match update_type {
+            RequestOrResponse::Request => {
+                *self
+                    .actions
+                    .entry("request".to_string())
+                    .or_insert_with(HashMap::new)
+                    .entry(to_update)
+                    .or_insert(0) += 1;
+            }
+            RequestOrResponse::Response => {
+                *self
+                    .actions
+                    .entry("response".to_string())
+                    .or_insert_with(HashMap::new)
+                    .entry(to_update)
+                    .or_insert(0) += 1;
+            }
+        };
+
+        match action {
+            Some(Action::Keep) => update(Action::Keep),
+            Some(Action::Discard) => update(Action::Discard),
+            Some(Action::StopFuzzing) => update(Action::StopFuzzing),
+            Some(Action::AddToCorpus(corpus_name, inner_action)) => {
+                match inner_action {
+                    FlowControl::Keep => update(Action::Keep),
+                    FlowControl::Discard => update(Action::Discard),
+                    FlowControl::StopFuzzing => update(Action::StopFuzzing),
+                };
+                update(Action::AddToCorpus(corpus_name.clone(), *inner_action));
+            }
+            None => {} // do nothing
+        }
     }
 
     #[inline]
@@ -280,7 +357,11 @@ impl Statistics {
     }
 
     #[instrument(skip_all, level = "trace")]
-    pub(crate) fn update<O, R>(&mut self, observers: &O) -> Result<(), FeroxFuzzError>
+    pub(crate) fn update<O, R>(
+        &mut self,
+        observers: &O,
+        action: Option<&Action>,
+    ) -> Result<(), FeroxFuzzError>
     where
         O: Observers<R>,
         R: Response + Timed,
@@ -288,9 +369,16 @@ impl Statistics {
         // note: if any additional entrypoints are added, the common_updates function must be called
         //       from the new entrypoint (i.e. update and update_from_error)
         self.common_updates();
-        self.update_from_response_observer(observers)?;
+        self.update_from_response_observer(observers, action)?;
 
         Ok(())
+    }
+
+    #[instrument(skip_all, level = "trace")]
+    pub(crate) fn update_from_request(&mut self, request: &Request) {
+        // purposefully not calling common_updates here, as those updates aren't relevant to
+        // requests
+        self.update_actions(request.id(), request.action(), RequestOrResponse::Request);
     }
 
     /// update the internal trackers from the given error

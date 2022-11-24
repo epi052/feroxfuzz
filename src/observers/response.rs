@@ -1,4 +1,5 @@
 use super::{Observer, ObserverHooks};
+use crate::actions::Action;
 use crate::requests::RequestId;
 use crate::responses::{Response, Timed};
 use crate::std_ext::tuple::Named;
@@ -345,6 +346,12 @@ where
     /// get the original http request method used to generate the response
     fn method(&self) -> &str {
         self.response.method()
+    }
+
+    /// Get the [`Action`] to be taken as a result of this response
+    #[must_use]
+    fn action(&self) -> Option<&Action> {
+        self.response.action()
     }
 }
 
