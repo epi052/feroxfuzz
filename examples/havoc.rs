@@ -6,6 +6,7 @@ use feroxfuzz::actions::{Action, FlowControl};
 use feroxfuzz::client::{AsyncClient, HttpClient};
 use feroxfuzz::corpora::Wordlist;
 use feroxfuzz::deciders::StatusCodeDecider;
+use feroxfuzz::events::EventPublisher;
 use feroxfuzz::fuzzers::{AsyncFuzzer, AsyncFuzzing};
 use feroxfuzz::mutators::HavocMutator;
 use feroxfuzz::observers::ResponseObserver;
@@ -75,7 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // won't progress beyond being added to the corpus. In either case, the
             // resulting `Action` will still be passed to any configured
             // Processors.
-            Action::AddToCorpus("corpus", FlowControl::Keep)
+            Action::AddToCorpus("corpus".to_string(), FlowControl::Keep)
         } else {
             Action::Discard
         }
@@ -122,19 +123,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         40, client, request, scheduler, mutators, observers, processors, deciders,
     );
 
-    // fuzz_n_iterations means that the fuzzer will iterate over whatever is provided by the scheduler
-    // n times. In this case, we're going to iterate over the corpus entries 3000 times. This is to allow
-    // the AddToCorpus to increase the corpus and continue running over the new input as it grows.
-    fuzzer.fuzz_n_iterations(3_000, &mut state).await?;
+    state
+        .events()
+        .subscribe(|event: feroxfuzz::events::FuzzOnce| {
+            println!(
+                "[FuzzOnce] iterating over corpus of size: {}",
+                event.corpora_length
+            );
+        });
 
-    println!("{state:#}");
+    // fuzz_n_iterations means that the fuzzer will iterate over whatever is provided by the scheduler
+    // n times. In this case, we're going to iterate over the corpus entries 200 times. This is to allow
+    // the AddToCorpus to increase the corpus and continue running over the new input as it grows.
+    fuzzer.fuzz_n_iterations(200, &mut state).await?;
+
+    println!(
+        "Final corpus: {}",
+        state.corpora().get("corpus").unwrap().read().unwrap()
+    );
 
     // example output:
     //
+    // [FuzzOnce] iterating over corpus of size: 1
+    // [FuzzOnce] iterating over corpus of size: 1
+    // [FuzzOnce] iterating over corpus of size: 1
     // [200] 727 - http://localhost:8000/ - 5.520096ms
-    // [200] 321 - http://localhost:8000/ - 1.727416ms
-    // [200] 434 - http://localhost:8000/ - 5.494798ms
-    // [200] 778 - http://localhost:8000/ - 3.475705ms
+    // [FuzzOnce] iterating over corpus of size: 2
+    // ...
+    // [FuzzOnce] iterating over corpus of size: 1320
+    // ...
+    // Final corpus: Wordlist::{len=1372, top-3=[Static("{\"FUZZ\":\"JSON\"}"), Fuzzable("Data::{len=8, top-3=[fd, e1, c9]}"), Fuzzable("Data::{len=16, top-3=[da, 1e, 1]}")]}
 
     // bytes output from the server:
     //

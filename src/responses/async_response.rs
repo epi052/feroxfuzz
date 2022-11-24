@@ -1,8 +1,10 @@
 use super::{Response, Timed};
 
+use crate::actions::Action;
 use crate::error::FeroxFuzzError;
 use crate::requests::RequestId;
 use crate::std_ext::str::ASCII_WHITESPACE;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -27,6 +29,7 @@ pub struct AsyncResponse {
     line_count: usize,
     word_count: usize,
     method: String,
+    action: Option<Action>,
 
     #[cfg_attr(all(not(feature = "serialize-body"), feature = "serde"), serde(skip))]
     body: Vec<u8>,
@@ -175,6 +178,10 @@ impl Response for AsyncResponse {
     fn method(&self) -> &str {
         &self.method
     }
+
+    fn action(&self) -> Option<&Action> {
+        self.action.as_ref()
+    }
 }
 
 impl Timed for AsyncResponse {
@@ -196,6 +203,7 @@ impl Default for AsyncResponse {
             content_length: Default::default(),
             line_count: Default::default(),
             word_count: Default::default(),
+            action: Option::default(),
         }
     }
 }

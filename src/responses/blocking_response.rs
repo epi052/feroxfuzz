@@ -1,7 +1,9 @@
 use super::{Response, Timed};
+use crate::actions::Action;
 use crate::error::FeroxFuzzError;
 use crate::requests::RequestId;
 use crate::std_ext::str::ASCII_WHITESPACE;
+
 use std::collections::HashMap;
 use std::time::Duration;
 use url::Url;
@@ -27,6 +29,7 @@ pub struct BlockingResponse {
     line_count: usize,
     word_count: usize,
     method: String,
+    action: Option<Action>,
 
     #[cfg_attr(all(not(feature = "serialize-body"), feature = "serde"), serde(skip))]
     body: Vec<u8>,
@@ -173,6 +176,10 @@ impl Response for BlockingResponse {
     fn method(&self) -> &str {
         &self.method
     }
+
+    fn action(&self) -> Option<&Action> {
+        self.action.as_ref()
+    }
 }
 
 impl Timed for BlockingResponse {
@@ -194,6 +201,7 @@ impl Default for BlockingResponse {
             content_length: Default::default(),
             line_count: Default::default(),
             word_count: Default::default(),
+            action: Option::default(),
         }
     }
 }

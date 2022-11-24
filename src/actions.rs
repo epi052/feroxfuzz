@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 /// all possible actions
-#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub enum Action {
@@ -41,7 +41,7 @@ pub enum Action {
     ///
     /// [`Corpus`]: crate::corpora::Corpus
     /// [`Processor`]: crate::processors::Processor
-    AddToCorpus(&'static str, FlowControl),
+    AddToCorpus(String, FlowControl),
 
     /// break out of the current fuzz loop; no more iterations other than
     /// what's already in flight will be performed

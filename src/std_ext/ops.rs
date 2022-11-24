@@ -362,16 +362,16 @@ mod tests {
         assert_eq!(Action::Discard & Action::Keep, Action::Discard);
         assert_eq!(Action::StopFuzzing & Action::Keep, Action::StopFuzzing);
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Keep) & Action::Keep,
-            Action::AddToCorpus("stuff", FlowControl::Keep)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep) & Action::Keep,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Discard) & Action::Keep,
-            Action::AddToCorpus("stuff", FlowControl::Discard)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard) & Action::Keep,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing) & Action::Keep,
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing) & Action::Keep,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
 
         // action & action::discard
@@ -379,103 +379,104 @@ mod tests {
         assert_eq!(Action::Discard & Action::Discard, Action::Discard);
         assert_eq!(Action::StopFuzzing & Action::Discard, Action::StopFuzzing);
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Keep) & Action::Discard,
-            Action::AddToCorpus("stuff", FlowControl::Discard)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep) & Action::Discard,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Discard) & Action::Discard,
-            Action::AddToCorpus("stuff", FlowControl::Discard)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard) & Action::Discard,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing) & Action::Discard,
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing) & Action::Discard,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
 
         // action & addtocorpus::keep
         assert_eq!(
-            Action::Keep & Action::AddToCorpus("stuff", FlowControl::Keep),
-            Action::AddToCorpus("stuff", FlowControl::Keep)
+            Action::Keep & Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
         );
         assert_eq!(
-            Action::Discard & Action::AddToCorpus("stuff", FlowControl::Keep),
-            Action::AddToCorpus("stuff", FlowControl::Discard)
+            Action::Discard & Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
         );
         assert_eq!(
-            Action::StopFuzzing & Action::AddToCorpus("stuff", FlowControl::Keep),
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::StopFuzzing & Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Keep)
-                & Action::AddToCorpus("stuff", FlowControl::Keep),
-            Action::AddToCorpus("stuff", FlowControl::Keep)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+                & Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Discard)
-                & Action::AddToCorpus("stuff", FlowControl::Keep),
-            Action::AddToCorpus("stuff", FlowControl::Discard)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+                & Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
-                & Action::AddToCorpus("stuff", FlowControl::Keep),
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+                & Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
 
         // action & addtocorpus::discard
         assert_eq!(
-            Action::Keep & Action::AddToCorpus("stuff", FlowControl::Discard),
-            Action::AddToCorpus("stuff", FlowControl::Discard)
+            Action::Keep & Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
         );
         assert_eq!(
-            Action::Discard & Action::AddToCorpus("stuff", FlowControl::Discard),
-            Action::AddToCorpus("stuff", FlowControl::Discard)
+            Action::Discard & Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
         );
         assert_eq!(
-            Action::StopFuzzing & Action::AddToCorpus("stuff", FlowControl::Discard),
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::StopFuzzing & Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Keep)
-                & Action::AddToCorpus("stuff", FlowControl::Discard),
-            Action::AddToCorpus("stuff", FlowControl::Discard)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+                & Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Discard)
-                & Action::AddToCorpus("stuff", FlowControl::Discard),
-            Action::AddToCorpus("stuff", FlowControl::Discard)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+                & Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
-                & Action::AddToCorpus("stuff", FlowControl::Discard),
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+                & Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
 
         // action & addtocorpus::stopfuzzing
         assert_eq!(
-            Action::Keep & Action::AddToCorpus("stuff", FlowControl::StopFuzzing),
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::Keep & Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
         assert_eq!(
-            Action::Discard & Action::AddToCorpus("stuff", FlowControl::StopFuzzing),
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::Discard & Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
         assert_eq!(
-            Action::StopFuzzing & Action::AddToCorpus("stuff", FlowControl::StopFuzzing),
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::StopFuzzing
+                & Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Keep)
-                & Action::AddToCorpus("stuff", FlowControl::StopFuzzing),
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+                & Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Discard)
-                & Action::AddToCorpus("stuff", FlowControl::StopFuzzing),
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+                & Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
-                & Action::AddToCorpus("stuff", FlowControl::StopFuzzing),
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+                & Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
     }
 
@@ -488,16 +489,16 @@ mod tests {
         assert_eq!(Action::Discard & FlowControl::Keep, Action::Discard);
         assert_eq!(Action::StopFuzzing & FlowControl::Keep, Action::StopFuzzing);
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Keep) & FlowControl::Keep,
-            Action::AddToCorpus("stuff", FlowControl::Keep)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep) & FlowControl::Keep,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Discard) & FlowControl::Keep,
-            Action::AddToCorpus("stuff", FlowControl::Discard)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard) & FlowControl::Keep,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing) & FlowControl::Keep,
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing) & FlowControl::Keep,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
 
         // action & flowcontrol::discard
@@ -508,16 +509,17 @@ mod tests {
             Action::StopFuzzing
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Keep) & FlowControl::Discard,
-            Action::AddToCorpus("stuff", FlowControl::Discard)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep) & FlowControl::Discard,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Discard) & FlowControl::Discard,
-            Action::AddToCorpus("stuff", FlowControl::Discard)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard) & FlowControl::Discard,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing) & FlowControl::Discard,
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+                & FlowControl::Discard,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
     }
 
@@ -573,29 +575,30 @@ mod tests {
 
         // flowcontrol & action::addtocorpus::keep
         assert_eq!(
-            FlowControl::Keep & Action::AddToCorpus("stuff", FlowControl::Keep),
+            FlowControl::Keep & Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
             FlowControl::Keep
         );
         assert_eq!(
-            FlowControl::Discard & Action::AddToCorpus("stuff", FlowControl::Keep),
+            FlowControl::Discard & Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
             FlowControl::Discard
         );
         assert_eq!(
-            FlowControl::StopFuzzing & Action::AddToCorpus("stuff", FlowControl::Keep),
+            FlowControl::StopFuzzing & Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
             FlowControl::StopFuzzing
         );
 
         // flowcontrol & action::addtocorpus::discard
         assert_eq!(
-            FlowControl::Keep & Action::AddToCorpus("stuff", FlowControl::Discard),
+            FlowControl::Keep & Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
             FlowControl::Discard
         );
         assert_eq!(
-            FlowControl::Discard & Action::AddToCorpus("stuff", FlowControl::Discard),
+            FlowControl::Discard & Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
             FlowControl::Discard
         );
         assert_eq!(
-            FlowControl::StopFuzzing & Action::AddToCorpus("stuff", FlowControl::Discard),
+            FlowControl::StopFuzzing
+                & Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
             FlowControl::StopFuzzing
         );
     }
@@ -611,16 +614,16 @@ mod tests {
         assert_eq!(Action::Discard | Action::Keep, Action::Keep);
         assert_eq!(Action::StopFuzzing | Action::Keep, Action::StopFuzzing);
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Keep) | Action::Keep,
-            Action::AddToCorpus("stuff", FlowControl::Keep)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep) | Action::Keep,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Discard) | Action::Keep,
-            Action::AddToCorpus("stuff", FlowControl::Keep)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard) | Action::Keep,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing) | Action::Keep,
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing) | Action::Keep,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
 
         // action | action::discard
@@ -628,74 +631,74 @@ mod tests {
         assert_eq!(Action::Discard | Action::Discard, Action::Discard);
         assert_eq!(Action::StopFuzzing | Action::Discard, Action::StopFuzzing);
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Keep) | Action::Discard,
-            Action::AddToCorpus("stuff", FlowControl::Keep)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep) | Action::Discard,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Discard) | Action::Discard,
-            Action::AddToCorpus("stuff", FlowControl::Discard)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard) | Action::Discard,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing) | Action::Discard,
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing) | Action::Discard,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
 
         // action | addtocorpus::keep
         assert_eq!(
-            Action::Keep | Action::AddToCorpus("stuff", FlowControl::Keep),
-            Action::AddToCorpus("stuff", FlowControl::Keep)
+            Action::Keep | Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
         );
         assert_eq!(
-            Action::Discard | Action::AddToCorpus("stuff", FlowControl::Keep),
-            Action::AddToCorpus("stuff", FlowControl::Keep)
+            Action::Discard | Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
         );
         assert_eq!(
-            Action::StopFuzzing | Action::AddToCorpus("stuff", FlowControl::Keep),
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::StopFuzzing | Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Keep)
-                | Action::AddToCorpus("stuff", FlowControl::Keep),
-            Action::AddToCorpus("stuff", FlowControl::Keep)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+                | Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Discard)
-                | Action::AddToCorpus("stuff", FlowControl::Keep),
-            Action::AddToCorpus("stuff", FlowControl::Keep)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+                | Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
-                | Action::AddToCorpus("stuff", FlowControl::Keep),
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+                | Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
 
         // action | addtocorpus::discard
         assert_eq!(
-            Action::Keep | Action::AddToCorpus("stuff", FlowControl::Discard),
-            Action::AddToCorpus("stuff", FlowControl::Keep)
+            Action::Keep | Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
         );
         assert_eq!(
-            Action::Discard | Action::AddToCorpus("stuff", FlowControl::Discard),
-            Action::AddToCorpus("stuff", FlowControl::Discard)
+            Action::Discard | Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
         );
         assert_eq!(
-            Action::StopFuzzing | Action::AddToCorpus("stuff", FlowControl::Discard),
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::StopFuzzing | Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Keep)
-                | Action::AddToCorpus("stuff", FlowControl::Discard),
-            Action::AddToCorpus("stuff", FlowControl::Keep)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+                | Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Discard)
-                | Action::AddToCorpus("stuff", FlowControl::Discard),
-            Action::AddToCorpus("stuff", FlowControl::Discard)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+                | Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
-                | Action::AddToCorpus("stuff", FlowControl::Discard),
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+                | Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
     }
 
@@ -708,16 +711,16 @@ mod tests {
         assert_eq!(Action::Discard | FlowControl::Keep, Action::Keep);
         assert_eq!(Action::StopFuzzing | FlowControl::Keep, Action::StopFuzzing);
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Keep) | FlowControl::Keep,
-            Action::AddToCorpus("stuff", FlowControl::Keep)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep) | FlowControl::Keep,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Discard) | FlowControl::Keep,
-            Action::AddToCorpus("stuff", FlowControl::Keep)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard) | FlowControl::Keep,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing) | FlowControl::Keep,
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing) | FlowControl::Keep,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
 
         // action | flowcontrol::discard
@@ -728,16 +731,17 @@ mod tests {
             Action::StopFuzzing
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Keep) | FlowControl::Discard,
-            Action::AddToCorpus("stuff", FlowControl::Keep)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep) | FlowControl::Discard,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::Discard) | FlowControl::Discard,
-            Action::AddToCorpus("stuff", FlowControl::Discard)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard) | FlowControl::Discard,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
         );
         assert_eq!(
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing) | FlowControl::Discard,
-            Action::AddToCorpus("stuff", FlowControl::StopFuzzing)
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+                | FlowControl::Discard,
+            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
         );
     }
 
@@ -787,29 +791,30 @@ mod tests {
 
         // flowcontrol | action::addtocorpus::keep
         assert_eq!(
-            FlowControl::Keep | Action::AddToCorpus("stuff", FlowControl::Keep),
+            FlowControl::Keep | Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
             FlowControl::Keep
         );
         assert_eq!(
-            FlowControl::Discard | Action::AddToCorpus("stuff", FlowControl::Keep),
+            FlowControl::Discard | Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
             FlowControl::Keep
         );
         assert_eq!(
-            FlowControl::StopFuzzing | Action::AddToCorpus("stuff", FlowControl::Keep),
+            FlowControl::StopFuzzing | Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
             FlowControl::StopFuzzing
         );
 
         // flowcontrol | action::addtocorpus::discard
         assert_eq!(
-            FlowControl::Keep | Action::AddToCorpus("stuff", FlowControl::Discard),
+            FlowControl::Keep | Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
             FlowControl::Keep
         );
         assert_eq!(
-            FlowControl::Discard | Action::AddToCorpus("stuff", FlowControl::Discard),
+            FlowControl::Discard | Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
             FlowControl::Discard
         );
         assert_eq!(
-            FlowControl::StopFuzzing | Action::AddToCorpus("stuff", FlowControl::Discard),
+            FlowControl::StopFuzzing
+                | Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
             FlowControl::StopFuzzing
         );
     }

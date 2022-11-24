@@ -1,6 +1,6 @@
 [package]
 name = "feroxfuzz"
-version = "1.0.0-rc.3"
+version = "1.0.0-rc.4"
 edition = "2021"
 authors = ["Ben 'epi' Risher (@epi052)"]
 license = "Apache-2.0"

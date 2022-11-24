@@ -177,6 +177,14 @@ pub struct FuzzOnce {
     ///
     /// [`Action`]: crate::actions::Action
     pub post_send_logic: LogicOperation,
+
+    /// the number of iterations the fuzzer has to go through
+    /// before it exits, assuming it must iterate over all
+    /// corpora before exiting (this may not be entirely true,
+    /// depending on the fuzzer's [`Scheduler`])
+    ///
+    /// [`Scheduler`]: crate::schedulers::Scheduler
+    pub corpora_length: usize,
 }
 
 /// This event is emitted when a fuzzer exits the fuzzing loop. This can happen
