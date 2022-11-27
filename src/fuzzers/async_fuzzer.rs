@@ -39,7 +39,7 @@ where
     D: Deciders<O, AsyncResponse>,
     M: Mutators,
     O: Observers<AsyncResponse>,
-    P: Processors,
+    P: Processors<O, AsyncResponse>,
     S: Scheduler,
 {
     threads: usize,
@@ -61,7 +61,7 @@ where
     D: Deciders<O, AsyncResponse>,
     M: Mutators,
     O: Observers<AsyncResponse>,
-    P: Processors,
+    P: Processors<O, AsyncResponse>,
     S: Scheduler,
 {
     fn pre_send_logic(&self) -> Option<LogicOperation> {
@@ -87,7 +87,7 @@ where
     D: Deciders<O, AsyncResponse>,
     M: Mutators,
     O: Observers<AsyncResponse>,
-    P: Processors,
+    P: Processors<O, AsyncResponse>,
     S: Scheduler,
 {
     /// create a new fuzzer that operates asynchronously, meaning that it executes
@@ -136,7 +136,7 @@ where
     D: Deciders<O, AsyncResponse> + Send + Clone,
     M: Mutators + Send,
     O: Observers<AsyncResponse> + Send + Clone,
-    P: Processors + Send + Clone,
+    P: Processors<O, AsyncResponse> + Send + Clone,
     S: Scheduler + Send + Iterator<Item = ()> + Clone,
     <S as Iterator>::Item: Debug,
 {

@@ -1,7 +1,12 @@
-use super::ProcessorHooks;
+use std::any::Any;
+
+use super::{Processor, ProcessorHooks};
 
 use crate::actions::Action;
+use crate::metadata::AsAny;
+use crate::observers::Observers;
 use crate::requests::Request;
+use crate::responses::Response;
 use crate::state::SharedState;
 use crate::std_ext::tuple::Named;
 
@@ -63,14 +68,14 @@ use tracing::instrument;
 #[allow(clippy::derive_partial_eq_without_eq)] // known false-positive introduced in 1.63.0
 pub struct RequestProcessor<F>
 where
-    F: Fn(&mut Request, Option<&Action>, &SharedState),
+    F: Fn(&mut Request, Option<&Action>, &SharedState) + 'static,
 {
     processor: F,
 }
 
 impl<F> RequestProcessor<F>
 where
-    F: Fn(&mut Request, Option<&Action>, &SharedState),
+    F: Fn(&mut Request, Option<&Action>, &SharedState) + 'static,
 {
     /// create a new `RequestProcessor` that calls `processor` in
     /// its `pre_send_hook` method. Since `processor` receives a
@@ -81,9 +86,16 @@ where
     }
 }
 
-impl<F> ProcessorHooks for RequestProcessor<F>
+impl<F> Processor for RequestProcessor<F> where
+    F: Fn(&mut Request, Option<&Action>, &SharedState) + Sync + Send + Clone + 'static
+{
+}
+
+impl<F, O, R> ProcessorHooks<O, R> for RequestProcessor<F>
 where
-    F: Fn(&mut Request, Option<&Action>, &SharedState),
+    F: Fn(&mut Request, Option<&Action>, &SharedState) + Sync + Send + Clone + 'static,
+    O: Observers<R>,
+    R: Response,
 {
     #[instrument(skip_all, fields(?action), level = "trace")]
     fn pre_send_hook(
@@ -96,8 +108,20 @@ where
     }
 }
 
-impl Named for RequestProcessor<()> {
+impl<F> Named for RequestProcessor<F>
+where
+    F: Fn(&mut Request, Option<&Action>, &SharedState) + 'static,
+{
     fn name(&self) -> &str {
         "RequestProcessor"
+    }
+}
+
+impl<F> AsAny for RequestProcessor<F>
+where
+    F: Fn(&mut Request, Option<&Action>, &SharedState) + 'static,
+{
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
