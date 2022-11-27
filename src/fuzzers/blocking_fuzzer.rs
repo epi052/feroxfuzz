@@ -1,3 +1,5 @@
+use std::sync::atomic::AtomicBool;
+
 use super::{BlockingFuzzing, Fuzzer};
 use crate::actions::{Action, FlowControl};
 use crate::client::BlockingRequests;
@@ -39,6 +41,7 @@ where
     request_id: usize,
     pre_send_logic: Option<LogicOperation>,
     post_send_logic: Option<LogicOperation>,
+    pre_loop_called: bool,
 }
 
 impl<B, D, M, O, P, S> Fuzzer for BlockingFuzzer<B, D, M, O, P, S>
@@ -78,6 +81,10 @@ where
 {
     #[instrument(skip_all, fields(?self.post_send_logic, ?self.pre_send_logic), name = "fuzz-loop", level = "trace")]
     fn fuzz_once(&mut self, state: &mut SharedState) -> Result<Option<Action>, FeroxFuzzError> {
+        // if !self.pre_loop_called {
+        //     self.pre_loop_hook(state);
+        //     self.pre_loop_called = true;
+        // }
         state.events().notify(FuzzOnce {
             threads: 1,
             pre_send_logic: self.pre_send_logic().unwrap_or_default(),
@@ -284,6 +291,7 @@ where
             request_id: 0,
             pre_send_logic: Some(LogicOperation::Or),
             post_send_logic: Some(LogicOperation::Or),
+            pre_loop_called: false,
         }
     }
 

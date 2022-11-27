@@ -53,6 +53,14 @@ pub trait Fuzzer {
     ///
     /// [`Decider`]: crate::deciders::Decider
     fn set_post_send_logic(&mut self, logic_operation: LogicOperation);
+
+    /// set a callback that will be called before a [`Fuzzer`] enters its fuzzing loop
+    fn pre_loop_hook(&mut self, _callback: impl Fn(&mut SharedState) + Send + Sync + 'static) {}
+
+    /// set a callback that will be called after a [`Fuzzer`] completes one full
+    /// iteration of its fuzzing loop (i.e. at the bottom of each 
+    /// [`AsyncFuzzer::fuzz_once`] call)
+    fn post_loop_hook(&mut self, _callback: impl Fn() + Send + Sync + 'static) {}
 }
 
 /// trait representing a fuzzer that operates asynchronously, meaning that it executes

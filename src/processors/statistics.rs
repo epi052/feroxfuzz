@@ -6,6 +6,7 @@ use crate::requests::Request;
 use crate::responses::Response;
 use crate::state::SharedState;
 use crate::statistics::Statistics;
+use crate::std_ext::tuple::Named;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -129,5 +130,14 @@ where
             }
             Ordering::PreSend => {}
         }
+    }
+}
+
+impl<F> Named for StatisticsProcessor<F>
+where
+    F: Fn(Arc<RwLock<Statistics>>, Option<&Action>, &SharedState),
+{
+    fn name(&self) -> &'static str {
+        "StatisticsProcessor"
     }
 }

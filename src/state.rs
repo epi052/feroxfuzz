@@ -198,6 +198,51 @@ impl SharedState {
         self.rng = RomuDuoJrRand::with_seed(seed);
     }
 
+    /// given a single implementor of [`Corpus`], create a new `SharedState` object
+    ///
+    /// [`Corpus`]: crate::corpora::Corpus
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use feroxfuzz::error::FeroxFuzzError;
+    /// # use feroxfuzz::corpora::{Corpus, Wordlist, RangeCorpus};
+    /// # use feroxfuzz::state::SharedState;
+    /// # use std::str::FromStr;
+    /// # use feroxfuzz::prelude::Data;
+    /// # use crate::feroxfuzz::Len;
+    /// # fn main() -> Result<(), FeroxFuzzError> {
+    /// let ids = RangeCorpus::with_stop(5).name("ids").build()?;
+    ///
+    /// let mut state = SharedState::with_corpus(ids);
+    ///
+    /// state.add_corpus(Wordlist::with_words(["bob", "alice"]).name("first_names").build());
+    ///
+    /// assert_eq!(state.corpus_by_name("first_names").unwrap().len(), 2);
+    ///
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[instrument(skip_all, level = "trace")]
+    pub fn add_corpus(&mut self, corpus: CorpusType) {
+        let corpora_len = self.corpora.len();
+        let indices_len = self.corpus_indices.len();
+
+        if let Some(indices) = Arc::get_mut(&mut self.corpus_indices) {
+            indices.insert(corpus.name().to_string(), AtomicUsize::new(0));
+        }
+
+        if let Some(corpora) = Arc::get_mut(&mut self.corpora) {
+            corpora.insert(corpus.name().to_string(), Arc::new(RwLock::new(corpus)));
+        }
+
+        if self.corpora.len() == corpora_len + 1 && self.corpus_indices.len() == indices_len + 1 {
+            debug!(%corpora_len, %indices_len, "added new corpus to SharedState");
+        } else {
+            error!(%corpora_len, %indices_len, "failed to add new corpus to SharedState");
+        }
+    }
+
     /// get corpora container
     #[must_use]
     pub fn corpora(&self) -> CorpusMap {

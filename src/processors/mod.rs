@@ -5,6 +5,7 @@ use crate::observers::Observers;
 use crate::requests::Request;
 use crate::responses::Response;
 use crate::state::SharedState;
+use crate::std_ext::tuple::Named;
 use crate::ProcessorsList;
 
 #[cfg(feature = "serde")]
@@ -35,7 +36,7 @@ pub enum Ordering {
 /// marker trait; post-processors are used to perform actions after observations
 /// are made and actions are taken. They can be thought of a 'final action' that
 /// the fuzzer should perform, i.e. logging/printing etc...
-pub trait Processor {}
+pub trait Processor: Named {}
 
 /// defines the hooks that are executed for the purpose of processing
 /// requests/responses/fuzzer state either before or after a request

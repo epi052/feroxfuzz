@@ -5,6 +5,7 @@ use super::{set_states_corpus_index, CorpusIndex, Scheduler};
 use crate::error::FeroxFuzzError;
 use crate::state::SharedState;
 use crate::std_ext::ops::Len;
+use crate::std_ext::tuple::Named;
 
 use tracing::{error, instrument, trace};
 
@@ -276,6 +277,12 @@ impl Iterator for ProductScheduler {
 
     fn next(&mut self) -> Option<Self::Item> {
         <Self as Scheduler>::next(self).ok()
+    }
+}
+
+impl Named for ProductScheduler {
+    fn name(&self) -> &str {
+        "ProductScheduler"
     }
 }
 

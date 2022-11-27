@@ -3,6 +3,7 @@ use super::ProcessorHooks;
 use crate::actions::Action;
 use crate::requests::Request;
 use crate::state::SharedState;
+use crate::std_ext::tuple::Named;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -92,5 +93,11 @@ where
         action: Option<&Action>,
     ) {
         (self.processor)(request, action, state);
+    }
+}
+
+impl Named for RequestProcessor<()> {
+    fn name(&self) -> &str {
+        "RequestProcessor"
     }
 }

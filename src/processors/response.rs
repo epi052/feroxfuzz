@@ -6,6 +6,7 @@ use crate::actions::Action;
 use crate::observers::{Observers, ResponseObserver};
 use crate::responses::Response;
 use crate::state::SharedState;
+use crate::std_ext::tuple::Named;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -119,5 +120,15 @@ where
         if let Some(observer) = observers.match_name::<ResponseObserver<FnR>>("ResponseObserver") {
             (self.processor)(observer, action, state);
         }
+    }
+}
+
+impl<F, FnR> Named for ResponseProcessor<F, FnR>
+where
+    F: Fn(&ResponseObserver<FnR>, Option<&Action>, &SharedState),
+    FnR: Response,
+{
+    fn name(&self) -> &str {
+        "ResponseProcessor"
     }
 }
