@@ -433,6 +433,8 @@ impl Statistics {
                     );
                 }
             }
+
+            return Ok(());
         }
 
         warn!(
