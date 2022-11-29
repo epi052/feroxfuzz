@@ -31,9 +31,30 @@ use crate::state::SharedState;
 use crate::std_ext::ops::Len;
 use crate::std_ext::ops::LogicOperation;
 
+#[derive(Debug, Default, Clone)]
+pub struct FuzzingLoopHook<F>
+where
+    F: Fn(&mut SharedState) + Send + Sync + 'static,
+{
+    callback: F,
+    called: bool,
+}
+
+impl<F> FuzzingLoopHook<F>
+where
+    F: Fn(&mut SharedState) + Send + Sync + 'static,
+{
+    pub fn new(callback: F) -> Self {
+        Self {
+            callback,
+            called: false,
+        }
+    }
+}
+
 /// A fuzzer that sends requests asynchronously
-#[derive(Clone, Debug, Default)]
-pub struct AsyncFuzzer<A, D, M, O, P, S>
+#[derive(Clone, Default)]
+pub struct AsyncFuzzer<A, D, M, O, P, S, F>
 where
     A: client::AsyncRequests,
     D: Deciders<O, AsyncResponse>,
@@ -41,6 +62,7 @@ where
     O: Observers<AsyncResponse>,
     P: Processors<O, AsyncResponse>,
     S: Scheduler,
+    F: Fn(&mut SharedState) + Send + Sync + 'static,
 {
     threads: usize,
     request_id: usize,
@@ -53,9 +75,11 @@ where
     deciders: D,
     pre_send_logic: Option<LogicOperation>,
     post_send_logic: Option<LogicOperation>,
+    pre_loop_hook: Option<FuzzingLoopHook<F>>,
+    // post_loop_hook: Option<Box<dyn Fn(&mut Self, &mut SharedState) + Send + Sync + 'static>>,
 }
 
-impl<A, D, M, O, P, S> Fuzzer for AsyncFuzzer<A, D, M, O, P, S>
+impl<A, D, M, O, P, S, F> Fuzzer for AsyncFuzzer<A, D, M, O, P, S, F>
 where
     A: client::AsyncRequests,
     D: Deciders<O, AsyncResponse>,
@@ -63,6 +87,7 @@ where
     O: Observers<AsyncResponse>,
     P: Processors<O, AsyncResponse>,
     S: Scheduler,
+    F: Fn(&mut SharedState) + Send + Sync + 'static,
 {
     fn pre_send_logic(&self) -> Option<LogicOperation> {
         self.pre_send_logic
@@ -79,9 +104,26 @@ where
     fn set_post_send_logic(&mut self, logic_operation: LogicOperation) {
         let _ = std::mem::replace(&mut self.post_send_logic, Some(logic_operation));
     }
+
+    // fn set_pre_loop_hook<Hook>(&mut self, hook: Hook) {
+    //     self.pre_loop_hook = Some(FuzzingLoopHook {
+    //         callback: hook,
+    //         called: false,
+    //         _marker: std::marker::PhantomData,
+    //         _marker2: std::marker::PhantomData,
+    //         _marker3: std::marker::PhantomData,
+    //         _marker4: std::marker::PhantomData,
+    //         _marker5: std::marker::PhantomData,
+    //         _marker6: std::marker::PhantomData,
+    //     });
+    // }
+
+    // fn set_post_loop_hook(&mut self, hook: F) {
+    //     self.post_loop_hook = Some(Box::new(hook));
+    // }
 }
 
-impl<A, D, M, O, P, S> AsyncFuzzer<A, D, M, O, P, S>
+impl<A, D, M, O, P, S, F> AsyncFuzzer<A, D, M, O, P, S, F>
 where
     A: client::AsyncRequests,
     D: Deciders<O, AsyncResponse>,
@@ -89,6 +131,7 @@ where
     O: Observers<AsyncResponse>,
     P: Processors<O, AsyncResponse>,
     S: Scheduler,
+    F: Fn(&mut SharedState) + Send + Sync + 'static,
 {
     /// create a new fuzzer that operates asynchronously, meaning that it executes
     /// multiple fuzzcases at a time
@@ -107,6 +150,7 @@ where
         observers: O,
         processors: P,
         deciders: D,
+        pre_loop_hook: Option<FuzzingLoopHook<F>>,
     ) -> Self {
         Self {
             threads,
@@ -120,6 +164,8 @@ where
             deciders,
             pre_send_logic: Some(LogicOperation::Or),
             post_send_logic: Some(LogicOperation::Or),
+            pre_loop_hook,
+            // post_loop_hook: None,
         }
     }
 
@@ -130,7 +176,7 @@ where
 }
 
 #[async_trait]
-impl<A, D, M, O, P, S> AsyncFuzzing for AsyncFuzzer<A, D, M, O, P, S>
+impl<A, D, M, O, P, S, F> AsyncFuzzing for AsyncFuzzer<A, D, M, O, P, S, F>
 where
     A: client::AsyncRequests + Send + Sync + Clone + 'static,
     D: Deciders<O, AsyncResponse> + Send + Clone,
@@ -139,6 +185,7 @@ where
     P: Processors<O, AsyncResponse> + Send + Clone,
     S: Scheduler + Send + Iterator<Item = ()> + Clone,
     <S as Iterator>::Item: Debug,
+    F: Fn(&mut SharedState) + Send + Sync + 'static,
 {
     #[instrument(skip_all, fields(%self.threads, ?self.post_send_logic, ?self.pre_send_logic) name = "fuzz-loop", level = "trace")]
     async fn fuzz_once(
@@ -148,6 +195,13 @@ where
         let num_threads = self.threads;
         let post_send_logic = self.post_send_logic().unwrap_or_default();
         let scheduler = self.scheduler.clone();
+
+        if let Some(hook) = &mut self.pre_loop_hook {
+            if !hook.called {
+                (hook.callback)(state);
+                hook.called = true;
+            }
+        }
 
         state.events().notify(FuzzOnce {
             threads: num_threads,
