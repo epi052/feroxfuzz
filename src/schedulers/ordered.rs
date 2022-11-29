@@ -177,7 +177,7 @@ impl Iterator for OrderedScheduler {
     type Item = ();
 
     fn next(&mut self) -> Option<Self::Item> {
-        <Self as Scheduler>::next(self).ok()
+        Scheduler::next(self).ok()
     }
 }
 
