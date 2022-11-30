@@ -106,14 +106,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // the `Fuzzer` is the main component of the feroxfuzz library. It wraps most of the other components
     // and takes care of the actual fuzzing process.
-    let mut fuzzer = AsyncFuzzer::new(
-        threads, client, request, scheduler, mutators, observers, processors, deciders,
-    );
+    let mut fuzzer = AsyncFuzzer::new(threads)
+        .client(client)
+        .request(request)
+        .scheduler(scheduler)
+        .mutators(mutators)
+        .observers(observers)
+        .processors(processors)
+        .deciders(deciders)
+        .post_loop_hook(|state| {
+            println!("\n•*´¨`*•.¸¸.•* Finished fuzzing loop •*´¨`*•.¸¸.•*\n");
+            println!("{state:#}");
+        })
+        .build();
 
     // the fuzzer will run until it iterates over the entire corpus once
     fuzzer.fuzz_once(&mut state).await?;
-
-    println!("{state:#}");
 
     // example output:
     //
@@ -122,6 +130,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ----8<----
     // [200] 971 - http://localhost:8000/?admin=zoological - 1.595993ms
     // [200] 664 - http://localhost:8000/?admin=zoology%27s - 1.700941ms
+    //
+    // •*´¨`*•.¸¸.•* Finished fuzzing loop •*´¨`*•.¸¸.•*
+    //
     // SharedState::{
     //   Seed=24301
     //   Rng=RomuDuoJrRand { x_state: 97704, y_state: 403063 }
