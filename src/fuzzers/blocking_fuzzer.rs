@@ -1,4 +1,5 @@
-use super::{BlockingFuzzing, Fuzzer};
+#[allow(clippy::wildcard_imports)]
+use super::{typestate::*, BlockingFuzzerBuilder, BlockingFuzzing, Fuzzer, FuzzingLoopHook};
 use crate::actions::{Action, FlowControl};
 use crate::client::BlockingRequests;
 use crate::deciders::Deciders;
@@ -26,19 +27,21 @@ where
     D: Deciders<O, BlockingResponse>,
     M: Mutators,
     O: Observers<BlockingResponse>,
-    P: Processors,
+    P: Processors<O, BlockingResponse>,
     S: Scheduler,
 {
-    client: B,
-    request: Request,
-    scheduler: S,
-    mutators: M,
-    observers: O,
-    processors: P,
-    deciders: D,
-    request_id: usize,
-    pre_send_logic: Option<LogicOperation>,
-    post_send_logic: Option<LogicOperation>,
+    pub(super) client: B,
+    pub(super) request: Request,
+    pub(super) scheduler: S,
+    pub(super) mutators: M,
+    pub(super) observers: O,
+    pub(super) processors: P,
+    pub(super) deciders: D,
+    pub(super) request_id: usize,
+    pub(super) pre_send_logic: LogicOperation,
+    pub(super) post_send_logic: LogicOperation,
+    pub(super) pre_loop_hook: Option<FuzzingLoopHook>,
+    pub(super) post_loop_hook: Option<FuzzingLoopHook>,
 }
 
 impl<B, D, M, O, P, S> Fuzzer for BlockingFuzzer<B, D, M, O, P, S>
@@ -47,23 +50,23 @@ where
     D: Deciders<O, BlockingResponse>,
     M: Mutators,
     O: Observers<BlockingResponse>,
-    P: Processors,
+    P: Processors<O, BlockingResponse>,
     S: Scheduler,
 {
-    fn pre_send_logic(&self) -> Option<LogicOperation> {
+    fn pre_send_logic(&self) -> LogicOperation {
         self.pre_send_logic
     }
 
-    fn post_send_logic(&self) -> Option<LogicOperation> {
+    fn post_send_logic(&self) -> LogicOperation {
         self.post_send_logic
     }
 
-    fn set_pre_send_logic(&mut self, logic_operation: LogicOperation) {
-        let _ = std::mem::replace(&mut self.pre_send_logic, Some(logic_operation));
+    fn pre_send_logic_mut(&mut self) -> &mut LogicOperation {
+        &mut self.pre_send_logic
     }
 
-    fn set_post_send_logic(&mut self, logic_operation: LogicOperation) {
-        let _ = std::mem::replace(&mut self.post_send_logic, Some(logic_operation));
+    fn post_send_logic_mut(&mut self) -> &mut LogicOperation {
+        &mut self.post_send_logic
     }
 }
 
@@ -73,15 +76,24 @@ where
     D: Deciders<O, BlockingResponse>,
     M: Mutators,
     O: Observers<BlockingResponse>,
-    P: Processors,
+    P: Processors<O, BlockingResponse>,
     S: Scheduler,
 {
     #[instrument(skip_all, fields(?self.post_send_logic, ?self.pre_send_logic), name = "fuzz-loop", level = "trace")]
     fn fuzz_once(&mut self, state: &mut SharedState) -> Result<Option<Action>, FeroxFuzzError> {
+        let pre_send_logic = self.pre_send_logic();
+        let post_send_logic = self.post_send_logic();
+
+        if let Some(hook) = &mut self.pre_loop_hook {
+            // call the pre-loop hook if it is defined
+            (hook.callback)(state);
+            hook.called += 1;
+        }
+
         state.events().notify(FuzzOnce {
             threads: 1,
-            pre_send_logic: self.pre_send_logic().unwrap_or_default(),
-            post_send_logic: self.post_send_logic().unwrap_or_default(),
+            pre_send_logic,
+            post_send_logic,
             corpora_length: state.corpora().iter().map(|(_, v)| v.len()).sum(),
         });
 
@@ -94,12 +106,9 @@ where
 
             self.observers.call_pre_send_hooks(&mutated_request);
 
-            let decision = self.deciders.call_pre_send_hooks(
-                state,
-                &mutated_request,
-                None,
-                self.pre_send_logic().unwrap_or_default(),
-            );
+            let decision =
+                self.deciders
+                    .call_pre_send_hooks(state, &mutated_request, None, pre_send_logic);
 
             if decision.is_some() {
                 // if there is an action to take, based off the deciders, then
@@ -181,12 +190,9 @@ where
 
             self.observers.call_post_send_hooks(response.unwrap());
 
-            let decision = self.deciders.call_post_send_hooks(
-                state,
-                &self.observers,
-                None,
-                self.post_send_logic().unwrap_or_default(),
-            );
+            let decision =
+                self.deciders
+                    .call_post_send_hooks(state, &self.observers, None, post_send_logic);
 
             state.update(&self.observers, decision.as_ref())?;
 
@@ -250,6 +256,12 @@ where
         // in case we're fuzzing more than once, reset the scheduler
         self.scheduler.reset();
 
+        if let Some(hook) = &mut self.post_loop_hook {
+            // call the post-loop hook if it is defined
+            (hook.callback)(state);
+            hook.called += 1;
+        }
+
         Ok(None) // no action to take
     }
 }
@@ -260,31 +272,33 @@ where
     D: Deciders<O, BlockingResponse>,
     M: Mutators,
     O: Observers<BlockingResponse>,
-    P: Processors,
+    P: Processors<O, BlockingResponse>,
     S: Scheduler,
 {
     /// create a new fuzzer that operates in serial, meaning a single fuzzcase is run at a time
-    pub const fn new(
-        client: B,
-        request: Request,
-        scheduler: S,
-        mutators: M,
-        observers: O,
-        processors: P,
-        deciders: D,
-    ) -> Self {
-        Self {
-            client,
-            request,
-            scheduler,
-            mutators,
-            observers,
-            processors,
-            deciders,
-            request_id: 0,
-            pre_send_logic: Some(LogicOperation::Or),
-            post_send_logic: Some(LogicOperation::Or),
-        }
+    #[allow(clippy::type_complexity)]
+    #[allow(clippy::new_ret_no_self)]
+    #[must_use]
+    pub fn new() -> BlockingFuzzerBuilder<
+        NoClient,
+        NoRequest,
+        NoScheduler,
+        NoMutators,
+        NoObservers,
+        NoProcessors,
+        NoDeciders,
+        NoPreSendLogic,
+        NoPostSendLogic,
+        NoPreLoopHook,
+        NoPostLoopHook,
+        B,
+        D,
+        M,
+        O,
+        P,
+        S,
+    > {
+        BlockingFuzzerBuilder::new(0)
     }
 
     /// get a mutable reference to the baseline request used for mutation
@@ -354,15 +368,14 @@ mod tests {
         let deciders = build_deciders!(decider);
         let mutators = build_mutators!(mutator);
 
-        let mut fuzzer = BlockingFuzzer::new(
-            client,
-            request,
-            scheduler,
-            mutators,
-            observers,
-            (),
-            deciders,
-        );
+        let mut fuzzer = BlockingFuzzer::new()
+            .client(client)
+            .request(request)
+            .scheduler(scheduler)
+            .mutators(mutators)
+            .observers(observers)
+            .deciders(deciders)
+            .build();
 
         fuzzer.fuzz_once(&mut state.clone())?;
 
@@ -433,15 +446,14 @@ mod tests {
         let deciders = build_deciders!(decider);
         let mutators = build_mutators!(mutator);
 
-        let mut fuzzer = BlockingFuzzer::new(
-            client,
-            request,
-            scheduler,
-            mutators,
-            observers,
-            (),
-            deciders,
-        );
+        let mut fuzzer = BlockingFuzzer::new()
+            .client(client)
+            .request(request)
+            .scheduler(scheduler)
+            .mutators(mutators)
+            .observers(observers)
+            .deciders(deciders)
+            .build();
 
         fuzzer.fuzz_once(&mut state)?;
 

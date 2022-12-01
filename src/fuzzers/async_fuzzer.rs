@@ -11,7 +11,9 @@ use futures::StreamExt;
 use tokio::task::JoinHandle;
 use tracing::{instrument, warn};
 
-use super::{AsyncFuzzing, Fuzzer};
+#[allow(clippy::wildcard_imports)]
+use super::typestate::*;
+use super::{AsyncFuzzerBuilder, AsyncFuzzing, Fuzzer, FuzzingLoopHook};
 use crate::actions::Action;
 use crate::actions::FlowControl;
 use crate::client;
@@ -39,20 +41,22 @@ where
     D: Deciders<O, AsyncResponse>,
     M: Mutators,
     O: Observers<AsyncResponse>,
-    P: Processors,
+    P: Processors<O, AsyncResponse>,
     S: Scheduler,
 {
-    threads: usize,
-    request_id: usize,
-    client: A,
-    request: Request,
-    scheduler: S,
-    mutators: M,
-    observers: O,
-    processors: P,
-    deciders: D,
-    pre_send_logic: Option<LogicOperation>,
-    post_send_logic: Option<LogicOperation>,
+    pub(super) threads: usize,
+    pub(super) request_id: usize,
+    pub(super) client: A,
+    pub(super) request: Request,
+    pub(super) scheduler: S,
+    pub(super) mutators: M,
+    pub(super) observers: O,
+    pub(super) processors: P,
+    pub(super) deciders: D,
+    pub(super) pre_send_logic: LogicOperation,
+    pub(super) post_send_logic: LogicOperation,
+    pub(super) pre_loop_hook: Option<FuzzingLoopHook>,
+    pub(super) post_loop_hook: Option<FuzzingLoopHook>,
 }
 
 impl<A, D, M, O, P, S> Fuzzer for AsyncFuzzer<A, D, M, O, P, S>
@@ -61,23 +65,23 @@ where
     D: Deciders<O, AsyncResponse>,
     M: Mutators,
     O: Observers<AsyncResponse>,
-    P: Processors,
+    P: Processors<O, AsyncResponse>,
     S: Scheduler,
 {
-    fn pre_send_logic(&self) -> Option<LogicOperation> {
+    fn pre_send_logic(&self) -> LogicOperation {
         self.pre_send_logic
     }
 
-    fn post_send_logic(&self) -> Option<LogicOperation> {
+    fn post_send_logic(&self) -> LogicOperation {
         self.post_send_logic
     }
 
-    fn set_pre_send_logic(&mut self, logic_operation: LogicOperation) {
-        let _ = std::mem::replace(&mut self.pre_send_logic, Some(logic_operation));
+    fn pre_send_logic_mut(&mut self) -> &mut LogicOperation {
+        &mut self.pre_send_logic
     }
 
-    fn set_post_send_logic(&mut self, logic_operation: LogicOperation) {
-        let _ = std::mem::replace(&mut self.post_send_logic, Some(logic_operation));
+    fn post_send_logic_mut(&mut self) -> &mut LogicOperation {
+        &mut self.post_send_logic
     }
 }
 
@@ -87,40 +91,45 @@ where
     D: Deciders<O, AsyncResponse>,
     M: Mutators,
     O: Observers<AsyncResponse>,
-    P: Processors,
+    P: Processors<O, AsyncResponse>,
     S: Scheduler,
 {
-    /// create a new fuzzer that operates asynchronously, meaning that it executes
-    /// multiple fuzzcases at a time
+    /// create a new fuzzer builder that, when finalized with [`AsyncFuzzerBuilder::build`],
+    /// operates asynchronously, meaning that it executes multiple fuzzcases at a time
+    ///
+    /// [`AsyncFuzzerBuilder::build`]: crate::fuzzers::AsyncFuzzerBuilder::build
     ///
     /// # Note
     ///
     /// the `threads` parameter dictates the maximum number of asynchronous
     /// tasks allowed to be actively executing at any given time
-    #[allow(clippy::too_many_arguments)]
-    pub const fn new(
+    #[allow(clippy::type_complexity)]
+    #[allow(clippy::new_ret_no_self)]
+    #[must_use]
+    pub fn new(
         threads: usize,
-        client: A,
-        request: Request,
-        scheduler: S,
-        mutators: M,
-        observers: O,
-        processors: P,
-        deciders: D,
-    ) -> Self {
-        Self {
-            threads,
-            request_id: 0,
-            client,
-            request,
-            scheduler,
-            mutators,
-            observers,
-            processors,
-            deciders,
-            pre_send_logic: Some(LogicOperation::Or),
-            post_send_logic: Some(LogicOperation::Or),
-        }
+    ) -> AsyncFuzzerBuilder<
+        NoClient,
+        NoRequest,
+        NoScheduler,
+        NoMutators,
+        NoObservers,
+        NoProcessors,
+        NoDeciders,
+        NoPreSendLogic,
+        NoPostSendLogic,
+        NoPreLoopHook,
+        NoPostLoopHook,
+        A,
+        D,
+        M,
+        O,
+        P,
+        S,
+    > {
+        let request_id = 0;
+
+        AsyncFuzzerBuilder::new(threads, request_id)
     }
 
     /// get a mutable reference to the baseline request used for mutation
@@ -136,7 +145,7 @@ where
     D: Deciders<O, AsyncResponse> + Send + Clone,
     M: Mutators + Send,
     O: Observers<AsyncResponse> + Send + Clone,
-    P: Processors + Send + Clone,
+    P: Processors<O, AsyncResponse> + Send + Clone,
     S: Scheduler + Send + Iterator<Item = ()> + Clone,
     <S as Iterator>::Item: Debug,
 {
@@ -146,12 +155,19 @@ where
         state: &mut SharedState,
     ) -> Result<Option<Action>, FeroxFuzzError> {
         let num_threads = self.threads;
-        let post_send_logic = self.post_send_logic().unwrap_or_default();
+        let post_send_logic = self.post_send_logic();
+        let pre_send_logic = self.pre_send_logic();
         let scheduler = self.scheduler.clone();
+
+        if let Some(hook) = &mut self.pre_loop_hook {
+            // call the pre-loop hook if it is defined
+            (hook.callback)(state);
+            hook.called += 1;
+        }
 
         state.events().notify(FuzzOnce {
             threads: num_threads,
-            pre_send_logic: self.pre_send_logic().unwrap_or_default(),
+            pre_send_logic,
             post_send_logic,
             corpora_length: state.corpora().iter().map(|(_, v)| v.len()).sum(),
         });
@@ -188,7 +204,7 @@ where
                         state,
                         &mutated_request,
                         None,
-                        self.pre_send_logic().unwrap_or_default(),
+                        pre_send_logic,
                     );
 
                     if decision.is_some() {
@@ -437,7 +453,15 @@ where
         self.scheduler.reset();
 
         if err.is_err() || should_quit.load(Ordering::SeqCst) {
+            // fire the stop fuzzing event
             state.events().notify(&StopFuzzing);
+
+            if let Some(hook) = &mut self.post_loop_hook {
+                // call the post loop hook if available;
+                (hook.callback)(state);
+                hook.called += 1;
+            }
+
             return Ok(Some(Action::StopFuzzing));
         }
 
@@ -499,16 +523,14 @@ mod tests {
             }
         });
 
-        let mut fuzzer = AsyncFuzzer::new(
-            1,
-            client.clone(),
-            request.clone(),
-            OrderedScheduler::new(state.clone())?,
-            build_mutators!(mutator.clone()),
-            build_observers!(ResponseObserver::new()),
-            (),
-            build_deciders!(decider.clone()),
-        );
+        let mut fuzzer = AsyncFuzzer::new(1)
+            .client(client.clone())
+            .request(request.clone())
+            .scheduler(OrderedScheduler::new(state.clone())?)
+            .mutators(build_mutators!(mutator.clone()))
+            .observers(build_observers!(ResponseObserver::new()))
+            .deciders(build_deciders!(decider.clone()))
+            .build();
 
         fuzzer.fuzz_once(&mut state.clone()).await?;
 
@@ -603,16 +625,14 @@ mod tests {
         let deciders = build_deciders!(decider);
         let mutators = build_mutators!(mutator);
 
-        let mut fuzzer = AsyncFuzzer::new(
-            1,
-            client,
-            request,
-            scheduler,
-            mutators,
-            observers,
-            (),
-            deciders,
-        );
+        let mut fuzzer = AsyncFuzzer::new(1)
+            .client(client)
+            .request(request)
+            .scheduler(scheduler)
+            .mutators(mutators)
+            .observers(observers)
+            .deciders(deciders)
+            .build();
 
         fuzzer.fuzz_once(&mut state).await?;
 

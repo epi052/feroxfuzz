@@ -5,6 +5,7 @@ use super::{set_states_corpus_index, CorpusIndex, Scheduler};
 use crate::error::FeroxFuzzError;
 use crate::state::SharedState;
 use crate::std_ext::ops::Len;
+use crate::std_ext::tuple::Named;
 
 use libafl::bolts::rands::Rand;
 use tracing::{error, instrument, trace};
@@ -185,6 +186,17 @@ impl RandomScheduler {
             current: 0,
         })
     }
+
+    /// by default, the [`RandomScheduler`] will iterate through *every* corpus
+    /// and update their next index with a randomly chosen value within a
+    /// valid range.
+    ///
+    /// This function allows you to specify which corpora will be updated by the
+    /// scheduler. This is useful if you want to only update a subset of corpora
+    /// at a time, instead of all of them.
+    pub fn limit_to_corpora(&mut self, corpora: &[&str]) {
+        self.indices.retain(|index| corpora.contains(&index.name()));
+    }
 }
 
 #[allow(clippy::copy_iterator)]
@@ -192,6 +204,12 @@ impl Iterator for RandomScheduler {
     type Item = ();
 
     fn next(&mut self) -> Option<Self::Item> {
-        <Self as Scheduler>::next(self).ok()
+        Scheduler::next(self).ok()
+    }
+}
+
+impl Named for RandomScheduler {
+    fn name(&self) -> &str {
+        "RandomScheduler"
     }
 }

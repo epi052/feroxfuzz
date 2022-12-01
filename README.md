@@ -183,9 +183,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // the `Fuzzer` is the main component of the feroxfuzz library. It wraps most of the other components 
     // and takes care of the actual fuzzing process.
-    let mut fuzzer = AsyncFuzzer::new(
-        threads, client, request, scheduler, mutators, observers, processors, deciders,
-    );
+    let mut fuzzer = AsyncFuzzer::new(threads)
+        .client(client)
+        .request(request)
+        .scheduler(scheduler)
+        .mutators(mutators)
+        .observers(observers)
+        .processors(processors)
+        .deciders(deciders)
+        .post_loop_hook(|state| {
+            // this closure is called after each fuzzing loop iteration completes.
+            // it's a good place to do things like print out stats
+            // or do other things that you want to happen after each
+            // full iteration over the corpus
+            println!("\n•*´¨`*•.¸¸.•* Finished fuzzing loop •*´¨`*•.¸¸.•*\n");
+            println!("{state:#}");
+        })
+        .build();
 
     // the fuzzer will run until it iterates over the entire corpus once
     fuzzer.fuzz_once(&mut state).await?;

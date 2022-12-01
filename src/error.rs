@@ -159,15 +159,6 @@ pub enum FeroxFuzzError {
         status_code: u16,
     },
 
-    /// Represents an invalid request passed to [`MatchName`]
-    ///
-    /// [`MatchName`]: crate::MatchName
-    #[error("Requested Named `{name}` object could not be found via MatchName")]
-    NamedObjectNotFound {
-        /// contains the name of what was requested
-        name: &'static str,
-    },
-
     /// Represents a point at which the scheduler should stop retrieving indices
     #[error("Iteration has stopped")]
     IterationStopped,

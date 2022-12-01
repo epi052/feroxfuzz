@@ -1,11 +1,15 @@
-use super::{Ordering, ProcessorHooks};
+use std::any::Any;
+
+use super::{Ordering, Processor, ProcessorHooks};
 
 use crate::actions::Action;
+use crate::metadata::AsAny;
 use crate::observers::Observers;
 use crate::requests::Request;
 use crate::responses::Response;
 use crate::state::SharedState;
 use crate::statistics::Statistics;
+use crate::std_ext::tuple::Named;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -77,7 +81,7 @@ use std::sync::{Arc, RwLock};
 #[allow(clippy::derive_partial_eq_without_eq)] // known false-positive introduced in 1.63.0
 pub struct StatisticsProcessor<F>
 where
-    F: Fn(Arc<RwLock<Statistics>>, Option<&Action>, &SharedState),
+    F: Fn(Arc<RwLock<Statistics>>, Option<&Action>, &SharedState) + 'static,
 {
     processor: F,
     ordering: Ordering,
@@ -85,7 +89,7 @@ where
 
 impl<F> StatisticsProcessor<F>
 where
-    F: Fn(Arc<RwLock<Statistics>>, Option<&Action>, &SharedState),
+    F: Fn(Arc<RwLock<Statistics>>, Option<&Action>, &SharedState) + 'static,
 {
     /// create a new `StatisticsProcessor` that calls `processor` in
     /// either `pre_send_hook`, `post_send_hook`, or both, depending
@@ -98,9 +102,16 @@ where
     }
 }
 
-impl<F> ProcessorHooks for StatisticsProcessor<F>
+impl<F> Processor for StatisticsProcessor<F> where
+    F: Fn(Arc<RwLock<Statistics>>, Option<&Action>, &SharedState) + Sync + Send + Clone + 'static
+{
+}
+
+impl<F, O, R> ProcessorHooks<O, R> for StatisticsProcessor<F>
 where
-    F: Fn(Arc<RwLock<Statistics>>, Option<&Action>, &SharedState),
+    F: Fn(Arc<RwLock<Statistics>>, Option<&Action>, &SharedState) + Sync + Send + Clone + 'static,
+    O: Observers<R>,
+    R: Response,
 {
     #[instrument(skip_all, fields(?self.ordering, ?action), level = "trace")]
     fn pre_send_hook(
@@ -118,16 +129,30 @@ where
     }
 
     #[instrument(skip_all, fields(?self.ordering, ?action), level = "trace")]
-    fn post_send_hook<O, R>(&mut self, state: &SharedState, _observers: &O, action: Option<&Action>)
-    where
-        O: Observers<R>,
-        R: Response,
-    {
+    fn post_send_hook(&mut self, state: &SharedState, _observers: &O, action: Option<&Action>) {
         match self.ordering {
             Ordering::PostSend | Ordering::PreAndPostSend => {
                 (self.processor)(state.stats(), action, state);
             }
             Ordering::PreSend => {}
         }
+    }
+}
+
+impl<F> Named for StatisticsProcessor<F>
+where
+    F: Fn(Arc<RwLock<Statistics>>, Option<&Action>, &SharedState) + 'static,
+{
+    fn name(&self) -> &'static str {
+        "StatisticsProcessor"
+    }
+}
+
+impl<F> AsAny for StatisticsProcessor<F>
+where
+    F: Fn(Arc<RwLock<Statistics>>, Option<&Action>, &SharedState) + 'static,
+{
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }

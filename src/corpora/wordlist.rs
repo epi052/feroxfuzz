@@ -48,8 +48,6 @@ pub struct Wordlist {
 /// let expected = vec!["1", "2", "3"];
 /// let wordlist = Wordlist::with_words(expected.clone()).name("words").build();
 ///
-/// # // load bearing; allows Wordlist to derive its two generic types
-/// # SharedState::with_corpus(wordlist.clone());
 /// let mut gathered = vec![];
 ///
 /// for i in &wordlist {
@@ -112,8 +110,6 @@ impl<'i> IntoIterator for &'i mut Wordlist {
 /// let expected = vec!["1", "2", "3"];
 /// let wordlist = Wordlist::with_words(expected.clone()).name("words").build();
 ///
-/// # // load bearing; allows Wordlist to derive its two generic types
-/// # SharedState::with_corpus(wordlist.clone());
 /// let mut gathered = vec![];
 ///
 /// for i in wordlist {

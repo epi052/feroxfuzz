@@ -86,7 +86,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // result of the mutation that was performed. In this case, the RequestProcessor doesn't care about
     // checking the mutation, we simply want to print the mutated fields to show how a OrderedScheduler
     // does its work.
-    let request_printer = RequestProcessor::new(|request, _action, _state| {
+    let request_printer = RequestProcessor::new(move |request, _action, _state| {
         print!("{}?", request.original_url());
 
         for (i, (key, value)) in request.params().unwrap().iter().enumerate() {
@@ -112,15 +112,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mutators = build_mutators!(mutator1, mutator2, mutator3, mutator4, mutator5);
     let processors = build_processors!(request_printer);
 
-    let mut fuzzer = BlockingFuzzer::new(
-        client,
-        request,
-        scheduler,
-        mutators,
-        observers,
-        processors,
-        (), // since we didn't use any Deciders, we just pass in ()
-    );
+    let mut fuzzer = BlockingFuzzer::new()
+        .client(client)
+        .request(request)
+        .scheduler(scheduler)
+        .mutators(mutators)
+        .observers(observers)
+        .processors(processors)
+        .build();
 
     // our overall strategy is to let the fuzzer run through a full iteration of the corpus/scheduler
     // on each iteration of this outer loop. Within each iteration, we'll also only mark a single

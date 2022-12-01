@@ -1,11 +1,14 @@
+use std::any::Any;
 use std::marker::PhantomData;
 
-use super::ProcessorHooks;
+use super::{Processor, ProcessorHooks};
 
 use crate::actions::Action;
+use crate::metadata::AsAny;
 use crate::observers::{Observers, ResponseObserver};
 use crate::responses::Response;
 use crate::state::SharedState;
+use crate::std_ext::tuple::Named;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -82,7 +85,7 @@ use tracing::instrument;
 pub struct ResponseProcessor<F, R>
 where
     R: Response,
-    F: Fn(&ResponseObserver<R>, Option<&Action>, &SharedState),
+    F: Fn(&ResponseObserver<R>, Option<&Action>, &SharedState) + 'static,
 {
     processor: F,
     marker: PhantomData<R>,
@@ -90,7 +93,7 @@ where
 
 impl<F, R> ResponseProcessor<F, R>
 where
-    F: Fn(&ResponseObserver<R>, Option<&Action>, &SharedState),
+    F: Fn(&ResponseObserver<R>, Option<&Action>, &SharedState) + 'static,
     R: Response,
 {
     /// create a new `ResponseProcessor` that calls `processor` in
@@ -105,19 +108,44 @@ where
     }
 }
 
-impl<F, FnR> ProcessorHooks for ResponseProcessor<F, FnR>
+impl<F, FnR> Processor for ResponseProcessor<F, FnR>
+where
+    F: Fn(&ResponseObserver<FnR>, Option<&Action>, &SharedState) + Sync + Send + Clone + 'static,
+    FnR: Response + Clone + Send + Sync + 'static,
+{
+}
+
+impl<F, FnR, O, R> ProcessorHooks<O, R> for ResponseProcessor<F, FnR>
+where
+    F: Fn(&ResponseObserver<FnR>, Option<&Action>, &SharedState) + Sync + Send + Clone + 'static,
+    FnR: Response + Clone + Send + Sync + 'static,
+    O: Observers<R>,
+    R: Response,
+{
+    #[instrument(skip_all, fields(?action), level = "trace")]
+    fn post_send_hook(&mut self, state: &SharedState, observers: &O, action: Option<&Action>) {
+        if let Some(observer) = observers.match_name::<ResponseObserver<FnR>>("ResponseObserver") {
+            (self.processor)(observer, action, state);
+        }
+    }
+}
+
+impl<F, FnR> Named for ResponseProcessor<F, FnR>
 where
     F: Fn(&ResponseObserver<FnR>, Option<&Action>, &SharedState),
     FnR: Response,
 {
-    #[instrument(skip_all, fields(?action), level = "trace")]
-    fn post_send_hook<O, R>(&mut self, state: &SharedState, observers: &O, action: Option<&Action>)
-    where
-        O: Observers<R>,
-        R: Response,
-    {
-        if let Some(observer) = observers.match_name::<ResponseObserver<FnR>>("ResponseObserver") {
-            (self.processor)(observer, action, state);
-        }
+    fn name(&self) -> &str {
+        "ResponseProcessor"
+    }
+}
+
+impl<F, FnR> AsAny for ResponseProcessor<F, FnR>
+where
+    F: Fn(&ResponseObserver<FnR>, Option<&Action>, &SharedState) + 'static,
+    FnR: Response + 'static,
+{
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }

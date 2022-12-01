@@ -266,20 +266,10 @@ impl Statistics {
         O: Observers<R>,
         R: Response + Timed,
     {
-        // there's an implicit expectation that there is only a single ResponseObserver in the
-        // list of given Observers
-        let observer = observers
-            .match_name::<ResponseObserver<R>>("ResponseObserver")
-            .ok_or_else(|| {
-                error!("The given Observers object doesn't have a ResponseObserver");
-
-                FeroxFuzzError::NamedObjectNotFound {
-                    name: "ResponseObserver",
-                }
-            })?;
-
-        self.add_status_code(observer.status_code())?;
-        self.update_actions(observer.id(), action, RequestOrResponse::Response);
+        if let Some(observer) = observers.match_name::<ResponseObserver<R>>("ResponseObserver") {
+            self.add_status_code(observer.status_code())?;
+            self.update_actions(observer.id(), action, RequestOrResponse::Response);
+        }
 
         Ok(())
     }
@@ -433,6 +423,8 @@ impl Statistics {
                     );
                 }
             }
+
+            return Ok(());
         }
 
         warn!(

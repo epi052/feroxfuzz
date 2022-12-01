@@ -135,15 +135,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mutators = build_mutators!(mutator1, mutator2, mutator3);
     let processors = build_processors!(request_printer);
 
-    let mut fuzzer = BlockingFuzzer::new(
-        client,
-        request,
-        scheduler,
-        mutators,
-        observers,
-        processors,
-        (), // since we didn't use any Deciders, we just pass in ()
-    );
+    let mut fuzzer = BlockingFuzzer::new()
+        .client(client)
+        .request(request)
+        .scheduler(scheduler)
+        .mutators(mutators)
+        .observers(observers)
+        .processors(processors)
+        .build();
 
     // fuzz_n_iterations means that the fuzzer will iterate over whatever is provided by the scheduler
     // n times. In this case, we're going to iterate over the corpus entries twice.
