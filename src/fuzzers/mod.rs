@@ -19,7 +19,7 @@ cfg_if! {
         mod async_fuzzer;
         mod async_builder;
         pub use async_builder::AsyncFuzzerBuilder;
-        pub use async_fuzzer::{AsyncFuzzer};
+        pub use async_fuzzer::AsyncFuzzer;
     }
 }
 cfg_if! {
