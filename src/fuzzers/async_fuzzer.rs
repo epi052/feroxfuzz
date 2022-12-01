@@ -34,7 +34,7 @@ use crate::std_ext::ops::Len;
 use crate::std_ext::ops::LogicOperation;
 
 /// A fuzzer that sends requests asynchronously
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct AsyncFuzzer<A, D, M, O, P, S>
 where
     A: client::AsyncRequests,
