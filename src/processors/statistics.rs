@@ -102,8 +102,7 @@ where
     }
 }
 
-impl<F> Processor for StatisticsProcessor<F> 
-where
+impl<F> Processor for StatisticsProcessor<F> where
     F: Fn(Arc<RwLock<Statistics>>, Option<&Action>, &SharedState) + Sync + Send + Clone + 'static
 {
 }

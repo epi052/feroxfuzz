@@ -1,6 +1,8 @@
 //! [`Corpus`] based iterators of different flavors
 //!
 //! [`Corpus`]: crate::corpora::Corpus
+use std::fmt::Debug;
+
 use crate::actions::Action;
 use crate::deciders::LogicOperation;
 use crate::error::FeroxFuzzError;
@@ -15,13 +17,17 @@ cfg_if! {
     if #[cfg(feature = "async")] {
         #[cfg_attr(docsrs, doc(cfg(feature = "async")))]
         mod async_fuzzer;
-        pub use async_fuzzer::{AsyncFuzzer, FuzzingLoopHook};
+        mod async_builder;
+        pub use async_builder::AsyncFuzzerBuilder;
+        pub use async_fuzzer::{AsyncFuzzer};
     }
 }
 cfg_if! {
     if #[cfg(feature = "blocking")] {
         #[cfg_attr(docsrs, doc(cfg(feature = "blocking")))]
         mod blocking_fuzzer;
+        mod blocking_builder;
+        pub use blocking_builder::BlockingFuzzerBuilder;
         pub use blocking_fuzzer::BlockingFuzzer;
     }
 }
@@ -34,41 +40,25 @@ pub trait Fuzzer {
     /// a [`Fuzzer`]
     ///
     /// [`Decider`]: crate::deciders::Decider
-    fn pre_send_logic(&self) -> Option<LogicOperation>;
+    fn pre_send_logic(&self) -> LogicOperation;
 
     /// return the [`LogicOperation`] that joins [`Decider`]s while using
     /// a [`Fuzzer`]
     ///
     /// [`Decider`]: crate::deciders::Decider
-    fn post_send_logic(&self) -> Option<LogicOperation>;
+    fn post_send_logic(&self) -> LogicOperation;
 
-    /// change the default [`LogicOperation`] that joins [`Decider`]s while using
-    /// a [`Fuzzer`]
+    /// return a mutable reference to the [`LogicOperation`] that joins
+    /// [`Decider`]s while using a [`Fuzzer`]
     ///
     /// [`Decider`]: crate::deciders::Decider
-    fn set_pre_send_logic(&mut self, logic_operation: LogicOperation);
+    fn pre_send_logic_mut(&mut self) -> &mut LogicOperation;
 
-    /// change the default [`LogicOperation`] that joins [`Decider`]s while using
-    /// a [`Fuzzer`]
+    /// return a mutable reference to the [`LogicOperation`] that joins
+    /// [`Decider`]s while using a [`Fuzzer`]
     ///
     /// [`Decider`]: crate::deciders::Decider
-    fn set_post_send_logic(&mut self, logic_operation: LogicOperation);
-
-    /// set a callback that will be called before a [`Fuzzer`] enters its fuzzing loop
-    fn set_pre_loop_hook<F>(&mut self, _callback: F)
-    where
-        F: Fn(&mut Self, &mut SharedState) + Send + Sync + 'static,
-    {
-    }
-
-    /// set a callback that will be called after a [`Fuzzer`] completes one full
-    /// iteration of its fuzzing loop (i.e. at the bottom of each
-    /// [`AsyncFuzzer::fuzz_once`] call)
-    fn set_post_loop_hook(
-        &mut self,
-        _callback: impl Fn(&mut Self, &mut SharedState) + Send + Sync + 'static,
-    ) {
-    }
+    fn post_send_logic_mut(&mut self) -> &mut LogicOperation;
 }
 
 /// trait representing a fuzzer that operates asynchronously, meaning that it executes
@@ -189,4 +179,80 @@ pub trait BlockingFuzzing: Fuzzer {
 
         Ok(())
     }
+}
+
+/// a container for the hooks that execute before and after a single loop
+/// of the fuzzer
+#[derive(Clone)]
+pub struct FuzzingLoopHook {
+    callback: fn(&mut SharedState),
+    called: usize,
+}
+
+impl FuzzingLoopHook {
+    /// given a callback function, return a [`FuzzingLoopHook`]
+    pub fn new(callback: fn(&mut SharedState)) -> Self {
+        Self {
+            callback,
+            called: 0,
+        }
+    }
+}
+
+impl Debug for FuzzingLoopHook {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FuzzingLoopHook")
+            .field("called", &self.called)
+            .finish()
+    }
+}
+
+mod typestate {
+    // typestate information for the different fuzzer builders; not useful for anything else
+    pub trait FuzzerBuildState {}
+    pub struct NoClient;
+    pub struct NoRequest;
+    pub struct NoScheduler;
+    pub struct NoMutators;
+    pub struct NoObservers;
+    pub struct NoProcessors;
+    pub struct NoDeciders;
+    pub struct NoPreLoopHook;
+    pub struct NoPostLoopHook;
+    pub struct NoPreSendLogic;
+    pub struct NoPostSendLogic;
+    pub struct HasClient;
+    pub struct HasRequest;
+    pub struct HasScheduler;
+    pub struct HasMutators;
+    pub struct HasObservers;
+    pub struct HasProcessors;
+    pub struct HasDeciders;
+    pub struct HasPreLoopHook;
+    pub struct HasPostLoopHook;
+    pub struct HasPreSendLogic;
+    pub struct HasPostSendLogic;
+
+    impl FuzzerBuildState for NoClient {}
+    impl FuzzerBuildState for NoRequest {}
+    impl FuzzerBuildState for NoScheduler {}
+    impl FuzzerBuildState for NoMutators {}
+    impl FuzzerBuildState for NoObservers {}
+    impl FuzzerBuildState for NoProcessors {}
+    impl FuzzerBuildState for NoDeciders {}
+    impl FuzzerBuildState for NoPreLoopHook {}
+    impl FuzzerBuildState for NoPostLoopHook {}
+    impl FuzzerBuildState for NoPreSendLogic {}
+    impl FuzzerBuildState for NoPostSendLogic {}
+    impl FuzzerBuildState for HasClient {}
+    impl FuzzerBuildState for HasRequest {}
+    impl FuzzerBuildState for HasScheduler {}
+    impl FuzzerBuildState for HasMutators {}
+    impl FuzzerBuildState for HasObservers {}
+    impl FuzzerBuildState for HasProcessors {}
+    impl FuzzerBuildState for HasDeciders {}
+    impl FuzzerBuildState for HasPreLoopHook {}
+    impl FuzzerBuildState for HasPostLoopHook {}
+    impl FuzzerBuildState for HasPreSendLogic {}
+    impl FuzzerBuildState for HasPostSendLogic {}
 }

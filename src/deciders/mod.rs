@@ -331,18 +331,15 @@ mod tests {
         let deciders = build_deciders!(decider1, decider2);
         let mutators = build_mutators!(mutator);
 
-        let mut fuzzer = BlockingFuzzer::new(
-            client,
-            request,
-            scheduler,
-            mutators,
-            observers,
-            (),
-            deciders,
-        );
-
-        // this call is key to making a denylist work with chained Discard actions
-        fuzzer.set_pre_send_logic(LogicOperation::And);
+        let mut fuzzer = BlockingFuzzer::new()
+            .client(client)
+            .request(request)
+            .scheduler(scheduler)
+            .mutators(mutators)
+            .observers(observers)
+            .deciders(deciders)
+            .pre_send_logic(LogicOperation::And) // this call is key to making a denylist work with chained Discard actions
+            .build();
 
         fuzzer.fuzz_once(&mut state)?;
 
@@ -400,15 +397,14 @@ mod tests {
         let deciders = build_deciders!(decider1, decider2);
         let mutators = build_mutators!(mutator);
 
-        let mut fuzzer = BlockingFuzzer::new(
-            client,
-            request,
-            scheduler,
-            mutators,
-            observers,
-            (),
-            deciders,
-        );
+        let mut fuzzer = BlockingFuzzer::new()
+            .client(client)
+            .request(request)
+            .scheduler(scheduler)
+            .mutators(mutators)
+            .observers(observers)
+            .deciders(deciders)
+            .build();
 
         fuzzer.fuzz_once(&mut state)?;
 
@@ -480,12 +476,14 @@ mod tests {
             }
         });
 
+        let side_effect_url = srv.url("/side-effect");
+
         let processor = ResponseProcessor::new(
-            |observer: &ResponseObserver<BlockingResponse>, action, _state| {
+            move |observer: &ResponseObserver<BlockingResponse>, action, _state| {
                 if let Some(action) = action {
                     if matches!(action, Action::Discard) {
                         assert!([401, 404].contains(&observer.status_code()));
-                        let req = Request::from_url(&srv.url("/side-effect"), None).unwrap();
+                        let req = Request::from_url(&side_effect_url, None).unwrap();
                         side_effect_generator.send(req).unwrap();
                     }
                 }
@@ -500,12 +498,18 @@ mod tests {
         let mutators = build_mutators!(mutator);
         let processors = build_processors!(processor);
 
-        let mut fuzzer = BlockingFuzzer::new(
-            client, request, scheduler, mutators, observers, processors, deciders,
-        );
+        let mut fuzzer = BlockingFuzzer::new()
+            .client(client)
+            .request(request)
+            .scheduler(scheduler)
+            .mutators(mutators)
+            .observers(observers)
+            .processors(processors)
+            .deciders(deciders)
+            .post_send_logic(LogicOperation::And) // this call is key to making a denylist work with chained Discard actions
+            .build();
 
         // this call is key to making a denylist work with chained Discard actions
-        fuzzer.set_post_send_logic(LogicOperation::And);
 
         fuzzer.fuzz_once(&mut state)?;
 
@@ -580,13 +584,14 @@ mod tests {
             }
         });
 
+        let side_effect_url = srv.url("/side-effect");
+
         let processor = ResponseProcessor::new(
-            |observer: &ResponseObserver<BlockingResponse>, action, _state| {
-                println!("{:?}", observer);
+            move |observer: &ResponseObserver<BlockingResponse>, action, _state| {
                 if let Some(action) = action {
                     if matches!(action, Action::Keep) {
                         assert!([200, 403].contains(&observer.status_code()));
-                        let req = Request::from_url(&srv.url("/side-effect"), None).unwrap();
+                        let req = Request::from_url(&side_effect_url, None).unwrap();
                         side_effect_generator.send(req).unwrap();
                     }
                 }
@@ -601,9 +606,15 @@ mod tests {
         let mutators = build_mutators!(mutator);
         let processors = build_processors!(processor);
 
-        let mut fuzzer = BlockingFuzzer::new(
-            client, request, scheduler, mutators, observers, processors, deciders,
-        );
+        let mut fuzzer = BlockingFuzzer::new()
+            .client(client)
+            .request(request)
+            .scheduler(scheduler)
+            .mutators(mutators)
+            .observers(observers)
+            .processors(processors)
+            .deciders(deciders)
+            .build();
 
         fuzzer.fuzz_once(&mut state)?;
 

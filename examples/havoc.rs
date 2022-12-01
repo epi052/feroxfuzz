@@ -119,9 +119,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mutators = build_mutators!(mutator);
     let processors = build_processors!(response_printer);
 
-    let mut fuzzer = AsyncFuzzer::new(
-        40, client, request, scheduler, mutators, observers, processors, deciders,
-    );
+    let mut fuzzer = AsyncFuzzer::new(40)
+        .client(client)
+        .request(request)
+        .scheduler(scheduler)
+        .mutators(mutators)
+        .observers(observers)
+        .processors(processors)
+        .deciders(deciders)
+        .build();
 
     state
         .events()

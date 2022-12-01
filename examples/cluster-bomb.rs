@@ -142,15 +142,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mutators = build_mutators!(mutator1, mutator2, mutator3);
     let processors = build_processors!(request_printer);
 
-    let mut fuzzer = BlockingFuzzer::new(
-        client,
-        request,
-        scheduler,
-        mutators,
-        observers,
-        processors,
-        (), // since we didn't use any Deciders, we just pass in ()
-    );
+    let mut fuzzer = BlockingFuzzer::new()
+        .client(client)
+        .request(request)
+        .scheduler(scheduler)
+        .mutators(mutators)
+        .observers(observers)
+        .processors(processors)
+        .build();
 
     // the fuzzer will run until it iterates over the entire corpus once
     fuzzer.fuzz_once(&mut state)?;
