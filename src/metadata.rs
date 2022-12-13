@@ -16,12 +16,21 @@ pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
 }
 
+/// an implementor of this trait can be cast to a mutable [`Any`] as part of a
+/// dynamic dispatch system
+pub trait AsAnyMut {
+    /// return the implementing type as a mutable `Any`
+    ///
+    /// the normal implementation of this is to return `&mut self`
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
 /// an implementor of the [`Metadata`] trait will be able to store instances
 /// of itself in the `metadata` field of the [`SharedState`] struct
 ///
 /// [`SharedState`]: crate::state::SharedState
 #[cfg_attr(feature = "typetag", typetag::serde(tag = "type"))]
-pub trait Metadata: AsAny + Send + Sync + Debug {
+pub trait Metadata: AsAny + AsAnyMut + Send + Sync + Debug {
     /// delegates to the MetaData-implementing type, allowing for comparison
     /// of two MetaData-implementing types
     ///

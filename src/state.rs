@@ -580,6 +580,16 @@ impl SharedState {
         }
     }
 
+    /// determine if the given key is in the [`MetadataMap`]
+    #[must_use]
+    pub fn has_metadata(&self, name: &str) -> bool {
+        if let Ok(guard) = self.metadata.read() {
+            guard.contains_key(name)
+        } else {
+            false
+        }
+    }
+
     /// add an implementor of [`Metadata`] to the `[MetadataMap]`
     #[must_use]
     pub fn events(&self) -> Arc<RwLock<Publisher>> {

@@ -194,6 +194,7 @@ impl RandomScheduler {
     /// This function allows you to specify which corpora will be updated by the
     /// scheduler. This is useful if you want to only update a subset of corpora
     /// at a time, instead of all of them.
+    #[instrument(skip(self), level = "trace")]
     pub fn limit_to_corpora(&mut self, corpora: &[&str]) {
         self.indices.retain(|index| corpora.contains(&index.name()));
     }

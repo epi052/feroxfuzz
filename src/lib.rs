@@ -47,7 +47,7 @@ pub mod statistics;
 mod std_ext;
 
 // re-exported traits, to be available as top-level imports for users
-pub use metadata::{AsAny, Metadata};
+pub use metadata::{AsAny, AsAnyMut, Metadata};
 pub use std_ext::convert::{AsBytes, AsInner, IntoInner};
 pub use std_ext::ops::Len;
 pub use std_ext::tuple::{MatchName, Named};
