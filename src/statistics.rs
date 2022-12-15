@@ -306,13 +306,17 @@ impl Statistics {
             Some(Action::Keep) => update(Action::Keep),
             Some(Action::Discard) => update(Action::Discard),
             Some(Action::StopFuzzing) => update(Action::StopFuzzing),
-            Some(Action::AddToCorpus(corpus_name, inner_action)) => {
+            Some(Action::AddToCorpus(corpus_name, corpus_item_type, inner_action)) => {
                 match inner_action {
                     FlowControl::Keep => update(Action::Keep),
                     FlowControl::Discard => update(Action::Discard),
                     FlowControl::StopFuzzing => update(Action::StopFuzzing),
                 };
-                update(Action::AddToCorpus(corpus_name.clone(), *inner_action));
+                update(Action::AddToCorpus(
+                    corpus_name.clone(),
+                    corpus_item_type.clone(),
+                    *inner_action,
+                ));
             }
             None => {} // do nothing
         }

@@ -173,6 +173,31 @@ impl Scheduler for ProductScheduler {
 
         trace!("scheduler has been reset");
     }
+
+    fn update_length(&mut self) {
+        // basically the same logic as reset, but we don't need to reset the index, nor reset
+        // the state's view of the index
+        let mut total_iterations = 1;
+
+        self.indices.iter_mut().for_each(|index| {
+            // first, we get the corpus associated with the current corpus_index
+            let corpus = self.state.corpus_by_name(index.name()).unwrap();
+
+            // and then get its length
+            let len = corpus.len();
+
+            // if any items were added to the corpus, we'll need to update the length/expected iterations
+            // accordingly
+            //
+            // note: self.indices is in the same order as what ::new() produced initially, so
+            // we can use the same strategy to update the total_iterations here, in the event
+            // that we add items to any of the corpora
+            total_iterations *= len;
+
+            index.update_length(len);
+            index.update_iterations(total_iterations);
+        });
+    }
 }
 
 impl ProductScheduler {
@@ -440,7 +465,9 @@ mod tests {
         )
         .unwrap();
 
-        state.add_to_corpus("users", &request).unwrap();
+        state
+            .add_request_fields_to_corpus("users", &request)
+            .unwrap();
 
         let users_corpus = state.corpus_by_name("users").unwrap();
         assert_eq!(users_corpus.len(), 3); // new user made it to the corpus
@@ -458,8 +485,10 @@ mod tests {
 
         // try it again with both corpora having an entry added to them
 
-        state.add_to_corpus("ids", &request).unwrap();
-        state.add_to_corpus("users", &request).unwrap();
+        state.add_request_fields_to_corpus("ids", &request).unwrap();
+        state
+            .add_request_fields_to_corpus("users", &request)
+            .unwrap();
 
         let ids_corpus = state.corpus_by_name("ids").unwrap();
 
@@ -529,7 +558,7 @@ mod tests {
 
         // when added to each corpus their legnth should increase by 2
         for name in order {
-            state.add_to_corpus(name, &request).unwrap();
+            state.add_request_fields_to_corpus(name, &request).unwrap();
         }
 
         assert_eq!(state.corpus_by_name("outer").unwrap().len(), 4);

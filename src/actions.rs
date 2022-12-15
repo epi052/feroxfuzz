@@ -4,11 +4,15 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use crate::corpora::CorpusItemType;
+use crate::input::Data;
+
 /// all possible actions
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
-pub enum Action {
+pub enum Action
+{
     /// when used in a pre-send context, retain the current [`Request`], if
     /// used in a post-send context, retain the current [`Response`]
     ///
@@ -41,7 +45,7 @@ pub enum Action {
     ///
     /// [`Corpus`]: crate::corpora::Corpus
     /// [`Processor`]: crate::processors::Processor
-    AddToCorpus(String, FlowControl),
+    AddToCorpus(String, CorpusItemType, FlowControl),
 
     /// break out of the current fuzz loop; no more iterations other than
     /// what's already in flight will be performed

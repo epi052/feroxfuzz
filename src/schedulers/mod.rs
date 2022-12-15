@@ -34,6 +34,13 @@ pub trait Scheduler: Named {
     /// [`Corpus`]: crate::corpora::Corpus
     /// [`Fuzzer`]: crate::fuzzers::Fuzzer
     fn reset(&mut self);
+
+    /// update the scheduler's length field(s). this is called by
+    /// the [`Fuzzer`] when new entries are added to a [`Corpus`]
+    ///
+    /// [`Corpus`]: crate::corpora::Corpus
+    /// [`Fuzzer`]: crate::fuzzers::Fuzzer
+    fn update_length(&mut self);
 }
 
 // simple private helper that gets the atomic index from corpus_indices

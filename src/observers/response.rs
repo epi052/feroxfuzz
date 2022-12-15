@@ -1,5 +1,6 @@
 use super::{Observer, ObserverHooks};
 use crate::actions::Action;
+use crate::prelude::FeroxFuzzError;
 use crate::requests::RequestId;
 use crate::responses::{Response, Timed};
 use crate::std_ext::tuple::Named;
@@ -288,6 +289,35 @@ where
         }
 
         false
+    }
+
+    /// examine the response's url and grab the file's extension if one is available
+    /// to be grabbed.
+    #[must_use]
+    pub fn extension(&self) -> Option<&str> {
+        // path_segments:
+        //   Return None for cannot-be-a-base URLs.
+        //   When Some is returned, the iterator always contains at least one string
+        //     (which may be empty).
+        //
+        // meaning: the two unwraps here are fine, the worst outcome is an empty string
+        let filename = self.url().path_segments().unwrap().last().unwrap();
+
+        if !filename.is_empty() {
+            // non-empty string, try to get extension
+            let parts: Vec<_> = filename
+                .split('.')
+                // keep things like /.bash_history from becoming an extension
+                .filter(|part| !part.is_empty())
+                .collect();
+
+            if parts.len() > 1 {
+                // filename + at least one extension, i.e. whatever.js becomes ["whatever", "js"]
+                return Some(parts.last().unwrap());
+            }
+        }
+
+        None
     }
 }
 

@@ -388,7 +388,30 @@ impl SharedState {
         }
     }
 
+    /// add the given [`Data`] to the given [`Corpus`]
+    ///
+    /// [`Corpus`]: crate::corpora::Corpus
+    /// [`Data`]: crate::input::Data
+    ///
+    /// # Errors
+    ///
+    /// If the `corpus_name` is not found, a [`FeroxFuzzError`] is returned.
+    #[instrument(skip(self, data), level = "trace")]
+    pub fn add_data_to_corpus(&self, corpus_name: &str, data: Data) -> Result<(), FeroxFuzzError> {
+        let corpus = self.corpus_by_name(corpus_name)?;
+
+        if let Ok(mut guard) = corpus.write() {
+            guard.add(data);
+        }
+
+        Ok(())
+    }
+
     /// add given [`Request`]'s fuzzable [`Data`] fields to the given [`Corpus`]
+    ///
+    /// Returns the number of fields added to the corpus. Expected use for the
+    /// returned value is to adjust the [`Scheduler`] accordingly.
+    ///
     ///
     /// [`Corpus`]: crate::corpora::Corpus
     /// [`Data`]: crate::input::Data
@@ -398,18 +421,22 @@ impl SharedState {
     ///
     /// If the `corpus_name` is not found, a [`FeroxFuzzError`] is returned.
     #[instrument(skip(self, request), level = "trace")]
-    pub fn add_to_corpus(
+    pub fn add_request_fields_to_corpus(
         &self,
         corpus_name: &str,
         request: &Request,
-    ) -> Result<(), FeroxFuzzError> {
+    ) -> Result<usize, FeroxFuzzError> {
         let corpus = self.corpus_by_name(corpus_name)?;
+        let mut retval = 0;
 
         if let Ok(mut guard) = corpus.write() {
             // unlocked the corpus, so we can now add the data
 
             if request.scheme().is_fuzzable() {
                 guard.add(request.scheme().clone());
+
+                retval += 1;
+
                 self.notify_listeners(
                     request,
                     corpus_name.to_string(),
@@ -421,6 +448,9 @@ impl SharedState {
             if let Some(username) = request.username() {
                 if username.is_fuzzable() {
                     guard.add(username.clone());
+
+                    retval += 1;
+
                     self.notify_listeners(
                         request,
                         corpus_name.to_string(),
@@ -433,6 +463,9 @@ impl SharedState {
             if let Some(password) = request.password() {
                 if password.is_fuzzable() {
                     guard.add(password.clone());
+
+                    retval += 1;
+
                     self.notify_listeners(
                         request,
                         corpus_name.to_string(),
@@ -445,6 +478,9 @@ impl SharedState {
             if let Some(host) = request.host() {
                 if host.is_fuzzable() {
                     guard.add(host.clone());
+
+                    retval += 1;
+
                     self.notify_listeners(request, corpus_name.to_string(), "host", host.clone());
                 }
             }
@@ -452,12 +488,18 @@ impl SharedState {
             if let Some(port) = request.port() {
                 if port.is_fuzzable() {
                     guard.add(port.clone());
+
+                    retval += 1;
+
                     self.notify_listeners(request, corpus_name.to_string(), "port", port.clone());
                 }
             }
 
             if request.path().is_fuzzable() {
                 guard.add(request.path().clone());
+
+                retval += 1;
+
                 self.notify_listeners(
                     request,
                     corpus_name.to_string(),
@@ -469,6 +511,9 @@ impl SharedState {
             if let Some(fragment) = request.fragment() {
                 if fragment.is_fuzzable() {
                     guard.add(fragment.clone());
+
+                    retval += 1;
+
                     self.notify_listeners(
                         request,
                         corpus_name.to_string(),
@@ -480,6 +525,9 @@ impl SharedState {
 
             if request.method().is_fuzzable() {
                 guard.add(request.method().clone());
+
+                retval += 1;
+
                 self.notify_listeners(
                     request,
                     corpus_name.to_string(),
@@ -491,6 +539,9 @@ impl SharedState {
             if let Some(body) = request.body() {
                 if body.is_fuzzable() {
                     guard.add(body.clone());
+
+                    retval += 1;
+
                     self.notify_listeners(request, corpus_name.to_string(), "body", body.clone());
                 }
             }
@@ -499,6 +550,9 @@ impl SharedState {
                 for (key, value) in headers.iter() {
                     if key.is_fuzzable() {
                         guard.add(key.clone());
+
+                        retval += 1;
+
                         self.notify_listeners(
                             request,
                             corpus_name.to_string(),
@@ -508,6 +562,9 @@ impl SharedState {
                     }
                     if value.is_fuzzable() {
                         guard.add(value.clone());
+
+                        retval += 1;
+
                         self.notify_listeners(
                             request,
                             corpus_name.to_string(),
@@ -522,6 +579,9 @@ impl SharedState {
                 for (key, value) in params.iter() {
                     if key.is_fuzzable() {
                         guard.add(key.clone());
+
+                        retval += 1;
+
                         self.notify_listeners(
                             request,
                             corpus_name.to_string(),
@@ -531,6 +591,9 @@ impl SharedState {
                     }
                     if value.is_fuzzable() {
                         guard.add(value.clone());
+
+                        retval += 1;
+
                         self.notify_listeners(
                             request,
                             corpus_name.to_string(),
@@ -544,6 +607,9 @@ impl SharedState {
             if let Some(user_agent) = request.user_agent() {
                 if user_agent.is_fuzzable() {
                     guard.add(user_agent.clone());
+
+                    retval += 1;
+
                     self.notify_listeners(
                         request,
                         corpus_name.to_string(),
@@ -555,6 +621,9 @@ impl SharedState {
 
             if request.version().is_fuzzable() {
                 guard.add(request.version().clone());
+
+                retval += 1;
+
                 self.notify_listeners(
                     request,
                     corpus_name.to_string(),
@@ -564,7 +633,7 @@ impl SharedState {
             }
         }
 
-        Ok(())
+        Ok(retval)
     }
 
     /// get the [`MetadataMap`]

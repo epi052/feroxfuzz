@@ -17,6 +17,7 @@ use super::{AsyncFuzzerBuilder, AsyncFuzzing, Fuzzer, FuzzingLoopHook};
 use crate::actions::Action;
 use crate::actions::FlowControl;
 use crate::client;
+use crate::corpora::CorpusItemType;
 use crate::deciders::Deciders;
 use crate::error::FeroxFuzzError;
 use crate::events::{
@@ -184,6 +185,7 @@ where
                         O,
                         D,
                         P,
+                        S,
                         Request,
                         SharedState,
                         Arc<AtomicBool>,
@@ -235,13 +237,23 @@ where
 
                             return Err(FeroxFuzzError::DiscardedRequest);
                         }
-                        Some(Action::AddToCorpus(name, flow_control)) => {
+                        Some(Action::AddToCorpus(name, corpus_item_type, flow_control)) => {
                             // i can't think of too many uses for an AddToCorpus to run on the
                             // pre-send side of things... maybe a 'seen' corpus or something?
                             // leaving it here for now.
 
-                            state.add_to_corpus(&name, &mutated_request)?;
+                            match corpus_item_type {
+                                CorpusItemType::Request => {
+                                    state.add_request_fields_to_corpus(&name, &mutated_request)?;
+                                }
+                                CorpusItemType::Data(data) => {
+                                    // todo need to add to corpus and then update the scheduler
+                                    state.add_data_to_corpus(&name, data)?;
+                                }
+                            }
 
+                            self.scheduler.update_length();
+                            
                             match flow_control {
                                 FlowControl::StopFuzzing => {
                                     tracing::info!(
@@ -287,6 +299,7 @@ where
                     let cloned_observers = self.observers.clone();
                     let cloned_deciders = self.deciders.clone();
                     let cloned_processors = self.processors.clone();
+                    let cloned_scheduler = self.scheduler.clone();
                     let cloned_state = state.clone();
                     let cloned_request = mutated_request.clone();
                     let cloned_quit_flag = should_quit.clone();
@@ -303,6 +316,7 @@ where
                         cloned_observers,
                         cloned_deciders,
                         cloned_processors,
+                        cloned_scheduler,
                         cloned_request,
                         cloned_state,
                         cloned_quit_flag,
@@ -316,8 +330,8 @@ where
                 }
 
                 match result {
-                    Ok((response_handle, observers, deciders, processors, request, state, quit_flag)) => {
-                        future::ready(Some(Ok((response_handle, observers, deciders, processors, request, state, quit_flag))))
+                    Ok((response_handle, observers, deciders, processors, scheduler, request, state, quit_flag)) => {
+                        future::ready(Some(Ok((response_handle, observers, deciders, processors, scheduler, request, state, quit_flag))))
                     }
                     Err(e) => {
                         if matches!(e, FeroxFuzzError::DiscardedRequest) {
@@ -347,7 +361,7 @@ where
                 }
 
                 // result cannot be Err after this point, so is safe to unwrap
-                let (resp, mut c_observers, mut c_deciders, mut c_processors, c_request, c_state, c_should_quit) =
+                let (resp, mut c_observers, mut c_deciders, mut c_processors, mut c_scheduler, c_request, c_state, c_should_quit) =
                     result.unwrap();
 
                 if c_should_quit.load(Ordering::Relaxed) {
@@ -397,14 +411,27 @@ where
                 c_processors.call_post_send_hooks(&c_state, &c_observers, decision.as_ref());
 
                 match decision {
-                    Some(Action::AddToCorpus(name, flow_control)) => {
+                    Some(Action::AddToCorpus(name, corpus_item_type, flow_control)) => {
                         // if we've reached this point, flow control doesn't matter anymore; the
                         // only thing we need to check at this point is if we need to alter the
                         // corpus
 
-                        if let Err(err) = c_state.add_to_corpus(&name, &c_request) {
-                            warn!("Could not add {:?} to corpus[{name}]: {:?}", c_request, err);
+                        match corpus_item_type {
+                            CorpusItemType::Request => {
+                                if let Err(err) = c_state.add_request_fields_to_corpus(&name, &c_request) {
+                                    warn!("Could not add {:?} to corpus[{name}]: {:?}", c_request, err);
+                                }
+                            }
+                            CorpusItemType::Data(data) => {
+                                // todo need to add to corpus and then update the scheduler
+                                tracing::info!("adding {} to {}", data, name);
+                                if let Err(err) = c_state.add_data_to_corpus(&name, data) {
+                                    warn!("Could not add {:?} to corpus[{name}]: {:?}", c_request, err);
+                                }
+                            }
                         }
+
+                        c_scheduler.update_length();
 
                         match flow_control {
                             FlowControl::StopFuzzing => {

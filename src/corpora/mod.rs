@@ -37,6 +37,37 @@ pub type CorpusMap = Arc<HashMap<String, Arc<RwLock<CorpusType>>>>;
 /// typedef of the `SharedState`'s `corpus_indices` field
 pub type CorpusIndices = Arc<HashMap<String, AtomicUsize>>;
 
+/// Used to inform the [`Fuzzer`] of the type of corpus item that should
+/// be added to the corpus when using [`Action::AddToCorpus`].
+///
+/// [`Fuzzer`]: crate::fuzzers::Fuzzer
+/// [`Action::AddToCorpus`]: crate::actions::Action::AddToCorpus
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
+#[non_exhaustive]
+pub enum CorpusItemType {
+    /// When the corpus item type is [`CorpusItemType::Request`], all fields marked
+    /// fuzzable will be added to the corpus.
+    #[default]
+    Request,
+
+    /// When the corpus item type is [`CorpusItemType::Data`], the [`Data`] value
+    /// associated with the key will be added to the corpus.
+    /// 
+    /// # Note
+    /// 
+    /// There are a lot of [`From`] implementations for [`Data`]. When creating
+    /// a [`CorpusItemType::Data`] item, you can probably just use `.into`:
+    /// 
+    /// ```
+    /// # use feroxfuzz::corpora::CorpusItemType;
+    /// CorpusItemType::Data("something".into());
+    /// ```
+    ///
+    /// [`Data`]: crate::input::Data
+    Data(Data),
+}
+
 /// Collection of all current test cases
 pub trait Corpus: Named {
     /// adds a [`Data`] item to the corpus

@@ -212,11 +212,11 @@ impl BitAnd for Action {
             (Self::Keep | Self::Discard, Self::Discard) | (Self::Discard, Self::Keep) => {
                 Self::Discard
             }
-            (Self::AddToCorpus(name, flow_control), other) => {
-                Self::AddToCorpus(name, flow_control & other)
+            (Self::AddToCorpus(name, corpus_item_type, flow_control), other) => {
+                Self::AddToCorpus(name, corpus_item_type.clone(), flow_control & other)
             }
-            (lhs, Self::AddToCorpus(name, flow_control)) => {
-                Self::AddToCorpus(name, flow_control & lhs)
+            (lhs, Self::AddToCorpus(name, corpus_item_type, flow_control)) => {
+                Self::AddToCorpus(name, corpus_item_type.clone(), flow_control & lhs)
             }
             (_, Self::StopFuzzing) | (Self::StopFuzzing, _) => Self::StopFuzzing,
         }
@@ -231,8 +231,8 @@ impl BitAnd<FlowControl> for Action {
             (Self::Keep, FlowControl::Keep) => Self::Keep,
             (Self::Keep | Self::Discard, FlowControl::Discard)
             | (Self::Discard, FlowControl::Keep) => Self::Discard,
-            (Self::AddToCorpus(name, flow_control), other) => {
-                Self::AddToCorpus(name, flow_control & other)
+            (Self::AddToCorpus(name, corpus_item_type, flow_control), other) => {
+                Self::AddToCorpus(name, corpus_item_type.clone(), flow_control & other)
             }
             (Self::StopFuzzing, _) | (_, FlowControl::StopFuzzing) => Self::StopFuzzing,
         }
@@ -264,7 +264,7 @@ impl BitAnd<Action> for FlowControl {
             (Self::Keep | Self::Discard, Action::Discard) | (Self::Discard, Action::Keep) => {
                 Self::Discard
             }
-            (lhs, Action::AddToCorpus(_, flow_control)) => {
+            (lhs, Action::AddToCorpus(_, _, flow_control)) => {
                 // at this point we're just comparing two FlowControl variants, so we can
                 // just use the bitwise operation
                 lhs & flow_control
@@ -284,11 +284,11 @@ impl BitOr for Action {
         match (self, rhs) {
             (Self::Keep | Self::Discard, Self::Keep) | (Self::Keep, Self::Discard) => Self::Keep,
             (Self::Discard, Self::Discard) => Self::Discard,
-            (Self::AddToCorpus(name, flow_control), other) => {
-                Self::AddToCorpus(name, flow_control | other)
+            (Self::AddToCorpus(name, corpus_item_type, flow_control), other) => {
+                Self::AddToCorpus(name, corpus_item_type.clone(), flow_control | other)
             }
-            (lhs, Self::AddToCorpus(name, flow_control)) => {
-                Self::AddToCorpus(name, flow_control | lhs)
+            (lhs, Self::AddToCorpus(name, corpus_item_type, flow_control)) => {
+                Self::AddToCorpus(name, corpus_item_type.clone(), flow_control | lhs)
             }
             (Self::StopFuzzing, _) | (_, Self::StopFuzzing) => Self::StopFuzzing,
         }
@@ -304,8 +304,8 @@ impl BitOr<FlowControl> for Action {
             (Self::Keep | Self::Discard, FlowControl::Keep)
             | (Self::Keep, FlowControl::Discard) => Self::Keep,
             (Self::Discard, FlowControl::Discard) => Self::Discard,
-            (Self::AddToCorpus(name, flow_control), other) => {
-                Self::AddToCorpus(name, flow_control | other)
+            (Self::AddToCorpus(name, corpus_item_type, flow_control), other) => {
+                Self::AddToCorpus(name, corpus_item_type.clone(), flow_control | other)
             }
             (_, FlowControl::StopFuzzing) | (Self::StopFuzzing, _) => Self::StopFuzzing,
         }
@@ -335,7 +335,7 @@ impl BitOr<Action> for FlowControl {
                 Self::Keep
             }
             (Self::Discard, Action::Discard) => Self::Discard,
-            (lhs, Action::AddToCorpus(_, flow_control)) => {
+            (lhs, Action::AddToCorpus(_, _, flow_control)) => {
                 // at this point we're just comparing two FlowControl variants, so we can
                 // just use the bitwise operation
                 lhs | flow_control
@@ -349,6 +349,8 @@ impl BitOr<Action> for FlowControl {
 
 #[cfg(test)]
 mod tests {
+    use crate::corpora::CorpusItemType;
+
     use super::*;
 
     /// test that the `BitAnd` implementation for `Action` produces the correct
@@ -357,21 +359,47 @@ mod tests {
     #[allow(clippy::cognitive_complexity)]
     #[allow(clippy::too_many_lines)]
     fn test_bitand_action_and_action() {
+        let corpus_item_type = CorpusItemType::Request;
+
         // action & action::keep
         assert_eq!(Action::Keep & Action::Keep, Action::Keep);
         assert_eq!(Action::Discard & Action::Keep, Action::Discard);
         assert_eq!(Action::StopFuzzing & Action::Keep, Action::StopFuzzing);
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep) & Action::Keep,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ) & Action::Keep,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard) & Action::Keep,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ) & Action::Keep,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing) & Action::Keep,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            ) & Action::Keep,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
 
         // action & action::discard
@@ -379,104 +407,307 @@ mod tests {
         assert_eq!(Action::Discard & Action::Discard, Action::Discard);
         assert_eq!(Action::StopFuzzing & Action::Discard, Action::StopFuzzing);
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep) & Action::Discard,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ) & Action::Discard,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard) & Action::Discard,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ) & Action::Discard,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing) & Action::Discard,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            ) & Action::Discard,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
 
         // action & addtocorpus::keep
         assert_eq!(
-            Action::Keep & Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+            Action::Keep
+                & Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Keep
+                ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            )
         );
         assert_eq!(
-            Action::Discard & Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+            Action::Discard
+                & Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Keep
+                ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            )
         );
         assert_eq!(
-            Action::StopFuzzing & Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::StopFuzzing
+                & Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Keep
+                ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
-                & Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ) & Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
-                & Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ) & Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
-                & Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            ) & Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
 
         // action & addtocorpus::discard
         assert_eq!(
-            Action::Keep & Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+            Action::Keep
+                & Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Discard
+                ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            )
         );
         assert_eq!(
-            Action::Discard & Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+            Action::Discard
+                & Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Discard
+                ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            )
         );
         assert_eq!(
-            Action::StopFuzzing & Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::StopFuzzing
+                & Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Discard
+                ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
-                & Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ) & Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
-                & Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ) & Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
-                & Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            ) & Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
 
         // action & addtocorpus::stopfuzzing
         assert_eq!(
-            Action::Keep & Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::Keep
+                & Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::StopFuzzing
+                ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
         assert_eq!(
-            Action::Discard & Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::Discard
+                & Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::StopFuzzing
+                ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
         assert_eq!(
             Action::StopFuzzing
-                & Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+                & Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::StopFuzzing
+                ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
-                & Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ) & Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
-                & Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ) & Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
-                & Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            ) & Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
     }
 
@@ -484,21 +715,47 @@ mod tests {
     /// produces the correct results when action is the lhs and `flow_control` is the rhs
     #[test]
     fn test_bitand_action_and_flowcontrol() {
+        let corpus_item_type = CorpusItemType::Request;
+
         // action & flowcontrol::keep
         assert_eq!(Action::Keep & FlowControl::Keep, Action::Keep);
         assert_eq!(Action::Discard & FlowControl::Keep, Action::Discard);
         assert_eq!(Action::StopFuzzing & FlowControl::Keep, Action::StopFuzzing);
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep) & FlowControl::Keep,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ) & FlowControl::Keep,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard) & FlowControl::Keep,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ) & FlowControl::Keep,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing) & FlowControl::Keep,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            ) & FlowControl::Keep,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
 
         // action & flowcontrol::discard
@@ -509,17 +766,40 @@ mod tests {
             Action::StopFuzzing
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep) & FlowControl::Discard,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ) & FlowControl::Discard,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard) & FlowControl::Discard,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ) & FlowControl::Discard,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
-                & FlowControl::Discard,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            ) & FlowControl::Discard,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
     }
 
@@ -557,6 +837,8 @@ mod tests {
     /// produces the correct results when `flow_control` is the lhs and action is the rhs
     #[test]
     fn test_bitand_flowcontrol_and_action() {
+        let corpus_item_type = CorpusItemType::Request;
+
         // flowcontrol & action::keep
         assert_eq!(FlowControl::Keep & Action::Keep, FlowControl::Keep);
         assert_eq!(FlowControl::Discard & Action::Keep, FlowControl::Discard);
@@ -575,30 +857,59 @@ mod tests {
 
         // flowcontrol & action::addtocorpus::keep
         assert_eq!(
-            FlowControl::Keep & Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
+            FlowControl::Keep
+                & Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Keep
+                ),
             FlowControl::Keep
         );
         assert_eq!(
-            FlowControl::Discard & Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
+            FlowControl::Discard
+                & Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Keep
+                ),
             FlowControl::Discard
         );
         assert_eq!(
-            FlowControl::StopFuzzing & Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
+            FlowControl::StopFuzzing
+                & Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Keep
+                ),
             FlowControl::StopFuzzing
         );
 
         // flowcontrol & action::addtocorpus::discard
         assert_eq!(
-            FlowControl::Keep & Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
+            FlowControl::Keep
+                & Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Discard
+                ),
             FlowControl::Discard
         );
         assert_eq!(
-            FlowControl::Discard & Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
+            FlowControl::Discard
+                & Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Discard
+                ),
             FlowControl::Discard
         );
         assert_eq!(
             FlowControl::StopFuzzing
-                & Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
+                & Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Discard
+                ),
             FlowControl::StopFuzzing
         );
     }
@@ -609,21 +920,47 @@ mod tests {
     /// results when action is both the lhs and rhs
     #[test]
     fn test_bitor_action_and_action() {
+        let corpus_item_type = CorpusItemType::Request;
+
         // action | action::keep
         assert_eq!(Action::Keep | Action::Keep, Action::Keep);
         assert_eq!(Action::Discard | Action::Keep, Action::Keep);
         assert_eq!(Action::StopFuzzing | Action::Keep, Action::StopFuzzing);
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep) | Action::Keep,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ) | Action::Keep,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard) | Action::Keep,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ) | Action::Keep,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing) | Action::Keep,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            ) | Action::Keep,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
 
         // action | action::discard
@@ -631,74 +968,218 @@ mod tests {
         assert_eq!(Action::Discard | Action::Discard, Action::Discard);
         assert_eq!(Action::StopFuzzing | Action::Discard, Action::StopFuzzing);
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep) | Action::Discard,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ) | Action::Discard,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard) | Action::Discard,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ) | Action::Discard,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing) | Action::Discard,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            ) | Action::Discard,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
 
         // action | addtocorpus::keep
         assert_eq!(
-            Action::Keep | Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+            Action::Keep
+                | Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Keep
+                ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            )
         );
         assert_eq!(
-            Action::Discard | Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+            Action::Discard
+                | Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Keep
+                ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            )
         );
         assert_eq!(
-            Action::StopFuzzing | Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::StopFuzzing
+                | Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Keep
+                ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
-                | Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ) | Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
-                | Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ) | Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
-                | Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            ) | Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
 
         // action | addtocorpus::discard
         assert_eq!(
-            Action::Keep | Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+            Action::Keep
+                | Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Discard
+                ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            )
         );
         assert_eq!(
-            Action::Discard | Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+            Action::Discard
+                | Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Discard
+                ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            )
         );
         assert_eq!(
-            Action::StopFuzzing | Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::StopFuzzing
+                | Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Discard
+                ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
-                | Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ) | Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
-                | Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ) | Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
-                | Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            ) | Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ),
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type,
+                FlowControl::StopFuzzing
+            )
         );
     }
 
@@ -706,21 +1187,47 @@ mod tests {
     /// produces the correct results when action is the lhs and `flow_control` is the rhs
     #[test]
     fn test_bitor_action_and_flowcontrol() {
+        let corpus_item_type = CorpusItemType::Request;
+
         // action | flowcontrol::keep
         assert_eq!(Action::Keep | FlowControl::Keep, Action::Keep);
         assert_eq!(Action::Discard | FlowControl::Keep, Action::Keep);
         assert_eq!(Action::StopFuzzing | FlowControl::Keep, Action::StopFuzzing);
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep) | FlowControl::Keep,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ) | FlowControl::Keep,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard) | FlowControl::Keep,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ) | FlowControl::Keep,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing) | FlowControl::Keep,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            ) | FlowControl::Keep,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            )
         );
 
         // action | flowcontrol::discard
@@ -731,17 +1238,40 @@ mod tests {
             Action::StopFuzzing
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep) | FlowControl::Discard,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Keep)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            ) | FlowControl::Discard,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Keep
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard) | FlowControl::Discard,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::Discard)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            ) | FlowControl::Discard,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::Discard
+            )
         );
         assert_eq!(
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
-                | FlowControl::Discard,
-            Action::AddToCorpus("stuff".to_string(), FlowControl::StopFuzzing)
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type.clone(),
+                FlowControl::StopFuzzing
+            ) | FlowControl::Discard,
+            Action::AddToCorpus(
+                "stuff".to_string(),
+                corpus_item_type,
+                FlowControl::StopFuzzing
+            )
         );
     }
 
@@ -773,6 +1303,8 @@ mod tests {
     /// produces the correct results when `flow_control` is the lhs and action is the rhs
     #[test]
     fn test_bitor_flowcontrol_and_action() {
+        let corpus_item_type = CorpusItemType::Request;
+
         // flowcontrol | action::keep
         assert_eq!(FlowControl::Keep | Action::Keep, FlowControl::Keep);
         assert_eq!(FlowControl::Discard | Action::Keep, FlowControl::Keep);
@@ -791,30 +1323,59 @@ mod tests {
 
         // flowcontrol | action::addtocorpus::keep
         assert_eq!(
-            FlowControl::Keep | Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
+            FlowControl::Keep
+                | Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Keep
+                ),
             FlowControl::Keep
         );
         assert_eq!(
-            FlowControl::Discard | Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
+            FlowControl::Discard
+                | Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Keep
+                ),
             FlowControl::Keep
         );
         assert_eq!(
-            FlowControl::StopFuzzing | Action::AddToCorpus("stuff".to_string(), FlowControl::Keep),
+            FlowControl::StopFuzzing
+                | Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Keep
+                ),
             FlowControl::StopFuzzing
         );
 
         // flowcontrol | action::addtocorpus::discard
         assert_eq!(
-            FlowControl::Keep | Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
+            FlowControl::Keep
+                | Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Discard
+                ),
             FlowControl::Keep
         );
         assert_eq!(
-            FlowControl::Discard | Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
+            FlowControl::Discard
+                | Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Discard
+                ),
             FlowControl::Discard
         );
         assert_eq!(
             FlowControl::StopFuzzing
-                | Action::AddToCorpus("stuff".to_string(), FlowControl::Discard),
+                | Action::AddToCorpus(
+                    "stuff".to_string(),
+                    corpus_item_type.clone(),
+                    FlowControl::Discard
+                ),
             FlowControl::StopFuzzing
         );
     }
