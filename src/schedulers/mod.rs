@@ -4,7 +4,6 @@ use crate::atomic_store;
 use crate::error::FeroxFuzzError;
 use crate::state::SharedState;
 use crate::std_ext::ops::Len;
-use crate::std_ext::tuple::Named;
 
 use std::sync::atomic::Ordering;
 
@@ -20,7 +19,7 @@ pub use product::ProductScheduler;
 pub use random::RandomScheduler;
 
 /// manages how the fuzzer gets entries from the corpus
-pub trait Scheduler: Named {
+pub trait Scheduler {
     /// get the next entry from the corpus
     ///
     /// # Errors

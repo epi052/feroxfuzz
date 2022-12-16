@@ -147,7 +147,7 @@ where
     M: Mutators + Send,
     O: Observers<AsyncResponse> + Send + Clone,
     P: Processors<O, AsyncResponse> + Send + Clone,
-    S: Scheduler + Send + Iterator<Item = ()> + Clone,
+    S: Scheduler + Send + Iterator<Item = ()> + Clone + Debug,
     <S as Iterator>::Item: Debug,
 {
     #[instrument(skip_all, fields(%self.threads, ?self.post_send_logic, ?self.pre_send_logic) name = "fuzz-loop", level = "trace")]
@@ -424,7 +424,6 @@ where
                             }
                             CorpusItemType::Data(data) => {
                                 // todo need to add to corpus and then update the scheduler
-                                tracing::info!("adding {} to {}", data, name);
                                 if let Err(err) = c_state.add_data_to_corpus(&name, data) {
                                     warn!("Could not add {:?} to corpus[{name}]: {:?}", c_request, err);
                                 }
@@ -500,7 +499,7 @@ where
 mod tests {
     use super::*;
     use crate::client::AsyncClient;
-    use crate::corpora::RangeCorpus;
+    use crate::corpora::{RangeCorpus, Wordlist};
     use crate::deciders::{RequestRegexDecider, ResponseRegexDecider};
     use crate::fuzzers::AsyncFuzzer;
     use crate::mutators::ReplaceKeyword;
@@ -701,4 +700,69 @@ mod tests {
         // which proves that the logic is working and correct
         Ok(())
     }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    /// test that the fuzz loop will continue iterating over a corpus that has been 
+    /// modified in-place by the AddToCorpus action
+    async fn test_add_to_corpus_iters_over_new_entries_without_reset() -> Result<(), Box<dyn std::error::Error>> {
+        let srv = MockServer::start();
+
+        let _mock = srv.mock(|when, then| {
+            // registers hits for 0, 1, 2, 3
+            when.method(GET).path_matches(Regex::new("[0123](.js)?").unwrap());
+            then.status(200).body("this is a test");
+        });
+
+        // 0, 1, 2
+        let words = Wordlist::with_words(["0", "1.js", "2"]).name("words").build();
+        let mut state = SharedState::with_corpus(words);
+
+        let req_client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(1))
+            .build()?;
+
+        let client = AsyncClient::with_client(req_client);
+
+        let mutator = ReplaceKeyword::new(&"FUZZ", "words");
+
+        let request = Request::from_url(&srv.url("/FUZZ"), Some(&[ShouldFuzz::URLPath]))?;
+
+        // add /3 to the path corpus
+        let decider = ResponseRegexDecider::new("/1.js", |regex, observer, _state| {
+            if regex.is_match(observer.url().as_str().as_bytes()) {
+                Action::AddToCorpus("words".to_string(), CorpusItemType::Data("3".into()), FlowControl::Keep)
+            } else {
+                Action::Keep
+            }
+        });
+
+        let scheduler = OrderedScheduler::new(state.clone())?;
+
+        let mut fuzzer = AsyncFuzzer::new(1)
+            .client(client.clone())
+            .request(request.clone())
+            .scheduler(scheduler)
+            .mutators(build_mutators!(mutator.clone()))
+            .observers(build_observers!(ResponseObserver::new()))
+            .deciders(build_deciders!(decider.clone()))
+            .build();
+
+        fuzzer.fuzz_once(&mut state).await?;
+
+        println!("state: {:?}", state);
+
+        // 0-3 sent/recv'd and ok
+        assert_eq!(
+            state
+                .stats()
+                .read()
+                .unwrap()
+                .status_code_count(200)
+                .unwrap(),
+            4
+        );
+
+        Ok(())
+    }
+
 }

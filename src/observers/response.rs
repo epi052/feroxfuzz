@@ -1,6 +1,5 @@
 use super::{Observer, ObserverHooks};
 use crate::actions::Action;
-use crate::prelude::FeroxFuzzError;
 use crate::requests::RequestId;
 use crate::responses::{Response, Timed};
 use crate::std_ext::tuple::Named;

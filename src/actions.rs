@@ -5,14 +5,12 @@
 use serde::{Deserialize, Serialize};
 
 use crate::corpora::CorpusItemType;
-use crate::input::Data;
 
 /// all possible actions
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
-pub enum Action
-{
+pub enum Action {
     /// when used in a pre-send context, retain the current [`Request`], if
     /// used in a post-send context, retain the current [`Response`]
     ///

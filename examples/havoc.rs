@@ -4,7 +4,7 @@
 //! cargo run --example havoc
 use feroxfuzz::actions::{Action, FlowControl};
 use feroxfuzz::client::{AsyncClient, HttpClient};
-use feroxfuzz::corpora::Wordlist;
+use feroxfuzz::corpora::{CorpusItemType, Wordlist};
 use feroxfuzz::deciders::StatusCodeDecider;
 use feroxfuzz::events::EventPublisher;
 use feroxfuzz::fuzzers::{AsyncFuzzer, AsyncFuzzing};
@@ -76,7 +76,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // won't progress beyond being added to the corpus. In either case, the
             // resulting `Action` will still be passed to any configured
             // Processors.
-            Action::AddToCorpus("corpus".to_string(), FlowControl::Keep)
+            Action::AddToCorpus(
+                "corpus".to_string(),
+                CorpusItemType::Request,
+                FlowControl::Keep,
+            )
         } else {
             Action::Discard
         }
@@ -90,7 +94,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         |response_observer: &ResponseObserver<AsyncResponse>, action, _state| {
             // since we are potentially adding to the corpus, we need to account for the action being
             // both Keep and AddToCorpus (with a FlowControl::Keep)
-            if let Some(Action::Keep) | Some(Action::AddToCorpus(_, FlowControl::Keep)) = action {
+            if let Some(Action::Keep) | Some(Action::AddToCorpus(_, _, FlowControl::Keep)) = action {
                 println!(
                     "[{}] {} - {} - {:?}",
                     response_observer.status_code(),

@@ -2,7 +2,6 @@
 //!
 //! [`Deciders`]: crate::deciders::Deciders
 use crate::requests::Request;
-use crate::responses::AsyncResponse;
 use crate::responses::Response;
 use crate::std_ext::tuple::Named;
 use crate::MatchName;
