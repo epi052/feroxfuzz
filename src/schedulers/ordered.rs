@@ -97,7 +97,6 @@ impl Scheduler for OrderedScheduler {
     fn update_length(&mut self) {
         // basically the same logic as reset, but we don't need to reset the index, nor reset
         // the state's view of the index
-
         self.indices.iter_mut().for_each(|index| {
             // first, we get the corpus associated with the current corpus_index
             let corpus = self.state.corpus_by_name(index.name()).unwrap();
@@ -107,6 +106,7 @@ impl Scheduler for OrderedScheduler {
 
             // if any items were added to the corpus, we'll need to update the length/expected iterations
             // accordingly
+            println!("updating length from {} to {}", index.len(), len);
             index.update_length(len);
             index.update_iterations(len);
         });

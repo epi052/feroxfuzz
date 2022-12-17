@@ -225,6 +225,7 @@ pub enum FeroxFuzzError {
 
     /// Represents a failure to obtain the concurrency limiting semaphore
     /// during asynchronous fuzzing
+    #[cfg(feature = "tokio")]
     #[error("Could not acquire the concurrency limiting semaphore")]
     FailedSemaphoreAcquire {
         /// underlying source error-type
