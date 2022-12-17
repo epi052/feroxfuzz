@@ -1,6 +1,3 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +7,7 @@ use crate::state::SharedState;
 use crate::std_ext::ops::Len;
 use crate::std_ext::tuple::Named;
 
-use tracing::{error, instrument, trace, warn};
+use tracing::{error, instrument, trace};
 
 /// In-order access of the associated [`Corpus`]
 ///
@@ -34,50 +31,34 @@ use tracing::{error, instrument, trace, warn};
 /// `http://example.com/login?username=user2&password=pass2`
 /// `http://example.com/login?username=user3&password=pass3`
 ///
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct OrderedScheduler {
-    current: AtomicUsize,
-    indices: Arc<Mutex<Vec<CorpusIndex>>>,
+    current: usize,
+    indices: Vec<CorpusIndex>,
 
     #[cfg_attr(feature = "serde", serde(skip))]
     state: SharedState,
 }
 
-impl Clone for OrderedScheduler {
-    fn clone(&self) -> Self {
-        Self {
-            current: AtomicUsize::new(self.current.load(Ordering::Relaxed)),
-            indices: self.indices.clone(),
-            state: self.state.clone(),
-        }
-    }
-}
-
 impl Scheduler for OrderedScheduler {
-    #[instrument(skip(self), fields(?self.current, ?self.indices), level = "trace")]
+    #[instrument(skip(self), fields(%self.current, ?self.indices), level = "trace")]
     fn next(&mut self) -> Result<(), FeroxFuzzError> {
         // iterate through the indices and increment the current index
-
-        if let Ok(mut guard) = self.indices.lock() {
-            for index in &mut *guard {
-                let current = self.current.load(Ordering::Relaxed);
-                if current > 0 && index.should_reset(current) {
-                    // once any of the indices reaches the end of its loop, the entire
-                    // scheduler has run to completion
-                    trace!("scheduler has run to completion");
-                    return Err(FeroxFuzzError::IterationStopped);
-                }
-
-                set_states_corpus_index(&self.state, index.name(), index.current())?;
-
-                index.next()?;
+        for index in &mut self.indices {
+            if self.current > 0 && index.should_reset(self.current) {
+                // once any of the indices reaches the end of its loop, the entire
+                // scheduler has run to completion
+                trace!("scheduler has run to completion");
+                return Err(FeroxFuzzError::IterationStopped);
             }
 
-            self.current.fetch_add(1, Ordering::Relaxed); // update the total number of times .next has been called
-        } else {
-            warn!("failed to acquire Scheduler lock; cannot advance iterator");
-        };
+            set_states_corpus_index(&self.state, index.name(), index.current())?;
+
+            index.next()?;
+        }
+
+        self.current += 1; // update the total number of times .next has been called
 
         Ok(())
     }
@@ -86,57 +67,35 @@ impl Scheduler for OrderedScheduler {
     /// indexes in the [`SharedState`] instance
     #[instrument(skip(self), level = "trace")]
     fn reset(&mut self) {
-        self.current.store(0, Ordering::Relaxed);
+        self.current = 0;
 
-        if let Ok(mut guard) = self.indices.lock() {
-            guard.iter_mut().for_each(|index| {
-                // first, we get the corpus associated with the current corpus_index
-                let corpus = self.state.corpus_by_name(index.name()).unwrap();
+        self.indices.iter_mut().for_each(|index| {
+            // first, we get the corpus associated with the current corpus_index
+            let corpus = self.state.corpus_by_name(index.name()).unwrap();
 
-                // and then get its length
-                let len = corpus.len();
+            // and then get its length
+            let len = corpus.len();
 
-                // if any items were added to the corpus, we'll need to update the length/expected iterations
-                // accordingly
-                index.update_length(len);
-                index.update_iterations(len);
+            // if any items were added to the corpus, we'll need to update the length/expected iterations
+            // accordingly
+            index.update_length(len);
+            index.update_iterations(len);
 
-                // we'll also reset the current index as well
-                index.reset();
+            // we'll also reset the current index as well
+            index.reset();
 
-                // finally, we get the SharedState's view of the index in sync with the Scheduler's
-                //
-                // i.e. at this point, the state and local indices should all be 0, and any items
-                // added to the corpus should be reflected in each index's length/iterations
-                set_states_corpus_index(&self.state, index.name(), 0).unwrap();
-            });
+            // finally, we get the SharedState's view of the index in sync with the Scheduler's
+            //
+            // i.e. at this point, the state and local indices should all be 0, and any items
+            // added to the corpus should be reflected in each index's length/iterations
+            set_states_corpus_index(&self.state, index.name(), 0).unwrap();
+        });
 
-            trace!("scheduler has been reset");
-        } else {
-            warn!("failed to acquire Scheduler lock; cannot reset iterator");
-        };
+        trace!("scheduler has been reset");
     }
 
     fn update_length(&mut self) {
-        // basically the same logic as reset, but we don't need to reset the index, nor reset
-        // the state's view of the index
-
-        if let Ok(mut guard) = self.indices.lock() {
-            guard.iter_mut().for_each(|index| {
-                // first, we get the corpus associated with the current corpus_index
-                let corpus = self.state.corpus_by_name(index.name()).unwrap();
-
-                // and then get its length
-                let len = corpus.len();
-
-                // if any items were added to the corpus, we'll need to update the length/expected iterations
-                // accordingly
-                index.update_length(len);
-                index.update_iterations(len);
-            });
-        } else {
-            warn!("failed to acquire Scheduler lock; cannot update Scheduler length");
-        }
+        todo!()
     }
 }
 
@@ -211,8 +170,8 @@ impl OrderedScheduler {
 
         Ok(Self {
             state,
-            indices: Arc::new(Mutex::new(indices)),
-            current: AtomicUsize::new(0),
+            indices,
+            current: 0,
         })
     }
 
@@ -224,11 +183,7 @@ impl OrderedScheduler {
     /// at a time, instead of all of them.
     #[instrument(skip(self), level = "trace")]
     pub fn limit_to_corpora(&mut self, corpora: &[&str]) {
-        if let Ok(mut guard) = self.indices.lock() {
-            guard.retain(|index| corpora.contains(&index.name()));
-        } else {
-            warn!("failed to acquire Scheduler lock; cannot limit iterated corpora");
-        }
+        self.indices.retain(|index| corpora.contains(&index.name()));
     }
 }
 
