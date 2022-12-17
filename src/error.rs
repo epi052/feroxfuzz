@@ -7,6 +7,9 @@ use reqwest;
 use thiserror::Error;
 use url::ParseError;
 
+#[cfg(feature = "tokio")]
+use tokio::sync::AcquireError;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -219,6 +222,14 @@ pub enum FeroxFuzzError {
     /// [`Action::StopFuzzing`]: crate::actions::Action::StopFuzzing
     #[error("Stopped fuzzing based on user-provided criteria")]
     FuzzingStopped,
+
+    /// Represents a failure to obtain the concurrency limiting semaphore
+    /// during asynchronous fuzzing
+    #[error("Could not acquire the concurrency limiting semaphore")]
+    FailedSemaphoreAcquire {
+        /// underlying source error-type
+        source: AcquireError,
+    },
 }
 
 /// Used to differentiate between different types of errors that occur when making requests.

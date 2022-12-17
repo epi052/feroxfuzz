@@ -159,6 +159,7 @@ where
                                 "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
                                 self.request_id
                             );
+                            state.events().notify(&Action::StopFuzzing);
                             return Ok(Some(Action::StopFuzzing));
                         }
                         FlowControl::Discard => {
@@ -178,6 +179,7 @@ where
                     }
                 }
                 Some(Action::StopFuzzing) => {
+                    state.events().notify(&Action::StopFuzzing);
                     return Ok(Some(Action::StopFuzzing));
                 }
                 Some(Action::Keep) => {
@@ -233,6 +235,7 @@ where
                                 "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
                                 self.request_id
                             );
+                            state.events().notify(&Action::StopFuzzing);
                             return Ok(Some(Action::StopFuzzing));
                         }
                         FlowControl::Discard => {
@@ -256,6 +259,7 @@ where
                         "[ID: {}] stopping fuzzing due to StopFuzzing action",
                         self.request_id
                     );
+                    state.events().notify(&Action::StopFuzzing);
                     return Ok(Some(Action::StopFuzzing));
                 }
                 Some(Action::Discard) => {

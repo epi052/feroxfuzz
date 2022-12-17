@@ -1,6 +1,3 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -11,7 +8,7 @@ use crate::std_ext::ops::Len;
 use crate::std_ext::tuple::Named;
 
 use libafl::bolts::rands::Rand;
-use tracing::{error, instrument, trace, warn};
+use tracing::{error, instrument, trace};
 
 /// Random access of the associated [`Corpus`]
 ///
@@ -38,55 +35,40 @@ use tracing::{error, instrument, trace, warn};
 /// the scheduler will select a random index for the `FUZZ_USER` corpus
 /// from 0-2 and a random index for the `FUZZ_PASS` corpus from 0-2. It
 /// will do this 3 times before it stops.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RandomScheduler {
-    current: AtomicUsize,
-    indices: Arc<Mutex<Vec<CorpusIndex>>>,
-    longest_corpus: AtomicUsize,
+    current: usize,
+    indices: Vec<CorpusIndex>,
+    longest_corpus: usize,
 
     #[cfg_attr(feature = "serde", serde(skip))]
     state: SharedState,
 }
 
-impl Clone for RandomScheduler {
-    fn clone(&self) -> Self {
-        Self {
-            current: AtomicUsize::new(self.current.load(Ordering::Relaxed)),
-            longest_corpus: AtomicUsize::new(self.longest_corpus.load(Ordering::Relaxed)),
-            indices: self.indices.clone(),
-            state: self.state.clone(),
-        }
-    }
-}
-
 impl Scheduler for RandomScheduler {
-    #[instrument(skip(self), fields(?self.current, ?self.longest_corpus, ?self.indices), level = "trace")]
+    #[instrument(skip(self), fields(%self.current, %self.longest_corpus, ?self.indices), level = "trace")]
     fn next(&mut self) -> Result<(), FeroxFuzzError> {
-        if let Ok(mut guard) = self.indices.lock() {
-            if self.current.load(Ordering::Relaxed) >= self.longest_corpus.load(Ordering::Relaxed) {
-                // random scheduler has run to completion once it
-                // has iterated the number of times as the longest
-                // given corpus
-                trace!("scheduler has run to completion");
-                return Err(FeroxFuzzError::IterationStopped);
-            }
+        if self.current >= self.longest_corpus {
+            // random scheduler has run to completion once it
+            // has iterated the number of times as the longest
+            // given corpus
+            trace!("scheduler has run to completion");
+            return Err(FeroxFuzzError::IterationStopped);
+        }
 
-            // iterate through the indices and increment the current index
-            for index in &mut *guard {
-                let length = index.len();
-                let random_idx = self.state.rng_mut().below(length as u64);
+        // iterate through the indices and increment the current index
+        for index in &mut self.indices {
+            let length = index.len();
+            let random_idx = self.state.rng_mut().below(length as u64);
 
-                #[allow(clippy::cast_possible_truncation)]
-                set_states_corpus_index(&self.state, index.name(), random_idx as usize)?;
+            #[allow(clippy::cast_possible_truncation)]
+            set_states_corpus_index(&self.state, index.name(), random_idx as usize)?;
 
-                // don't care about keeping track of each index's current index, so no index.next()
-            }
+            // don't care about keeping track of each index's current index, so no index.next()
+        }
 
-            self.current.fetch_add(1, Ordering::Relaxed); // update the total number of times .next has been called
-        } else {
-            warn!("failed to acquire Scheduler lock; cannot advance iterator");
-        };
+        self.current += 1; // update the total number of times .next has been called
 
         Ok(())
     }
@@ -94,58 +76,53 @@ impl Scheduler for RandomScheduler {
     /// resets all indexes that are tracked by the scheduler as well as their associated atomic
     /// indexes in the [`SharedState`] instance
     fn reset(&mut self) {
-        self.current.store(0, Ordering::Relaxed);
+        self.current = 0;
 
-        if let Ok(mut guard) = self.indices.lock() {
-            for index in &mut *guard {
-                // first, we get the corpus associated with the current corpus_index
-                let corpus = self.state.corpus_by_name(index.name()).unwrap();
+        for index in &mut self.indices {
+            // first, we get the corpus associated with the current corpus_index
+            let corpus = self.state.corpus_by_name(index.name()).unwrap();
 
-                // and then get its length
-                let len = corpus.len();
+            // and then get its length
+            let len = corpus.len();
 
-                // update the longest corpus if the current corpus is longer, since this is what's used
-                // to determine when the scheduler has run to completion
-                self.longest_corpus.fetch_max(len, Ordering::Relaxed);
-
-                // update the length of the current corpus_index, which is used to determine the
-                // upper bound of the RNG for producing a random index
-                index.update_length(len);
-
-                // purposely not resetting the current index, since we don't keep track of them in random scheduling
-
-                // finally, we get the SharedState's view of the index in sync with the Scheduler's
-                set_states_corpus_index(&self.state, index.name(), 0).unwrap();
+            // update the longest corpus if the current corpus is longer, since this is what's used
+            // to determine when the scheduler has run to completion
+            if len > self.longest_corpus {
+                self.longest_corpus = len;
             }
 
-            trace!("scheduler has been reset");
-        } else {
-            warn!("failed to acquire Scheduler lock; cannot reset iterator");
-        };
+            // update the length of the current corpus_index, which is used to determine the
+            // upper bound of the RNG for producing a random index
+            index.update_length(len);
+
+            // purposely not resetting the current index, since we don't keep track of them in random scheduling
+
+            // finally, we get the SharedState's view of the index in sync with the Scheduler's
+            set_states_corpus_index(&self.state, index.name(), 0).unwrap();
+        }
+
+        trace!("scheduler has been reset");
     }
 
     fn update_length(&mut self) {
-        // basically the same logic as reset, but we don't need to reset the index, nor reset
-        // the state's view of the index
+        self.current = 0;
 
-        if let Ok(mut guard) = self.indices.lock() {
-            for index in &mut *guard {
-                // first, we get the corpus associated with the current corpus_index
-                let corpus = self.state.corpus_by_name(index.name()).unwrap();
+        for index in &mut self.indices {
+            // first, we get the corpus associated with the current corpus_index
+            let corpus = self.state.corpus_by_name(index.name()).unwrap();
 
-                // and then get its length
-                let len = corpus.len();
+            // and then get its length
+            let len = corpus.len();
 
-                // update the longest corpus if the current corpus is longer, since this is what's used
-                // to determine when the scheduler has run to completion
-                self.longest_corpus.fetch_max(len, Ordering::Relaxed);
-
-                // update the length of the current corpus_index, which is used to determine the
-                // upper bound of the RNG for producing a random index
-                index.update_length(len);
+            // update the longest corpus if the current corpus is longer, since this is what's used
+            // to determine when the scheduler has run to completion
+            if len > self.longest_corpus {
+                self.longest_corpus = len;
             }
-        } else {
-            warn!("failed to acquire Scheduler lock; cannot update Scheduler length");
+
+            // update the length of the current corpus_index, which is used to determine the
+            // upper bound of the RNG for producing a random index
+            index.update_length(len);
         }
     }
 }
@@ -160,6 +137,9 @@ impl RandomScheduler {
     ///
     /// # Examples
     ///
+    /// see `examples/random-scheduler.rs` for a more robust example
+    /// and explanation
+    ///
     /// ```
     /// use feroxfuzz::schedulers::{Scheduler, RandomScheduler};
     /// use feroxfuzz::prelude::*;
@@ -172,6 +152,7 @@ impl RandomScheduler {
     ///
     /// let state = SharedState::with_corpora([ids, users]);
     ///
+    /// let order = ["users", "ids"];
     /// let mut scheduler = RandomScheduler::new(state.clone())?;
     ///
     /// let mut counter = 0;
@@ -221,10 +202,10 @@ impl RandomScheduler {
         }
 
         Ok(Self {
-            longest_corpus: AtomicUsize::new(longest_corpus),
+            longest_corpus,
             state,
-            indices: Arc::new(Mutex::new(indices)),
-            current: AtomicUsize::new(0),
+            indices,
+            current: 0,
         })
     }
 
@@ -237,11 +218,7 @@ impl RandomScheduler {
     /// at a time, instead of all of them.
     #[instrument(skip(self), level = "trace")]
     pub fn limit_to_corpora(&mut self, corpora: &[&str]) {
-        if let Ok(mut guard) = self.indices.lock() {
-            guard.retain(|index| corpora.contains(&index.name()));
-        } else {
-            warn!("failed to acquire Scheduler lock; cannot limit iterated corpora");
-        }
+        self.indices.retain(|index| corpora.contains(&index.name()));
     }
 }
 

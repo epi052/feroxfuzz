@@ -1,6 +1,3 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +7,7 @@ use crate::state::SharedState;
 use crate::std_ext::ops::Len;
 use crate::std_ext::tuple::Named;
 
-use tracing::{error, instrument, trace, warn};
+use tracing::{error, instrument, trace};
 
 /// Cartesian product of multiple [`Corpus`] entries
 ///
@@ -37,119 +34,103 @@ use tracing::{error, instrument, trace, warn};
 ///   user3: pass2
 ///   user3: pass3
 ///
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ProductScheduler {
-    current: AtomicUsize,
-    indices: Arc<Mutex<Vec<CorpusIndex>>>,
+    current: usize,
+    indices: Vec<CorpusIndex>,
 
     #[cfg_attr(feature = "serde", serde(skip))]
     state: SharedState,
 }
 
-impl Clone for ProductScheduler {
-    fn clone(&self) -> Self {
-        Self {
-            current: AtomicUsize::new(self.current.load(Ordering::Relaxed)),
-            indices: self.indices.clone(),
-            state: self.state.clone(),
-        }
-    }
-}
-
 impl Scheduler for ProductScheduler {
-    #[instrument(skip(self), fields(?self.current, ?self.indices), level = "trace")]
+    #[instrument(skip(self), fields(%self.current, ?self.indices), level = "trace")]
     fn next(&mut self) -> Result<(), FeroxFuzzError> {
-        if let Ok(mut guard) = self.indices.lock() {
-            // increment the zeroth index on every call to scheduler.next(); the zeroth
-            // index is the innermost loop (since we reversed the vec) and should be
-            // incremented every time.
-            //
-            // raises an error if the zeroth index has reached the total number of
-            // expected iterations
-            //
-            // since we check the length of the incoming corpus iterator in the
-            // constructor, we know we have at least one entry in `self.indices`
-            let num_indices = guard.len();
+        // increment the zeroth index on every call to scheduler.next(); the zeroth
+        // index is the innermost loop (since we reversed the vec) and should be
+        // incremented every time.
+        //
+        // raises an error if the zeroth index has reached the total number of
+        // expected iterations
+        //
+        // since we check the length of the incoming corpus iterator in the
+        // constructor, we know we have at least one entry in `self.indices`
+        let num_indices = self.indices.len();
 
-            // this shouldn't ever error, since we have at least one corpus; at worst, inner and outer
-            // are the same corpus
-            let outermost = guard.last().ok_or_else(|| {
-                error!("scheduler has no associated CorpusIndex");
-                FeroxFuzzError::EmptyCorpusIndices
-            })?;
+        // this shouldn't ever error, since we have at least one corpus; at worst, inner and outer
+        // are the same corpus
+        let outermost = self.indices.last().ok_or_else(|| {
+            error!("scheduler has no associated CorpusIndex");
+            FeroxFuzzError::EmptyCorpusIndices
+        })?;
 
-            let current = self.current.load(Ordering::SeqCst);
+        if self.current > 0 && outermost.should_reset(self.current) {
+            // when the outermost loop reaches the end of its loop, the entire
+            // nested loop structure has run to completion
+            trace!("scheduler has run to completion");
+            return Err(FeroxFuzzError::IterationStopped);
+        }
 
-            if current > 0 && outermost.should_reset(current) {
-                // when the outermost loop reaches the end of its loop, the entire
-                // nested loop structure has run to completion
-                trace!("scheduler has run to completion");
-                return Err(FeroxFuzzError::IterationStopped);
-            }
+        let innermost = &mut self.indices[0];
 
-            let innermost = &mut guard[0];
+        innermost.next()?;
 
-            innermost.next()?;
-
-            // if we have a single entry, we're done, just need to set the state's view
-            // of the current index to what was calculated here
-            if num_indices == 1 {
-                set_states_corpus_index(&self.state, innermost.name(), innermost.current())?;
-
-                self.current.fetch_add(1, Ordering::Relaxed); // update the total number of times .next has been called
-
-                return Ok(());
-            }
-
-            if !innermost.should_reset(self.current.load(Ordering::SeqCst)) {
-                // if the current scheduler.next iteration is not a modulo value
-                // for the innermost loop, we don't need to progress any further
-                set_states_corpus_index(&self.state, innermost.name(), innermost.current())?;
-
-                self.current.fetch_add(1, Ordering::Relaxed); // update the total number of times .next has been called
-
-                return Ok(());
-            }
-
-            // innermost loop has completed a full iteration, so we need to reset
-            innermost.reset();
-
+        // if we have a single entry, we're done, just need to set the state's view
+        // of the current index to what was calculated here
+        if num_indices == 1 {
             set_states_corpus_index(&self.state, innermost.name(), innermost.current())?;
 
-            // the for loop below iterates over an unknown number of corpora lengths
-            // and increments each scheduled index if their previous index's modulo
-            // value was 0. In the case of the first index, this will always be true
-            // since we just determined the innermost loop's modulo value above.
+            self.current += 1; // update the total number of times .next has been called
 
-            // The pattern is that when an index reaches its modulo value, it is
-            // reset to 0 and the next greater loop is incremented.
-            for index in guard[1..].iter_mut() {
-                // due to len==1 check above, the slice is ok
-                index.next()?;
+            return Ok(());
+        }
 
-                if !index.should_reset(self.current.load(Ordering::SeqCst)) {
-                    // if the current index is not yet at its modulo value,
-                    // continue to the next iteration, since it's not time to
-                    // increment any further indices
-                    //
-                    // recall that the innermost loop is the first index in the vec
-                    // and the outermost loop is the last index in the vec. so we
-                    // only progress to each outer-more loop when the current inner-more
-                    // loop has completed a full iteration.
-                    set_states_corpus_index(&self.state, index.name(), index.current())?;
-                    break;
-                }
+        if !innermost.should_reset(self.current) {
+            // if the current scheduler.next iteration is not a modulo value
+            // for the innermost loop, we don't need to progress any further
+            set_states_corpus_index(&self.state, innermost.name(), innermost.current())?;
 
-                index.reset();
+            self.current += 1; // update the total number of times .next has been called
 
+            return Ok(());
+        }
+
+        // innermost loop has completed a full iteration, so we need to reset
+        innermost.reset();
+
+        set_states_corpus_index(&self.state, innermost.name(), innermost.current())?;
+
+        // the for loop below iterates over an unknown number of corpora lengths
+        // and increments each scheduled index if their previous index's modulo
+        // value was 0. In the case of the first index, this will always be true
+        // since we just determined the innermost loop's modulo value above.
+
+        // The pattern is that when an index reaches its modulo value, it is
+        // reset to 0 and the next greater loop is incremented.
+        for index in self.indices[1..].iter_mut() {
+            // due to len==1 check above, the slice is ok
+            index.next()?;
+
+            if !index.should_reset(self.current) {
+                // if the current index is not yet at its modulo value,
+                // continue to the next iteration, since it's not time to
+                // increment any further indices
+                //
+                // recall that the innermost loop is the first index in the vec
+                // and the outermost loop is the last index in the vec. so we
+                // only progress to each outer-more loop when the current inner-more
+                // loop has completed a full iteration.
                 set_states_corpus_index(&self.state, index.name(), index.current())?;
+                break;
             }
 
-            self.current.fetch_add(1, Ordering::Relaxed); // update the total number of times .next has been called
-        } else {
-            warn!("failed to acquire Scheduler lock; cannot advance iterator");
-        };
+            index.reset();
+
+            set_states_corpus_index(&self.state, index.name(), index.current())?;
+        }
+
+        self.current += 1; // update the total number of times .next has been called
 
         Ok(())
     }
@@ -158,72 +139,64 @@ impl Scheduler for ProductScheduler {
     /// indexes in the [`SharedState`] instance
     #[instrument(skip(self), level = "trace")]
     fn reset(&mut self) {
-        self.current.store(0, Ordering::Relaxed);
+        self.current = 0;
 
         let mut total_iterations = 1;
 
-        if let Ok(mut guard) = self.indices.lock() {
-            guard.iter_mut().for_each(|index| {
-                // first, we get the corpus associated with the current corpus_index
-                let corpus = self.state.corpus_by_name(index.name()).unwrap();
+        self.indices.iter_mut().for_each(|index| {
+            // first, we get the corpus associated with the current corpus_index
+            let corpus = self.state.corpus_by_name(index.name()).unwrap();
 
-                // and then get its length
-                let len = corpus.len();
+            // and then get its length
+            let len = corpus.len();
 
-                // if any items were added to the corpus, we'll need to update the length/expected iterations
-                // accordingly
-                //
-                // note: self.indices is in the same order as what ::new() produced initially, so
-                // we can use the same strategy to update the total_iterations here, in the event
-                // that we add items to any of the corpora
-                total_iterations *= len;
+            // if any items were added to the corpus, we'll need to update the length/expected iterations
+            // accordingly
+            //
+            // note: self.indices is in the same order as what ::new() produced initially, so
+            // we can use the same strategy to update the total_iterations here, in the event
+            // that we add items to any of the corpora
+            total_iterations *= len;
 
-                index.update_length(len);
-                index.update_iterations(total_iterations);
+            index.update_length(len);
+            index.update_iterations(total_iterations);
 
-                // we'll also reset the current index as well
-                index.reset();
+            // we'll also reset the current index as well
+            index.reset();
 
-                // finally, we get the SharedState's view of the index in sync with the Scheduler's
-                //
-                // i.e. at this point, the state and local indices should all be 0, and any items
-                // added to the corpus should be reflected in each index's length/iterations
-                set_states_corpus_index(&self.state, index.name(), 0).unwrap();
-            });
+            // finally, we get the SharedState's view of the index in sync with the Scheduler's
+            //
+            // i.e. at this point, the state and local indices should all be 0, and any items
+            // added to the corpus should be reflected in each index's length/iterations
+            set_states_corpus_index(&self.state, index.name(), 0).unwrap();
+        });
 
-            trace!("scheduler has been reset");
-        } else {
-            warn!("failed to acquire Scheduler lock; cannot reset iterator");
-        };
+        trace!("scheduler has been reset");
     }
 
     fn update_length(&mut self) {
-        // basically the same logic as reset, but we don't need to reset the index, nor reset
-        // the state's view of the index
+        self.current = 0;
+
         let mut total_iterations = 1;
 
-        if let Ok(mut guard) = self.indices.lock() {
-            guard.iter_mut().for_each(|index| {
-                // first, we get the corpus associated with the current corpus_index
-                let corpus = self.state.corpus_by_name(index.name()).unwrap();
+        self.indices.iter_mut().for_each(|index| {
+            // first, we get the corpus associated with the current corpus_index
+            let corpus = self.state.corpus_by_name(index.name()).unwrap();
 
-                // and then get its length
-                let len = corpus.len();
+            // and then get its length
+            let len = corpus.len();
 
-                // if any items were added to the corpus, we'll need to update the length/expected iterations
-                // accordingly
-                //
-                // note: self.indices is in the same order as what ::new() produced initially, so
-                // we can use the same strategy to update the total_iterations here, in the event
-                // that we add items to any of the corpora
-                total_iterations *= len;
+            // if any items were added to the corpus, we'll need to update the length/expected iterations
+            // accordingly
+            //
+            // note: self.indices is in the same order as what ::new() produced initially, so
+            // we can use the same strategy to update the total_iterations here, in the event
+            // that we add items to any of the corpora
+            total_iterations *= len;
 
-                index.update_length(len);
-                index.update_iterations(total_iterations);
-            });
-        } else {
-            warn!("failed to acquire Scheduler lock; cannot update Scheduler length");
-        }
+            index.update_length(len);
+            index.update_iterations(total_iterations);
+        });
     }
 }
 
@@ -316,9 +289,9 @@ impl ProductScheduler {
         }
 
         Ok(Self {
-            indices: Arc::new(Mutex::new(indices)),
+            indices,
             state,
-            current: AtomicUsize::new(0),
+            current: 0,
         })
     }
 }
@@ -492,9 +465,7 @@ mod tests {
         )
         .unwrap();
 
-        state
-            .add_request_fields_to_corpus("users", &request)
-            .unwrap();
+        state.add_to_corpus("users", &request).unwrap();
 
         let users_corpus = state.corpus_by_name("users").unwrap();
         assert_eq!(users_corpus.len(), 3); // new user made it to the corpus
@@ -512,10 +483,8 @@ mod tests {
 
         // try it again with both corpora having an entry added to them
 
-        state.add_request_fields_to_corpus("ids", &request).unwrap();
-        state
-            .add_request_fields_to_corpus("users", &request)
-            .unwrap();
+        state.add_to_corpus("ids", &request).unwrap();
+        state.add_to_corpus("users", &request).unwrap();
 
         let ids_corpus = state.corpus_by_name("ids").unwrap();
 
@@ -585,7 +554,7 @@ mod tests {
 
         // when added to each corpus their legnth should increase by 2
         for name in order {
-            state.add_request_fields_to_corpus(name, &request).unwrap();
+            state.add_to_corpus(name, &request).unwrap();
         }
 
         assert_eq!(state.corpus_by_name("outer").unwrap().len(), 4);

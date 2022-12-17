@@ -1,14 +1,11 @@
 use std::fmt::Debug;
 use std::iter::Iterator;
 use std::marker::Send;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::future;
-use futures::stream::{self, FuturesUnordered, StreamExt};
+use futures::stream::{FuturesUnordered, StreamExt};
 use tokio::sync::Semaphore;
-use tokio::task::JoinHandle;
 use tracing::{instrument, warn};
 
 #[allow(clippy::wildcard_imports)]
@@ -33,6 +30,12 @@ use crate::schedulers::Scheduler;
 use crate::state::SharedState;
 use crate::std_ext::ops::Len;
 use crate::std_ext::ops::LogicOperation;
+
+#[derive(Debug, Clone)]
+struct RequestFuture {
+    response: AsyncResponse,
+    mutated_request: Request,
+}
 
 /// A fuzzer that sends requests asynchronously
 #[derive(Clone, Debug, Default)]
@@ -147,19 +150,13 @@ where
     M: Mutators + Send,
     O: Observers<AsyncResponse> + Send + Clone,
     P: Processors<O, AsyncResponse> + Send + Clone,
-    S: Scheduler + Send + Iterator<Item = ()> + Clone + Debug,
-    <S as Iterator>::Item: Debug,
+    S: Scheduler + Debug + Send,
 {
     #[instrument(skip_all, fields(%self.threads, ?self.post_send_logic, ?self.pre_send_logic) name = "fuzz-loop", level = "trace")]
     async fn fuzz_once(
         &mut self,
         state: &mut SharedState,
     ) -> Result<Option<Action>, FeroxFuzzError> {
-        let num_threads = self.threads;
-        let post_send_logic = self.post_send_logic();
-        let pre_send_logic = self.pre_send_logic();
-        let mut scheduler = self.scheduler.clone();
-
         if let Some(hook) = &mut self.pre_loop_hook {
             // call the pre-loop hook if it is defined
             (hook.callback)(state);
@@ -167,18 +164,20 @@ where
         }
 
         state.events().notify(FuzzOnce {
-            threads: num_threads,
-            pre_send_logic,
-            post_send_logic,
+            threads: self.threads,
+            pre_send_logic: self.pre_send_logic(),
+            post_send_logic: self.post_send_logic(),
             corpora_length: state.corpora().iter().map(|(_, v)| v.len()).sum(),
         });
 
-        let semaphore = Arc::new(Semaphore::new(self.threads));
-        let mut request_futures = FuturesUnordered::new();
+        // wrap the client in an Arc so that it can be cheaply moved into the async block
+        let client = Arc::new(self.client.clone());
 
-        // facilitates a threadsafe way to 'break' out of the iterator
-        let should_quit = Arc::new(AtomicBool::new(false));
-        // let mut err = Ok(());
+        // tokio semaphore to limit the number of concurrent requests
+        let semaphore = Arc::new(Semaphore::new(self.threads));
+
+        // collection of unordered futures to store the responses in for processing
+        let mut request_futures = FuturesUnordered::new();
 
         // first loop fires off requests
         while Scheduler::next(&mut self.scheduler).is_ok() {
@@ -190,9 +189,12 @@ where
 
             self.observers.call_pre_send_hooks(&mutated_request);
 
-            let decision =
-                self.deciders
-                    .call_pre_send_hooks(state, &mutated_request, None, pre_send_logic);
+            let decision = self.deciders.call_pre_send_hooks(
+                state,
+                &mutated_request,
+                None,
+                self.pre_send_logic(),
+            );
 
             if decision.is_some() {
                 // if there is an action to take, based off the deciders, then
@@ -229,11 +231,12 @@ where
                             state.add_request_fields_to_corpus(&name, &mutated_request)?;
                         }
                         CorpusItemType::Data(data) => {
-                            // todo need to add to corpus and then update the scheduler
                             state.add_data_to_corpus(&name, data)?;
                         }
                     }
 
+                    // now that we've added the relevant info to the corpus, we need to update
+                    // the scheduler to reflect the new corpus
                     self.scheduler.update_length();
 
                     match flow_control {
@@ -242,6 +245,7 @@ where
                                 "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
                                 self.request_id
                             );
+                            state.events().notify(&StopFuzzing);
                             return Ok(Some(Action::StopFuzzing));
                         }
                         FlowControl::Discard => {
@@ -265,6 +269,7 @@ where
                         "[ID: {}] stopping fuzzing due to StopFuzzing action",
                         mutated_request.id()
                     );
+                    state.events().notify(&StopFuzzing);
                     return Ok(Some(Action::StopFuzzing));
                 }
                 Some(Action::Keep) => {
@@ -275,26 +280,49 @@ where
                 None => {} // do nothing
             }
 
-            let cloned_client = self.client.clone();
+            // two arc clones are needed here, one for the semaphore, and one for the client
+            let cloned_client = client.clone();
             let cloned_semaphore = semaphore.clone();
 
+            // spawn a new task to send the request, and store the handle in the
+            // request_futures collection
             request_futures.push(tokio::spawn(async move {
-                let Ok(permit) = cloned_semaphore.acquire_owned().await else {
-                    // todo logging and actual error
-                    return Err(FeroxFuzzError::EmptyCorpusMap);
-                };
+                // the semaphore only has self.threads permits, so this will block
+                // until one is available, limiting the number of concurrent requests
+                match cloned_semaphore.acquire_owned().await {
+                    Ok(permit) => {
+                        let cloned_request = mutated_request.clone();
 
-                let result = cloned_client.send(mutated_request).await;
+                        let result = cloned_client.send(mutated_request).await;
 
-                drop(permit);
-                result
+                        drop(permit);
+
+                        match result {
+                            // if the request was successful, return the response
+                            // and the request that generated it
+                            Ok(response) => Ok(RequestFuture {
+                                response,
+                                mutated_request: cloned_request,
+                            }),
+                            // otherwise, allow the error to bubble up to the processing
+                            // loop
+                            Err(err) => Err(err),
+                        }
+                    }
+                    Err(err) => {
+                        tracing::error!("Failed to acquire semaphore permit: {:?}", err);
+                        Err(FeroxFuzzError::FailedSemaphoreAcquire { source: err })
+                    }
+                }
             }));
+
+            self.request_id += 1;
         }
 
         // second loop handles responses
         //
         // outer loop awaits the actual response, which is a double-nested Result
-        // Result<Result<AsyncResponse, FeroxFuzzError>, tokio::task::JoinError>
+        // Result<Result<RequestFuture, FeroxFuzzError>, tokio::task::JoinError>
         while let Some(handle) = request_futures.next().await {
             let Ok(task_result) = handle else {
                 // tokio::task::JoinError -- task failed to execute to completion
@@ -303,7 +331,7 @@ where
                 continue;
             };
 
-            let Ok(response) = task_result else {
+            let Ok(request_future) = task_result else {
                 let error = task_result.err().unwrap();
 
                 // feroxfuzz::client::Client::send returned an error, which is a client error
@@ -314,13 +342,19 @@ where
                 continue;
             };
 
+            // unpack the request_future into its request and response
+            let (request, response) = (request_future.mutated_request, request_future.response);
+
             let request_id = response.id(); // only used for logging
 
             self.observers.call_post_send_hooks(response);
 
-            let decision =
-                self.deciders
-                    .call_post_send_hooks(&state, &self.observers, None, post_send_logic);
+            let decision = self.deciders.call_post_send_hooks(
+                &state,
+                &self.observers,
+                None,
+                self.post_send_logic(),
+            );
 
             if state.update(&self.observers, decision.as_ref()).is_err() {
                 // could not update the state via the observers; cannot reliably make
@@ -335,24 +369,15 @@ where
 
             match decision {
                 Some(Action::AddToCorpus(name, corpus_item_type, flow_control)) => {
-                    // if we've reached this point, flow control doesn't matter anymore; the
-                    // only thing we need to check at this point is if we need to alter the
-                    // corpus
-
                     match corpus_item_type {
                         CorpusItemType::Request => {
-                            // todo get the mutated request from the upper loop into this one
-
-                            // if let Err(err) =
-                            // state.add_request_fields_to_corpus(&name, &mutated_request)
-                            // {
-                            // warn!("Could not add {:?} to corpus[{name}]: {:?}", &mutate_request, err);
-                            // }
+                            if let Err(err) = state.add_request_fields_to_corpus(&name, &request) {
+                                warn!("Could not add {:?} to corpus[{name}]: {:?}", &request, err);
+                            }
                         }
                         CorpusItemType::Data(data) => {
-                            // todo need to add to corpus and then update the scheduler
                             if let Err(err) = state.add_data_to_corpus(&name, data) {
-                                // warn!("Could not add {:?} to corpus[{name}]: {:?}", mutated_request, err);
+                                warn!("Could not add {:?} to corpus[{name}]: {:?}", request, err);
                             }
                         }
                     }
@@ -365,6 +390,7 @@ where
                                 "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
                                 request_id
                             );
+                            state.events().notify(&StopFuzzing);
                             return Ok(Some(Action::StopFuzzing));
                         }
                         FlowControl::Discard => {
@@ -380,6 +406,7 @@ where
                         "[ID: {}] stopping fuzzing due to StopFuzzing action",
                         request_id
                     );
+                    state.events().notify(&StopFuzzing);
                     return Ok(Some(Action::StopFuzzing));
                 }
                 Some(Action::Discard) => {
@@ -392,319 +419,14 @@ where
             }
         }
 
-        // stream::iter(scheduler)
-        //     .map(
-        //         |_| -> Result<
-        //             (
-        //                 JoinHandle<Result<AsyncResponse, FeroxFuzzError>>,
-        //                 O,
-        //                 D,
-        //                 P,
-        //                 S,
-        //                 Request,
-        //                 SharedState,
-        //                 Arc<AtomicBool>,
-        //             ),
-        //             FeroxFuzzError,
-        //         > {
-        //             let mut request = self.request.clone();
-
-        //             *request.id_mut() += self.request_id;
-
-        //             let mut mutated_request = self
-        //                 .mutators
-        //                 .call_mutate_hooks(state, request)?;
-
-        //             self.observers.call_pre_send_hooks(&mutated_request);
-
-        //             let decision = self.deciders.call_pre_send_hooks(
-        //                 state,
-        //                 &mutated_request,
-        //                 None,
-        //                 pre_send_logic,
-        //             );
-
-        //             if decision.is_some() {
-        //                 // if there is an action to take, based off the deciders, then
-        //                 // we need to set the action on the request, and then call the
-        //                 // state->stats->update method
-        //                 mutated_request.set_action(decision.clone());
-
-        //                 // currently, the only stats update this call performs is to
-        //                 // update the Action tracker with the request's id, so we
-        //                 // can hide it behind the if-let-some
-        //                 state.update_from_request(&mutated_request);
-        //             }
-
-        //             self.processors.call_pre_send_hooks(
-        //                 state,
-        //                 &mut mutated_request,
-        //                 decision.as_ref(),
-        //             );
-
-        //             match decision {
-        //                 Some(Action::Discard) => {
-        //                     self.request_id += 1;
-
-        //                     state.events().notify(DiscardedRequest {
-        //                         id: mutated_request.id(),
-        //                     });
-
-        //                     return Err(FeroxFuzzError::DiscardedRequest);
-        //                 }
-        //                 Some(Action::AddToCorpus(name, corpus_item_type, flow_control)) => {
-        //                     // i can't think of too many uses for an AddToCorpus to run on the
-        //                     // pre-send side of things... maybe a 'seen' corpus or something?
-        //                     // leaving it here for now.
-
-        //                     match corpus_item_type {
-        //                         CorpusItemType::Request => {
-        //                             state.add_request_fields_to_corpus(&name, &mutated_request)?;
-        //                         }
-        //                         CorpusItemType::Data(data) => {
-        //                             // todo need to add to corpus and then update the scheduler
-        //                             state.add_data_to_corpus(&name, data)?;
-        //                         }
-        //                     }
-
-        //                     self.scheduler.update_length();
-
-        //                     match flow_control {
-        //                         FlowControl::StopFuzzing => {
-        //                             tracing::info!(
-        //                                 "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
-        //                                 self.request_id
-        //                             );
-        //                             return Err(FeroxFuzzError::FuzzingStopped);
-        //                         }
-        //                         FlowControl::Discard => {
-        //                             self.request_id += 1;
-
-        //                             state.events().notify(DiscardedRequest {
-        //                                 id: mutated_request.id(),
-        //                             });
-
-        //                             return Err(FeroxFuzzError::DiscardedRequest);
-        //                         }
-        //                         FlowControl::Keep => {
-        //                             state.events().notify(KeptRequest {
-        //                                 id: mutated_request.id(),
-        //                             });
-        //                         }
-        //                     }
-
-        //                     // ignore when flow control is Keep, same as we do for Action::Keep below
-        //                 }
-        //                 Some(Action::StopFuzzing) => {
-        //                     tracing::info!(
-        //                         "[ID: {}] stopping fuzzing due to StopFuzzing action",
-        //                         self.request_id
-        //                     );
-        //                     return Err(FeroxFuzzError::FuzzingStopped);
-        //                 }
-        //                 Some(Action::Keep) => {
-        //                     state.events().notify(KeptRequest {
-        //                         id: mutated_request.id(),
-        //                     });
-        //                 }
-        //                 _ => {}// do nothing
-        //             }
-
-        //             let cloned_client = self.client.clone();
-        //             let cloned_observers = self.observers.clone();
-        //             let cloned_deciders = self.deciders.clone();
-        //             let cloned_processors = self.processors.clone();
-        //             let cloned_scheduler = self.scheduler.clone();
-        //             let cloned_state = state.clone();
-        //             let cloned_request = mutated_request.clone();
-        //             let cloned_quit_flag = should_quit.clone();
-
-        //             let response_handle = tokio::spawn(async move {
-        //                 let result = cloned_client.send(mutated_request).await?;
-        //                 Ok(result)
-        //             });
-
-        //             self.request_id += 1;
-
-        //             Ok((
-        //                 response_handle,
-        //                 cloned_observers,
-        //                 cloned_deciders,
-        //                 cloned_processors,
-        //                 cloned_scheduler,
-        //                 cloned_request,
-        //                 cloned_state,
-        //                 cloned_quit_flag,
-        //             ))
-        //         },
-        //     ).scan(&mut err, |err, result| {
-        //         if should_quit.load(Ordering::Relaxed) {
-        //             // this check accounts for us setting the action to StopFuzzing in the PostSend phase
-        //             **err = Err(FeroxFuzzError::FuzzingStopped);
-        //             return future::ready(None);
-        //         }
-
-        //         match result {
-        //             Ok((response_handle, observers, deciders, processors, scheduler, request, state, quit_flag)) => {
-        //                 future::ready(Some(Ok((response_handle, observers, deciders, processors, scheduler, request, state, quit_flag))))
-        //             }
-        //             Err(e) => {
-        //                 if matches!(e, FeroxFuzzError::DiscardedRequest) {
-        //                     future::ready(Some(Err(e)))
-        //                 } else {
-        //                     // this is the check that comes from PreSend
-        //                     should_quit.store(true, Ordering::Relaxed);
-        //                     **err = Err(FeroxFuzzError::FuzzingStopped);
-        //                     future::ready(None)
-        //                 }
-        //             }
-        //         }
-        //     })
-        //     .for_each_concurrent(num_threads, |result|
-        //         async move {
-        //         // the is_err -> return paradigm below isn't necessarily idiomatic rust, however, i didn't like the
-        //         // heavily indented match -> match -> if let Ok ..., so to keep the code more left-aligned, i
-        //         // chose to write it the way you see here
-
-        //         if result.is_err() {
-        //             // as of right now, the only possible error states the .map iterator above can get into is
-        //             // when a mutator fails for w/e random reason and when a Action::Discard is encountered; in
-        //             // either event, the request was never sent, so we can't reasonably continue
-
-        //             // failed mutation errors are logged at the error point, not here
-        //             return;
-        //         }
-
-        //         // result cannot be Err after this point, so is safe to unwrap
-        //         let (resp, mut c_observers, mut c_deciders, mut c_processors, mut c_scheduler, c_request, c_state, c_should_quit) =
-        //             result.unwrap();
-
-        //         if c_should_quit.load(Ordering::Relaxed) {
-        //             return;
-        //         }
-
-        //         // await the actual response, which is a double-nested Result
-        //         // Result<Result<AsyncResponse, FeroxFuzzError>, tokio::task::JoinError>
-        //         let response = resp.await;
-
-        //         if response.is_err() {
-        //             // tokio::task::JoinError -- task failed to execute to completion
-        //             // could be a cancelled task, or one that panicked for w/e reason
-        //             warn!("Task failed to execute to completion: {:?}", response.err());
-        //             return;
-        //         }
-
-        //         // response cannot be Err after this point, so is safe to unwrap and get the
-        //         // nested Result<AsyncResponse, FeroxFuzzError>
-        //         let response = response.unwrap();
-
-        //         if let Err(error) = response {
-        //             // feroxfuzz::client::Client::send returned an error, which is a client error
-        //             // that means we need to update the statistics and then continue
-        //             c_state.update_from_error(&error).unwrap_or_default();
-
-        //             warn!(%error, "response errored out and will not continue through the fuzz loop");
-        //             return;
-        //         }
-
-        //         let request_id = response.as_ref().unwrap().id();  // only used for logging
-
-        //         // response cannot be Err after this point, so is safe to unwrap
-        //         c_observers.call_post_send_hooks(response.unwrap());
-
-        //         let decision =
-        //             c_deciders.call_post_send_hooks(&c_state, &c_observers, None, post_send_logic);
-
-        //         if c_state.update(&c_observers, decision.as_ref()).is_err() {
-        //             // could not update the state via the observers; cannot reliably make
-        //             // decisions or perform actions on this response as a result and must
-        //             // skip any post processing actions
-        //             warn!("Could not update state via observers; skipping Deciders and Processors");
-        //             return;
-        //         }
-
-        //         c_processors.call_post_send_hooks(&c_state, &c_observers, decision.as_ref());
-
-        //         match decision {
-        //             Some(Action::AddToCorpus(name, corpus_item_type, flow_control)) => {
-        //                 // if we've reached this point, flow control doesn't matter anymore; the
-        //                 // only thing we need to check at this point is if we need to alter the
-        //                 // corpus
-
-        //                 match corpus_item_type {
-        //                     CorpusItemType::Request => {
-        //                         if let Err(err) = c_state.add_request_fields_to_corpus(&name, &c_request) {
-        //                             warn!("Could not add {:?} to corpus[{name}]: {:?}", c_request, err);
-        //                         }
-        //                     }
-        //                     CorpusItemType::Data(data) => {
-        //                         // todo need to add to corpus and then update the scheduler
-        //                         if let Err(err) = c_state.add_data_to_corpus(&name, data) {
-        //                             warn!("Could not add {:?} to corpus[{name}]: {:?}", c_request, err);
-        //                         }
-        //                     }
-        //                 }
-
-        //                 c_scheduler.update_length();
-
-        //                 match flow_control {
-        //                     FlowControl::StopFuzzing => {
-        //                         tracing::info!(
-        //                             "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
-        //                             request_id
-        //                         );
-        //                         c_should_quit.store(true, Ordering::Relaxed);
-        //                     }
-        //                     FlowControl::Discard => {
-        //                         c_state.events().notify(DiscardedResponse {
-        //                             id: request_id
-        //                         });
-        //                     }
-        //                     FlowControl::Keep => {
-        //                         c_state.events().notify(KeptResponse {
-        //                             id: request_id
-        //                         });
-        //                     }
-        //                 }
-        //             }
-        //             Some(Action::StopFuzzing) => {
-        //                 tracing::info!(
-        //                     "[ID: {}] stopping fuzzing due to StopFuzzing action",
-        //                     request_id
-        //                 );
-        //                 c_should_quit.store(true, Ordering::Relaxed);
-        //             }
-        //             Some(Action::Discard) => {
-        //                 c_state.events().notify(DiscardedResponse {
-        //                     id: request_id
-        //                 });
-        //             }
-        //             Some(Action::Keep) => {
-        //                 c_state.events().notify(KeptResponse {
-        //                     id: request_id
-        //                 });
-        //             }
-        //             None => {}
-
-        //         }
-        // })
-        //     .await;
-
         // in case we're fuzzing more than once, reset the scheduler
         self.scheduler.reset();
 
-        // if err.is_err() || should_quit.load(Ordering::SeqCst) {
-        //     // fire the stop fuzzing event
-        //     state.events().notify(&StopFuzzing);
-
-        //     if let Some(hook) = &mut self.post_loop_hook {
-        //         // call the post loop hook if available;
-        //         (hook.callback)(state);
-        //         hook.called += 1;
-        //     }
-
-        //     return Ok(Some(Action::StopFuzzing));
-        // }
+        if let Some(hook) = &mut self.post_loop_hook {
+            // call the post-loop hook if it is defined
+            (hook.callback)(state);
+            hook.called += 1;
+        }
 
         Ok(None) // no action taken
     }
