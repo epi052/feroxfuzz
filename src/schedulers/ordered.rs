@@ -106,7 +106,6 @@ impl Scheduler for OrderedScheduler {
 
             // if any items were added to the corpus, we'll need to update the length/expected iterations
             // accordingly
-            println!("updating length from {} to {}", index.len(), len);
             index.update_length(len);
             index.update_iterations(len);
         });
