@@ -3,10 +3,11 @@ use std::any::Any;
 use super::{Processor, ProcessorHooks};
 
 use crate::metadata::AsAny;
+use crate::observers::Observers;
 use crate::requests::Request;
 use crate::state::SharedState;
 use crate::std_ext::tuple::Named;
-use crate::{actions::Action, responses::AsyncResponse};
+use crate::{actions::Action, responses::Response};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -19,48 +20,14 @@ use tracing::instrument;
 ///
 /// # Examples
 ///
-/// While the example below works, the normal use-case for this struct is to pass
-/// it, and any other [`Processors`] to the [`build_processors`] macro, and pass
-/// the result of that call to your chosen [`Fuzzer`] implementation.
+/// see any of the following examples for how to use `RequestProcessor`:
+/// - examples/battering-ram.rs
+/// - examples/cartesian-product.rs
+/// - examples/cluster-bomb.rs
+/// - examples/from-url-list.rs
+/// - examples/pitchfork.rs
+/// - examples/sniper.rs
 ///
-/// [`Fuzzer`]: crate::fuzzers::Fuzzer
-/// [`Deciders`]: crate::deciders::Deciders
-/// [`Processors`]: crate::processors::Processors
-/// [`build_processors`]: crate::build_processors
-///
-/// ```
-/// # use feroxfuzz::prelude::*;
-/// # use feroxfuzz::processors::{RequestProcessor, ProcessorHooks};
-/// # use feroxfuzz::corpora::RangeCorpus;
-/// # use feroxfuzz::actions::Action;
-/// # fn main() -> Result<(), FeroxFuzzError> {
-/// // normally this would be passed to the Mutators before processing
-/// let mut request = Request::from_url("http://localhost:8080", None)?;
-///
-/// // also not relevant to the current example, but it's needed to make the call to the hook
-/// let mut state = SharedState::with_corpus(RangeCorpus::with_stop(3).name("range").build()?);
-///
-///
-/// // create a RequestProcessor that executes the provided closure before
-/// // the client has sent the mutated request. Within the closure,
-/// // access to the fuzzer's current mutated Request is provided
-/// let mut request_checker = RequestProcessor::new(|request, action, _state| {
-///     if let Some(inner) = action {
-///         if matches!(inner, Action::Discard) {
-///             // the action shown here came is the result of any
-///             // request Deciders that ran on this particular
-///             // request
-///             println!("skipping {:?}", request)
-///         }
-///     }
-/// });
-///
-/// // finally, make the call to `pre_send_hook`, allowing the side-effect to take place
-/// request_checker.pre_send_hook(&mut state, &mut request, None);
-///
-/// # Ok(())
-/// # }
-/// ```
 #[derive(Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[allow(clippy::derive_partial_eq_without_eq)] // known false-positive introduced in 1.63.0
@@ -89,9 +56,11 @@ impl<F> Processor for RequestProcessor<F> where
 {
 }
 
-impl<F> ProcessorHooks<(), AsyncResponse> for RequestProcessor<F>
+impl<F, O, R> ProcessorHooks<O, R> for RequestProcessor<F>
 where
     F: Fn(&mut Request, Option<&Action>, &SharedState) + Sync + Send + Clone + 'static,
+    O: Observers<R>,
+    R: Response,
 {
     #[instrument(skip_all, fields(?action), level = "trace")]
     fn pre_send_hook(

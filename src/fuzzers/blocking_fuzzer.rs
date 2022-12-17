@@ -2,6 +2,7 @@
 use super::{typestate::*, BlockingFuzzerBuilder, BlockingFuzzing, Fuzzer, FuzzingLoopHook};
 use crate::actions::{Action, FlowControl};
 use crate::client::BlockingRequests;
+use crate::corpora::CorpusItemType;
 use crate::deciders::Deciders;
 use crate::error::FeroxFuzzError;
 use crate::events::{
@@ -135,12 +136,22 @@ where
 
                     continue;
                 }
-                Some(Action::AddToCorpus(name, flow_control)) => {
+                Some(Action::AddToCorpus(name, corpus_item_type, flow_control)) => {
                     // i can't think of too many uses for an AddToCorpus to run on the
                     // pre-send side of things... maybe a 'seen' corpus or something?
                     // leaving it here for now.
 
-                    state.add_to_corpus(&name, &mutated_request)?;
+                    match corpus_item_type {
+                        CorpusItemType::Request => {
+                            state.add_request_fields_to_corpus(&name, &mutated_request)?;
+                        }
+                        CorpusItemType::Data(data) => {
+                            // todo need to add to corpus and then update the scheduler
+                            state.add_data_to_corpus(&name, data)?;
+                        }
+                    }
+
+                    self.scheduler.update_length();
 
                     match flow_control {
                         FlowControl::StopFuzzing => {
@@ -148,6 +159,7 @@ where
                                 "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
                                 self.request_id
                             );
+                            state.events().notify(&Action::StopFuzzing);
                             return Ok(Some(Action::StopFuzzing));
                         }
                         FlowControl::Discard => {
@@ -167,6 +179,7 @@ where
                     }
                 }
                 Some(Action::StopFuzzing) => {
+                    state.events().notify(&Action::StopFuzzing);
                     return Ok(Some(Action::StopFuzzing));
                 }
                 Some(Action::Keep) => {
@@ -203,8 +216,18 @@ where
                 // if we've reached this point, the only flow control that matters anymore is
                 // if the fuzzer should stop fuzzing; that means the only thing we need
                 // to check at this point is if we need to alter the corpus
-                Some(Action::AddToCorpus(name, flow_control)) => {
-                    state.add_to_corpus(&name, &mutated_request)?;
+                Some(Action::AddToCorpus(name, corpus_item_type, flow_control)) => {
+                    match corpus_item_type {
+                        CorpusItemType::Request => {
+                            state.add_request_fields_to_corpus(&name, &mutated_request)?;
+                        }
+                        CorpusItemType::Data(data) => {
+                            // todo need to add to corpus and then update the scheduler
+                            state.add_data_to_corpus(&name, data)?;
+                        }
+                    }
+
+                    self.scheduler.update_length();
 
                     match flow_control {
                         FlowControl::StopFuzzing => {
@@ -212,6 +235,7 @@ where
                                 "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
                                 self.request_id
                             );
+                            state.events().notify(&Action::StopFuzzing);
                             return Ok(Some(Action::StopFuzzing));
                         }
                         FlowControl::Discard => {
@@ -235,6 +259,7 @@ where
                         "[ID: {}] stopping fuzzing due to StopFuzzing action",
                         self.request_id
                     );
+                    state.events().notify(&Action::StopFuzzing);
                     return Ok(Some(Action::StopFuzzing));
                 }
                 Some(Action::Discard) => {

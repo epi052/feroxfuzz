@@ -103,6 +103,28 @@ impl Scheduler for RandomScheduler {
 
         trace!("scheduler has been reset");
     }
+
+    fn update_length(&mut self) {
+        self.current = 0;
+
+        for index in &mut self.indices {
+            // first, we get the corpus associated with the current corpus_index
+            let corpus = self.state.corpus_by_name(index.name()).unwrap();
+
+            // and then get its length
+            let len = corpus.len();
+
+            // update the longest corpus if the current corpus is longer, since this is what's used
+            // to determine when the scheduler has run to completion
+            if len > self.longest_corpus {
+                self.longest_corpus = len;
+            }
+
+            // update the length of the current corpus_index, which is used to determine the
+            // upper bound of the RNG for producing a random index
+            index.update_length(len);
+        }
+    }
 }
 
 impl RandomScheduler {

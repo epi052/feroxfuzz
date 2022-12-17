@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use crate::actions::Action;
 use crate::deciders::LogicOperation;
 use crate::error::FeroxFuzzError;
-use crate::events::{EventPublisher, FuzzForever, FuzzNTimes, StopFuzzing};
+use crate::events::{EventPublisher, FuzzForever, FuzzNTimes};
 use crate::state::SharedState;
 
 use async_trait::async_trait;
@@ -139,7 +139,6 @@ pub trait BlockingFuzzing: Fuzzer {
 
         loop {
             if self.fuzz_once(state)? == Some(Action::StopFuzzing) {
-                state.events().notify(&StopFuzzing);
                 break Ok(());
             }
         }
@@ -172,7 +171,6 @@ pub trait BlockingFuzzing: Fuzzer {
 
         for _ in 0..num_iterations {
             if self.fuzz_once(state)? == Some(Action::StopFuzzing) {
-                state.events().notify(&StopFuzzing);
                 return Ok(());
             }
         }
