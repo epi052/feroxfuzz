@@ -652,11 +652,9 @@ impl SharedState {
     /// determine if the given key is in the [`MetadataMap`]
     #[must_use]
     pub fn has_metadata(&self, name: &str) -> bool {
-        if let Ok(guard) = self.metadata.read() {
-            guard.contains_key(name)
-        } else {
-            false
-        }
+        self.metadata
+            .read()
+            .map_or(false, |guard| guard.contains_key(name))
     }
 
     /// add an implementor of [`Metadata`] to the `[MetadataMap]`

@@ -213,10 +213,10 @@ impl BitAnd for Action {
                 Self::Discard
             }
             (Self::AddToCorpus(name, corpus_item_type, flow_control), other) => {
-                Self::AddToCorpus(name, corpus_item_type.clone(), flow_control & other)
+                Self::AddToCorpus(name, corpus_item_type, flow_control & other)
             }
             (lhs, Self::AddToCorpus(name, corpus_item_type, flow_control)) => {
-                Self::AddToCorpus(name, corpus_item_type.clone(), flow_control & lhs)
+                Self::AddToCorpus(name, corpus_item_type, flow_control & lhs)
             }
             (_, Self::StopFuzzing) | (Self::StopFuzzing, _) => Self::StopFuzzing,
         }
@@ -232,7 +232,7 @@ impl BitAnd<FlowControl> for Action {
             (Self::Keep | Self::Discard, FlowControl::Discard)
             | (Self::Discard, FlowControl::Keep) => Self::Discard,
             (Self::AddToCorpus(name, corpus_item_type, flow_control), other) => {
-                Self::AddToCorpus(name, corpus_item_type.clone(), flow_control & other)
+                Self::AddToCorpus(name, corpus_item_type, flow_control & other)
             }
             (Self::StopFuzzing, _) | (_, FlowControl::StopFuzzing) => Self::StopFuzzing,
         }
@@ -285,10 +285,10 @@ impl BitOr for Action {
             (Self::Keep | Self::Discard, Self::Keep) | (Self::Keep, Self::Discard) => Self::Keep,
             (Self::Discard, Self::Discard) => Self::Discard,
             (Self::AddToCorpus(name, corpus_item_type, flow_control), other) => {
-                Self::AddToCorpus(name, corpus_item_type.clone(), flow_control | other)
+                Self::AddToCorpus(name, corpus_item_type, flow_control | other)
             }
             (lhs, Self::AddToCorpus(name, corpus_item_type, flow_control)) => {
-                Self::AddToCorpus(name, corpus_item_type.clone(), flow_control | lhs)
+                Self::AddToCorpus(name, corpus_item_type, flow_control | lhs)
             }
             (Self::StopFuzzing, _) | (_, Self::StopFuzzing) => Self::StopFuzzing,
         }
@@ -305,7 +305,7 @@ impl BitOr<FlowControl> for Action {
             | (Self::Keep, FlowControl::Discard) => Self::Keep,
             (Self::Discard, FlowControl::Discard) => Self::Discard,
             (Self::AddToCorpus(name, corpus_item_type, flow_control), other) => {
-                Self::AddToCorpus(name, corpus_item_type.clone(), flow_control | other)
+                Self::AddToCorpus(name, corpus_item_type, flow_control | other)
             }
             (_, FlowControl::StopFuzzing) | (Self::StopFuzzing, _) => Self::StopFuzzing,
         }
@@ -705,7 +705,7 @@ mod tests {
             ),
             Action::AddToCorpus(
                 "stuff".to_string(),
-                corpus_item_type.clone(),
+                corpus_item_type,
                 FlowControl::StopFuzzing
             )
         );
@@ -797,7 +797,7 @@ mod tests {
             ) & FlowControl::Discard,
             Action::AddToCorpus(
                 "stuff".to_string(),
-                corpus_item_type.clone(),
+                corpus_item_type,
                 FlowControl::StopFuzzing
             )
         );
@@ -905,11 +905,7 @@ mod tests {
         );
         assert_eq!(
             FlowControl::StopFuzzing
-                & Action::AddToCorpus(
-                    "stuff".to_string(),
-                    corpus_item_type.clone(),
-                    FlowControl::Discard
-                ),
+                & Action::AddToCorpus("stuff".to_string(), corpus_item_type, FlowControl::Discard),
             FlowControl::StopFuzzing
         );
     }
@@ -919,6 +915,7 @@ mod tests {
     /// test that the `BitOr` implementation for `Action` produces the correct
     /// results when action is both the lhs and rhs
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn test_bitor_action_and_action() {
         let corpus_item_type = CorpusItemType::Request;
 
@@ -1371,11 +1368,7 @@ mod tests {
         );
         assert_eq!(
             FlowControl::StopFuzzing
-                | Action::AddToCorpus(
-                    "stuff".to_string(),
-                    corpus_item_type.clone(),
-                    FlowControl::Discard
-                ),
+                | Action::AddToCorpus("stuff".to_string(), corpus_item_type, FlowControl::Discard),
             FlowControl::StopFuzzing
         );
     }

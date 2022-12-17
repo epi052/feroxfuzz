@@ -1,4 +1,5 @@
 //! Corpora modeled around how the test cases are generated, i.e. from a file/folder etc...
+#![allow(clippy::use_self)] // clippy false-positive on CorpusItemType, doesn't want to apply directly to the enums that derive Serialize
 mod directory;
 mod http_methods;
 mod range;
@@ -53,12 +54,12 @@ pub enum CorpusItemType {
 
     /// When the corpus item type is [`CorpusItemType::Data`], the [`Data`] value
     /// associated with the key will be added to the corpus.
-    /// 
+    ///
     /// # Note
-    /// 
+    ///
     /// There are a lot of [`From`] implementations for [`Data`]. When creating
     /// a [`CorpusItemType::Data`] item, you can probably just use `.into`:
-    /// 
+    ///
     /// ```
     /// # use feroxfuzz::corpora::CorpusItemType;
     /// CorpusItemType::Data("something".into());

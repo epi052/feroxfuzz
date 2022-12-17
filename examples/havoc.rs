@@ -94,7 +94,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         |response_observer: &ResponseObserver<AsyncResponse>, action, _state| {
             // since we are potentially adding to the corpus, we need to account for the action being
             // both Keep and AddToCorpus (with a FlowControl::Keep)
-            if let Some(Action::Keep) | Some(Action::AddToCorpus(_, _, FlowControl::Keep)) = action {
+            if let Some(Action::Keep) | Some(Action::AddToCorpus(_, _, FlowControl::Keep)) = action
+            {
                 println!(
                     "[{}] {} - {} - {:?}",
                     response_observer.status_code(),

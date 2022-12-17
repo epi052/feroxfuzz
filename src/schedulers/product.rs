@@ -465,7 +465,9 @@ mod tests {
         )
         .unwrap();
 
-        state.add_to_corpus("users", &request).unwrap();
+        state
+            .add_request_fields_to_corpus("users", &request)
+            .unwrap();
 
         let users_corpus = state.corpus_by_name("users").unwrap();
         assert_eq!(users_corpus.len(), 3); // new user made it to the corpus
@@ -483,8 +485,10 @@ mod tests {
 
         // try it again with both corpora having an entry added to them
 
-        state.add_to_corpus("ids", &request).unwrap();
-        state.add_to_corpus("users", &request).unwrap();
+        state.add_request_fields_to_corpus("ids", &request).unwrap();
+        state
+            .add_request_fields_to_corpus("users", &request)
+            .unwrap();
 
         let ids_corpus = state.corpus_by_name("ids").unwrap();
 
@@ -554,7 +558,7 @@ mod tests {
 
         // when added to each corpus their legnth should increase by 2
         for name in order {
-            state.add_to_corpus(name, &request).unwrap();
+            state.add_request_fields_to_corpus(name, &request).unwrap();
         }
 
         assert_eq!(state.corpus_by_name("outer").unwrap().len(), 4);

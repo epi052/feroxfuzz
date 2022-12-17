@@ -292,6 +292,7 @@ where
 
     /// examine the response's url and grab the file's extension if one is available
     /// to be grabbed.
+    #[allow(clippy::missing_panics_doc)]
     #[must_use]
     pub fn extension(&self) -> Option<&str> {
         // path_segments:

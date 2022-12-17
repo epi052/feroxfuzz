@@ -350,7 +350,7 @@ where
             self.observers.call_post_send_hooks(response);
 
             let decision = self.deciders.call_post_send_hooks(
-                &state,
+                state,
                 &self.observers,
                 None,
                 self.post_send_logic(),
@@ -365,7 +365,7 @@ where
             }
 
             self.processors
-                .call_post_send_hooks(&state, &self.observers, decision.as_ref());
+                .call_post_send_hooks(state, &self.observers, decision.as_ref());
 
             match decision {
                 Some(Action::AddToCorpus(name, corpus_item_type, flow_control)) => {
