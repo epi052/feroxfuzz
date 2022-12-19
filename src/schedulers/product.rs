@@ -213,7 +213,7 @@ impl Scheduler for ProductScheduler {
                 // iterations to reflect the new length
                 index.update_current(len - difference - 1);
             } else {
-                index.reset()
+                index.reset();
             }
 
             index.update_length(len);

@@ -97,11 +97,6 @@ impl CorpusIndex {
     }
 
     #[inline]
-    fn iterations(&self) -> usize {
-        self.iterations
-    }
-
-    #[inline]
     fn next(&mut self) -> Result<(), FeroxFuzzError> {
         if self.current == self.length {
             return Err(FeroxFuzzError::IterationStopped);

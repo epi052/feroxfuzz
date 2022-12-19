@@ -436,7 +436,7 @@ where
             // left off, from a scheduling perspective
             self.scheduler.update_length();
 
-            return Ok(self.fuzz_once(state).await?);
+            return self.fuzz_once(state).await;
         }
 
         // in case we're fuzzing more than once, reset the scheduler
