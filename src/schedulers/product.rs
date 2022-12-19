@@ -34,7 +34,7 @@ use tracing::{error, instrument, trace};
 ///   user3: pass2
 ///   user3: pass3
 ///
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ProductScheduler {
     current: usize,
@@ -42,6 +42,15 @@ pub struct ProductScheduler {
 
     #[cfg_attr(feature = "serde", serde(skip))]
     state: SharedState,
+}
+
+impl std::fmt::Debug for ProductScheduler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProductScheduler")
+            .field("current", &self.current)
+            .field("indices", &self.indices)
+            .finish()
+    }
 }
 
 impl Scheduler for ProductScheduler {
@@ -89,6 +98,10 @@ impl Scheduler for ProductScheduler {
         if !innermost.should_reset(self.current) {
             // if the current scheduler.next iteration is not a modulo value
             // for the innermost loop, we don't need to progress any further
+            //
+            // i.e. if the innermost loop has 3 entries, we need to increment
+            // innermost until it reaches 3, then reset it to 0 before moving
+            // on to the next outer loop
             set_states_corpus_index(&self.state, innermost.name(), innermost.current())?;
 
             self.current += 1; // update the total number of times .next has been called
@@ -175,8 +188,6 @@ impl Scheduler for ProductScheduler {
     }
 
     fn update_length(&mut self) {
-        self.current = 0;
-
         let mut total_iterations = 1;
 
         self.indices.iter_mut().for_each(|index| {
@@ -185,6 +196,7 @@ impl Scheduler for ProductScheduler {
 
             // and then get its length
             let len = corpus.len();
+            let difference = len - index.len();
 
             // if any items were added to the corpus, we'll need to update the length/expected iterations
             // accordingly
@@ -193,6 +205,16 @@ impl Scheduler for ProductScheduler {
             // we can use the same strategy to update the total_iterations here, in the event
             // that we add items to any of the corpora
             total_iterations *= len;
+
+            index.reset(); // set index.current to 0
+
+            if difference > 0 {
+                // if we added items to the corpus, we need to update the index's
+                // iterations to reflect the new length
+                index.update_current(len - difference - 1);
+            } else {
+                index.reset()
+            }
 
             index.update_length(len);
             index.update_iterations(total_iterations);

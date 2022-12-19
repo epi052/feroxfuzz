@@ -239,9 +239,9 @@ where
                         }
                     }
 
-                    // now that we've added the relevant info to the corpus, we need to update
-                    // the scheduler to reflect the new corpus
-                    self.scheduler.update_length();
+                    // now that we've added the relevant info to the corpus, we need to set
+                    // the flag that will trigger an update to the scheduler that will reflect
+                    // the new corpus
                     corpus_modified = true;
 
                     match flow_control {
@@ -386,7 +386,6 @@ where
                         }
                     }
 
-                    self.scheduler.update_length();
                     corpus_modified = true;
 
                     match flow_control {
@@ -435,7 +434,9 @@ where
             // current position isn't updated when we add new items to the corpus, so
             // successive calls to fuzz_once will continue from where the first call
             // left off, from a scheduling perspective
-            self.fuzz_once(state).await?;
+            self.scheduler.update_length();
+
+            return Ok(self.fuzz_once(state).await?);
         }
 
         // in case we're fuzzing more than once, reset the scheduler

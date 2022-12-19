@@ -105,8 +105,6 @@ impl Scheduler for RandomScheduler {
     }
 
     fn update_length(&mut self) {
-        self.current = 0;
-
         for index in &mut self.indices {
             // first, we get the corpus associated with the current corpus_index
             let corpus = self.state.corpus_by_name(index.name()).unwrap();

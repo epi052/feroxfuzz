@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::sync::atomic::Ordering;
 
-use tracing::{debug, error, instrument};
+use tracing::{error, instrument, trace};
 
 /// Token-based mutator. Examines input [`Data`] for all instances of
 /// its `keyword` and replaces those instances with an item
@@ -131,9 +131,10 @@ impl Mutator for ReplaceKeyword {
 
                 if indices.is_empty() {
                     // early return to avoid allocation if no indices found
-                    debug!(
+                    trace!(
                         "keyword '{:?}' not found in data '{:?}'",
-                        &self.keyword, data
+                        &self.keyword,
+                        data
                     );
                     return Ok(());
                 }

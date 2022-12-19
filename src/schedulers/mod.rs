@@ -97,6 +97,11 @@ impl CorpusIndex {
     }
 
     #[inline]
+    fn iterations(&self) -> usize {
+        self.iterations
+    }
+
+    #[inline]
     fn next(&mut self) -> Result<(), FeroxFuzzError> {
         if self.current == self.length {
             return Err(FeroxFuzzError::IterationStopped);
@@ -114,7 +119,7 @@ impl CorpusIndex {
 
     #[inline]
     fn reset(&mut self) {
-        self.current = 0;
+        self.update_current(0);
     }
 
     #[inline]
@@ -125,6 +130,11 @@ impl CorpusIndex {
     #[inline]
     fn update_iterations(&mut self, iterations: usize) {
         self.iterations = iterations;
+    }
+
+    #[inline]
+    fn update_current(&mut self, value: usize) {
+        self.current = value;
     }
 }
 
