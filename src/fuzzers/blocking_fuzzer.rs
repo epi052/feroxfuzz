@@ -69,6 +69,11 @@ where
     fn post_send_logic_mut(&mut self) -> &mut LogicOperation {
         &mut self.post_send_logic
     }
+
+    fn reset(&mut self) {
+        // in case we're fuzzing more than once, reset the scheduler
+        self.scheduler.reset();
+    }
 }
 
 impl<B, D, M, O, P, S> BlockingFuzzing for BlockingFuzzer<B, D, M, O, P, S>
@@ -149,6 +154,11 @@ where
                             // todo need to add to corpus and then update the scheduler
                             state.add_data_to_corpus(&name, data)?;
                         }
+                        CorpusItemType::LotsOfData(data) => {
+                            for item in data {
+                                state.add_data_to_corpus(&name, item)?;
+                            }
+                        }
                     }
 
                     self.scheduler.update_length();
@@ -225,6 +235,11 @@ where
                             // todo need to add to corpus and then update the scheduler
                             state.add_data_to_corpus(&name, data)?;
                         }
+                        CorpusItemType::LotsOfData(data) => {
+                            for item in data {
+                                state.add_data_to_corpus(&name, item)?;
+                            }
+                        }
                     }
 
                     self.scheduler.update_length();
@@ -277,9 +292,6 @@ where
 
             self.request_id += 1;
         }
-
-        // in case we're fuzzing more than once, reset the scheduler
-        self.scheduler.reset();
 
         if let Some(hook) = &mut self.post_loop_hook {
             // call the post-loop hook if it is defined

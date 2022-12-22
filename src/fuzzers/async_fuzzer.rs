@@ -89,6 +89,11 @@ where
     fn post_send_logic_mut(&mut self) -> &mut LogicOperation {
         &mut self.post_send_logic
     }
+
+    fn reset(&mut self) {
+        // in case we're fuzzing more than once, reset the scheduler
+        self.scheduler.reset();
+    }
 }
 
 impl<A, D, M, O, P, S> AsyncFuzzer<A, D, M, O, P, S>
@@ -237,6 +242,11 @@ where
                         CorpusItemType::Data(data) => {
                             state.add_data_to_corpus(&name, data)?;
                         }
+                        CorpusItemType::LotsOfData(data) => {
+                            for item in data {
+                                state.add_data_to_corpus(&name, item)?;
+                            }
+                        }
                     }
 
                     // now that we've added the relevant info to the corpus, we need to set
@@ -384,6 +394,11 @@ where
                                 warn!("Could not add {:?} to corpus[{name}]: {:?}", request, err);
                             }
                         }
+                        CorpusItemType::LotsOfData(data) => {
+                            for item in data {
+                                state.add_data_to_corpus(&name, item)?;
+                            }
+                        }
                     }
 
                     corpus_modified = true;
@@ -438,9 +453,6 @@ where
 
             return self.fuzz_once(state).await;
         }
-
-        // in case we're fuzzing more than once, reset the scheduler
-        self.scheduler.reset();
 
         if let Some(hook) = &mut self.post_loop_hook {
             // call the post-loop hook if it is defined
