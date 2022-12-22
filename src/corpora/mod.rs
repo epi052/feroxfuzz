@@ -1,4 +1,5 @@
 //! Corpora modeled around how the test cases are generated, i.e. from a file/folder etc...
+#![allow(clippy::use_self)] // clippy false-positive on Action, doesn't want to apply directly to the enums that derive Serialize
 mod directory;
 mod http_methods;
 mod range;
@@ -77,7 +78,7 @@ pub enum CorpusItemType {
     ///
     /// ```
     /// # use feroxfuzz::corpora::CorpusItemType;
-    /// CorpusItemType::LotsOfData(["something"].into());
+    /// CorpusItemType::LotsOfData(vec!["something".into()]);
     /// ```
     ///
     /// [`Data`]: crate::input::Data
