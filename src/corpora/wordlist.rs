@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -10,7 +11,9 @@ use serde::{Deserialize, Serialize};
 use tracing::{error, instrument};
 
 use super::{Corpus, CorpusType, Named};
-use crate::corpora::typestate::{CorpusBuildState, HasItems, HasName, NoItems, NoName};
+use crate::corpora::typestate::{
+    CorpusBuildState, HasItems, HasName, NoItems, NoName, NotUnique, Unique,
+};
 use crate::error::FeroxFuzzError;
 use crate::input::Data;
 use crate::std_ext::convert::AsInner;
@@ -20,6 +23,10 @@ use crate::std_ext::ops::Len;
 /// generic container representing a wordlist
 ///
 /// # Examples
+///
+/// ## Normal wordlist
+///
+/// items may repeat in a normal wordlist
 ///
 /// ```
 /// # use feroxfuzz::corpora::Wordlist;
@@ -31,10 +38,33 @@ use crate::std_ext::ops::Len;
 /// assert_eq!(wordlist.len(), 2);
 /// ```
 ///
-#[derive(Clone, Default, Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// ## Unique wordlist
+///
+/// ### Note
+///
+/// There are two primary considerations when choosing to use a unique wordlist:
+/// - A hashset is used to store the unique items alongside a Vec, so the memory footprint will be doubled
+/// - The original order of the items will be lost
+///
+/// ```
+/// # use feroxfuzz::corpora::Wordlist;
+/// # use feroxfuzz::corpora::Corpus;
+/// # use feroxfuzz::state::SharedState;
+/// # use feroxfuzz::Len;
+/// let wordlist = Wordlist::new()
+///    .words(["one", "two", "three", "one", "two", "three"])
+///    .name("words")
+///    .unique()
+///    .build();
+///
+/// assert_eq!(wordlist.len(), 3);
+/// ```
+///
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Wordlist {
     items: Vec<Data>,
+    unique_items: Option<HashSet<Data>>,
     corpus_name: String,
 }
 
@@ -155,12 +185,14 @@ impl Wordlist {
     /// ```
     #[must_use]
     #[allow(clippy::new_ret_no_self)]
-    pub const fn new() -> WordlistBuilder<NoItems, NoName> {
+    pub const fn new() -> WordlistBuilder<NoItems, NoName, NotUnique> {
         WordlistBuilder {
             items: Vec::new(),
             corpus_name: None,
+            unique_items: None,
             _item_state: PhantomData,
             _name_state: PhantomData,
+            _unique_state: PhantomData,
         }
     }
 
@@ -181,7 +213,7 @@ impl Wordlist {
     /// let wordlist = Wordlist::with_words(["1", "2", "3"]).name("words").build();
     /// ```
     #[inline]
-    pub fn with_words<I, T>(words: I) -> WordlistBuilder<HasItems, NoName>
+    pub fn with_words<I, T>(words: I) -> WordlistBuilder<HasItems, NoName, NotUnique>
     where
         Data: From<T>,
         I: IntoIterator<Item = T>,
@@ -189,8 +221,10 @@ impl Wordlist {
         WordlistBuilder {
             items: words.into_iter().map(Data::from).collect(),
             corpus_name: None,
+            unique_items: None,
             _item_state: PhantomData,
             _name_state: PhantomData,
+            _unique_state: PhantomData,
         }
     }
 
@@ -231,7 +265,9 @@ impl Wordlist {
     /// # }
     /// ```
     #[instrument(skip_all, level = "trace")]
-    pub fn from_file<P>(file_path: P) -> Result<WordlistBuilder<HasItems, NoName>, FeroxFuzzError>
+    pub fn from_file<P>(
+        file_path: P,
+    ) -> Result<WordlistBuilder<HasItems, NoName, NotUnique>, FeroxFuzzError>
     where
         P: AsRef<Path>,
         Self: Corpus,
@@ -268,9 +304,11 @@ impl Wordlist {
 
         Ok(WordlistBuilder {
             items,
+            unique_items: None,
             corpus_name: None,
             _item_state: PhantomData,
             _name_state: PhantomData,
+            _unique_state: PhantomData,
         })
     }
 
@@ -300,6 +338,19 @@ impl Display for Wordlist {
 impl Corpus for Wordlist {
     #[inline]
     fn add(&mut self, value: Data) {
+        if let Some(ref mut unique_items) = self.unique_items {
+            // if unique_items is Some, then we are only adding unique items, meaning
+            // we can return early if the item is already in the set
+            if unique_items.contains(&value) {
+                return;
+            }
+
+            // item is not in the set, so we can insert it
+            unique_items.insert(value.clone());
+        }
+
+        // if we made it here, then we know that either we don't care about unique items
+        // or the item is unique, so, either way, we can push it onto the vector
         self.items.push(value);
     }
 
@@ -341,37 +392,63 @@ impl Len for Wordlist {
     }
 }
 
-pub struct WordlistBuilder<IS, NS>
+pub struct WordlistBuilder<ItemState, NameState, UniqueNess>
 where
-    IS: CorpusBuildState,
-    NS: CorpusBuildState,
+    ItemState: CorpusBuildState,
+    NameState: CorpusBuildState,
+    UniqueNess: CorpusBuildState,
 {
     items: Vec<Data>,
+    unique_items: Option<HashSet<Data>>,
     corpus_name: Option<String>,
-    _item_state: PhantomData<IS>,
-    _name_state: PhantomData<NS>,
+    _item_state: PhantomData<ItemState>,
+    _name_state: PhantomData<NameState>,
+    _unique_state: PhantomData<UniqueNess>,
 }
 
-impl<IS> WordlistBuilder<IS, NoName>
+impl<ItemState, UniqueNess> WordlistBuilder<ItemState, NoName, UniqueNess>
 where
-    IS: CorpusBuildState,
+    ItemState: CorpusBuildState,
+    UniqueNess: CorpusBuildState,
 {
-    pub fn name(self, corpus_name: &str) -> WordlistBuilder<IS, HasName> {
+    pub fn name(self, corpus_name: &str) -> WordlistBuilder<ItemState, HasName, UniqueNess> {
         WordlistBuilder {
             items: self.items,
+            unique_items: self.unique_items,
             corpus_name: Some(corpus_name.to_string()),
             _item_state: PhantomData,
             _name_state: PhantomData,
+            _unique_state: PhantomData,
         }
     }
 }
 
-impl<IS, NS> WordlistBuilder<IS, NS>
+impl<ItemState, NameState> WordlistBuilder<ItemState, NameState, NotUnique>
 where
-    IS: CorpusBuildState,
-    NS: CorpusBuildState,
+    ItemState: CorpusBuildState,
+    NameState: CorpusBuildState,
 {
-    pub fn word<T>(mut self, word: T) -> WordlistBuilder<HasItems, NS>
+    // false positive; clippy thinks this should be a const fn, but it can't be
+    #[allow(clippy::missing_const_for_fn)]
+    pub fn unique(self) -> WordlistBuilder<ItemState, NameState, Unique> {
+        WordlistBuilder {
+            items: self.items,
+            unique_items: self.unique_items,
+            corpus_name: self.corpus_name,
+            _item_state: PhantomData,
+            _name_state: PhantomData,
+            _unique_state: PhantomData,
+        }
+    }
+}
+
+impl<ItemState, NameState, UniqueNess> WordlistBuilder<ItemState, NameState, UniqueNess>
+where
+    ItemState: CorpusBuildState,
+    NameState: CorpusBuildState,
+    UniqueNess: CorpusBuildState,
+{
+    pub fn word<T>(mut self, word: T) -> WordlistBuilder<HasItems, NameState, UniqueNess>
     where
         Data: From<T>,
     {
@@ -379,13 +456,15 @@ where
 
         WordlistBuilder {
             items: self.items,
+            unique_items: self.unique_items,
             corpus_name: self.corpus_name,
             _item_state: PhantomData,
             _name_state: PhantomData,
+            _unique_state: PhantomData,
         }
     }
 
-    pub fn words<I, T>(mut self, words: I) -> WordlistBuilder<HasItems, NS>
+    pub fn words<I, T>(mut self, words: I) -> WordlistBuilder<HasItems, NameState, UniqueNess>
     where
         Data: From<T>,
         I: IntoIterator<Item = T>,
@@ -394,26 +473,57 @@ where
 
         WordlistBuilder {
             items: self.items,
+            unique_items: self.unique_items,
             corpus_name: self.corpus_name,
             _item_state: PhantomData,
             _name_state: PhantomData,
+            _unique_state: PhantomData,
         }
     }
 }
 
-impl WordlistBuilder<HasItems, HasName> {
-    pub fn build(self) -> CorpusType {
+impl WordlistBuilder<HasItems, HasName, Unique> {
+    pub fn build(mut self) -> CorpusType {
+        // remove duplicates from the vector
+        self.items.sort_unstable();
+        self.items.dedup();
+
+        let mut unique_items = HashSet::with_capacity(self.items.len());
+        unique_items.extend(self.items.iter().cloned());
+
         CorpusType::Wordlist(Wordlist {
             items: self.items,
+            unique_items: Some(unique_items),
             corpus_name: self.corpus_name.unwrap(),
         })
     }
 }
 
-impl WordlistBuilder<NoItems, HasName> {
+impl WordlistBuilder<HasItems, HasName, NotUnique> {
+    pub fn build(self) -> CorpusType {
+        CorpusType::Wordlist(Wordlist {
+            items: self.items,
+            unique_items: None,
+            corpus_name: self.corpus_name.unwrap(),
+        })
+    }
+}
+
+impl WordlistBuilder<NoItems, HasName, Unique> {
     pub fn build(self) -> CorpusType {
         CorpusType::Wordlist(Wordlist {
             items: Vec::new(),
+            unique_items: Some(HashSet::new()),
+            corpus_name: self.corpus_name.unwrap(),
+        })
+    }
+}
+
+impl WordlistBuilder<NoItems, HasName, NotUnique> {
+    pub fn build(self) -> CorpusType {
+        CorpusType::Wordlist(Wordlist {
+            items: Vec::new(),
+            unique_items: None,
             corpus_name: self.corpus_name.unwrap(),
         })
     }
@@ -464,6 +574,71 @@ mod tests {
 
         assert_eq!(wordlist.len(), 4);
         assert_eq!(wordlist.items(), &["one", "two", "three", "four"]);
+        assert_eq!(wordlist.name(), "words");
+    }
+
+    #[test]
+    fn test_wordlist_with_unique_items_first() {
+        let wordlist = Wordlist::new()
+            .words(["one", "two", "three", "one", "two", "three"])
+            .name("words")
+            .unique()
+            .build();
+
+        assert_eq!(wordlist.len(), 3);
+        for item in wordlist.items() {
+            assert!([Data::from("one"), Data::from("two"), Data::from("three")].contains(item));
+        }
+        assert_eq!(wordlist.name(), "words");
+    }
+
+    #[test]
+    fn test_wordlist_with_unique_items_second() {
+        let wordlist = Wordlist::new()
+            .words(["one", "two", "three", "one", "two", "three"])
+            .unique()
+            .name("words")
+            .build();
+
+        assert_eq!(wordlist.len(), 3);
+        for item in wordlist.items() {
+            assert!([Data::from("one"), Data::from("two"), Data::from("three")].contains(item));
+        }
+        assert_eq!(wordlist.name(), "words");
+    }
+
+    #[test]
+    fn test_wordlist_with_unique_items_last() {
+        let wordlist = Wordlist::new()
+            .words(["one", "two", "three", "one", "two", "three"])
+            .name("words")
+            .unique()
+            .build();
+
+        assert_eq!(wordlist.len(), 3);
+        for item in wordlist.items() {
+            assert!([Data::from("one"), Data::from("two"), Data::from("three")].contains(item));
+        }
+        assert_eq!(wordlist.name(), "words");
+    }
+
+    #[test]
+    fn test_unique_wordlist_remains_unique_after_using_corpus_add() {
+        let mut wordlist = Wordlist::new()
+            .words(["one", "two"])
+            .name("words")
+            .unique()
+            .build();
+
+        wordlist.add("one".into());
+        wordlist.add("two".into());
+        wordlist.add("three".into());
+        wordlist.add("three".into());
+
+        assert_eq!(wordlist.len(), 3);
+        for item in wordlist.items() {
+            assert!([Data::from("one"), Data::from("two"), Data::from("three"),].contains(item));
+        }
         assert_eq!(wordlist.name(), "words");
     }
 }
