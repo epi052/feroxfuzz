@@ -18,6 +18,8 @@ use tracing::instrument;
 /// from calling the analogous hook on [`Deciders`]. Those two objects may
 /// be used to produce side-effects, such as printing, logging, etc...
 ///
+/// [`Deciders`]: crate::deciders::Deciders
+///
 /// # Examples
 ///
 /// see any of the following examples for how to use `RequestProcessor`:
