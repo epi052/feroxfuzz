@@ -1,5 +1,4 @@
 //! Corpora modeled around how the test cases are generated, i.e. from a file/folder etc...
-#![allow(clippy::use_self)] // clippy false-positive on CorpusItemType, doesn't want to apply directly to the enums that derive Serialize
 mod directory;
 mod http_methods;
 mod range;
@@ -67,6 +66,22 @@ pub enum CorpusItemType {
     ///
     /// [`Data`]: crate::input::Data
     Data(Data),
+
+    /// When the corpus item type is [`CorpusItemType::LotsOfData`], all [`Data`]
+    /// values associated with the key will be added to the corpus.
+    ///
+    /// # Note
+    ///
+    /// There are a lot of [`From`] implementations for [`Data`]. When creating
+    /// a [`CorpusItemType::Data`] item, you can probably just use `.into`:
+    ///
+    /// ```
+    /// # use feroxfuzz::corpora::CorpusItemType;
+    /// CorpusItemType::LotsOfData(["something"].into());
+    /// ```
+    ///
+    /// [`Data`]: crate::input::Data
+    LotsOfData(Vec<Data>),
 }
 
 /// Collection of all current test cases
@@ -87,7 +102,7 @@ pub trait Corpus: Named {
 /// most of the methods/traits implemented by the underlying [`Corpus`] types
 /// are implemented here as well. Meaning, you should be able to use the
 /// underlying [`Corpus`] types seamlessly through this wrapper.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[non_exhaustive]
 pub enum CorpusType {
@@ -257,10 +272,14 @@ mod typestate {
     pub trait CorpusBuildState {}
     pub struct NoItems;
     pub struct NoName;
+    pub struct NotUnique;
     pub struct HasItems;
     pub struct HasName;
+    pub struct Unique;
     impl CorpusBuildState for NoItems {}
     impl CorpusBuildState for NoName {}
+    impl CorpusBuildState for NotUnique {}
     impl CorpusBuildState for HasItems {}
     impl CorpusBuildState for HasName {}
+    impl CorpusBuildState for Unique {}
 }
