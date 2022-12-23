@@ -100,7 +100,7 @@ where
             threads: 1,
             pre_send_logic,
             post_send_logic,
-            corpora_length: state.corpora().iter().map(|(_, v)| v.len()).sum(),
+            corpora_length: state.total_corpora_len(),
         });
 
         while self.scheduler.next().is_ok() {

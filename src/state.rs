@@ -249,6 +249,35 @@ impl SharedState {
         self.corpora.clone()
     }
 
+    /// get the total length of all corpora
+    ///
+    /// i.e. the total number of elements in all corpora added together
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use feroxfuzz::error::FeroxFuzzError;
+    /// # use feroxfuzz::corpora::{Corpus, Wordlist, RangeCorpus};
+    /// # use feroxfuzz::state::SharedState;
+    /// # use std::str::FromStr;
+    /// # use feroxfuzz::prelude::Data;
+    /// # use crate::feroxfuzz::Len;
+    /// # fn main() -> Result<(), FeroxFuzzError> {
+    /// let ids = RangeCorpus::with_stop(5).name("ids").build()?;
+    /// let names = Wordlist::with_words(["bob", "alice"]).name("names").build();
+    ///
+    /// let mut state = SharedState::with_corpora([ids, names]);
+    ///
+    /// assert_eq!(state.total_corpora_len(), 7);
+    ///
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn total_corpora_len(&self) -> usize {
+        self.corpora().iter().map(|(_, v)| v.len()).sum()
+    }
+
     /// get the statistics container
     #[must_use]
     pub fn stats(&self) -> Arc<RwLock<Statistics>> {

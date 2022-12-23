@@ -28,7 +28,6 @@ use crate::requests::Request;
 use crate::responses::{AsyncResponse, Response};
 use crate::schedulers::Scheduler;
 use crate::state::SharedState;
-use crate::std_ext::ops::Len;
 use crate::std_ext::ops::LogicOperation;
 
 /// internal type used to pass a single object from the `tokio::spawn`
@@ -147,6 +146,11 @@ where
     pub fn request_mut(&mut self) -> &mut Request {
         &mut self.request
     }
+
+    /// get a mutable reference to the scheduler
+    pub fn scheduler_mut(&mut self) -> &mut S {
+        &mut self.scheduler
+    }
 }
 
 #[async_trait]
@@ -170,13 +174,11 @@ where
             hook.called += 1;
         }
 
-        let mut corpus_modified = false;
-
         state.events().notify(FuzzOnce {
             threads: self.threads,
             pre_send_logic: self.pre_send_logic(),
             post_send_logic: self.post_send_logic(),
-            corpora_length: state.corpora().iter().map(|(_, v)| v.len()).sum(),
+            corpora_length: state.total_corpora_len(),
         });
 
         // wrap the client in an Arc so that it can be cheaply moved into the async block
@@ -249,11 +251,6 @@ where
                         }
                     }
 
-                    // now that we've added the relevant info to the corpus, we need to set
-                    // the flag that will trigger an update to the scheduler that will reflect
-                    // the new corpus
-                    corpus_modified = true;
-
                     match flow_control {
                         FlowControl::StopFuzzing => {
                             tracing::info!(
@@ -264,11 +261,11 @@ where
                             return Ok(Some(Action::StopFuzzing));
                         }
                         FlowControl::Discard => {
-                            self.request_id += 1;
-
                             state.events().notify(DiscardedRequest {
                                 id: mutated_request.id(),
                             });
+
+                            self.request_id += 1;
 
                             continue;
                         }
@@ -333,6 +330,7 @@ where
 
             self.request_id += 1;
         }
+
         // second loop handles responses
         //
         // outer loop awaits the actual response, which is a double-nested Result
@@ -401,8 +399,6 @@ where
                         }
                     }
 
-                    corpus_modified = true;
-
                     match flow_control {
                         FlowControl::StopFuzzing => {
                             tracing::info!(
@@ -436,22 +432,6 @@ where
                 }
                 None => {}
             }
-        }
-
-        if corpus_modified {
-            // if the corpus was modified, we need to allow the two loops to run again
-            //
-            // this is necessary because the first while loop spawns tasks that are
-            // bound by the semaphore. This means that if the corpus is modified, the
-            // there is no opportunity for the first while loop to spawn new tasks
-            //
-            // making a recursive call to the function works because the scheduler's
-            // current position isn't updated when we add new items to the corpus, so
-            // successive calls to fuzz_once will continue from where the first call
-            // left off, from a scheduling perspective
-            self.scheduler.update_length();
-
-            return self.fuzz_once(state).await;
         }
 
         if let Some(hook) = &mut self.post_loop_hook {
