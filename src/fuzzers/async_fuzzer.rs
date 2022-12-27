@@ -151,6 +151,16 @@ where
     pub fn scheduler_mut(&mut self) -> &mut S {
         &mut self.scheduler
     }
+
+    /// set a function to run before each fuzzing loop
+    pub fn set_pre_loop_hook(&mut self, hook: fn(&mut SharedState)) {
+        self.pre_loop_hook = Some(FuzzingLoopHook::new(hook));
+    }
+
+    /// set a function to run after each fuzzing loop
+    pub fn set_post_loop_hook(&mut self, hook: fn(&mut SharedState)) {
+        self.post_loop_hook = Some(FuzzingLoopHook::new(hook));
+    }
 }
 
 #[async_trait]
