@@ -191,7 +191,19 @@ where
         let mut request_futures = FuturesUnordered::new();
 
         // first loop fires off requests
-        while Scheduler::next(&mut self.scheduler).is_ok() {
+        loop {
+            let scheduled = Scheduler::next(&mut self.scheduler);
+
+            if matches!(scheduled, Err(FeroxFuzzError::IterationStopped)) {
+                // if the scheduler returns an iteration stopped error, we
+                // need to stop the fuzzing loop
+                break;
+            } else if matches!(scheduled, Err(FeroxFuzzError::SkipScheduledItem { .. })) {
+                // if the scheduler says we should skip this item, we'll continue to
+                // the next item
+                continue;
+            }
+
             let mut request = self.request.clone();
 
             *request.id_mut() += self.request_id;
@@ -644,6 +656,7 @@ mod tests {
         let words = Wordlist::with_words(["0", "1.js", "2"])
             .name("words")
             .build();
+
         let mut state = SharedState::with_corpus(words);
 
         let req_client = reqwest::Client::builder()
@@ -680,9 +693,22 @@ mod tests {
             .deciders(build_deciders!(decider.clone()))
             .build();
 
+        let mut corpora_len = state.total_corpora_len();
+
         fuzzer.fuzz_once(&mut state).await?;
 
-        println!("state: {:?}", state);
+        // corpora_len should be +1 from the initial call
+        assert_eq!(corpora_len + 1, state.total_corpora_len());
+
+        // reset corpora_len to the new value
+        corpora_len = state.total_corpora_len();
+
+        // call again to hit the new /3 entry
+        fuzzer.scheduler_mut().update_length();
+        fuzzer.fuzz_once(&mut state).await?;
+
+        // corpora_len shouldn't have changed
+        assert_eq!(corpora_len, state.total_corpora_len());
 
         // 0-3 sent/recv'd and ok
         assert_eq!(

@@ -15,7 +15,7 @@ use crate::requests::Request;
 use crate::responses::BlockingResponse;
 use crate::schedulers::Scheduler;
 use crate::state::SharedState;
-use crate::std_ext::ops::{Len, LogicOperation};
+use crate::std_ext::ops::LogicOperation;
 
 use tracing::instrument;
 use tracing::log::warn;
@@ -103,7 +103,19 @@ where
             corpora_length: state.total_corpora_len(),
         });
 
-        while self.scheduler.next().is_ok() {
+        loop {
+            let scheduled = Scheduler::next(&mut self.scheduler);
+
+            if matches!(scheduled, Err(FeroxFuzzError::IterationStopped)) {
+                // if the scheduler returns an iteration stopped error, we
+                // need to stop the fuzzing loop
+                break;
+            } else if matches!(scheduled, Err(FeroxFuzzError::SkipScheduledItem { .. })) {
+                // if the scheduler says we should skip this item, we'll continue to
+                // the next item
+                continue;
+            }
+
             let mut request = self.request.clone();
 
             *request.id_mut() += self.request_id;
