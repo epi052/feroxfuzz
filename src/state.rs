@@ -561,7 +561,7 @@ impl SharedState {
                             request,
                             corpus_name.to_string(),
                             "header",
-                            Data::Fuzzable(format!("{}: {}", key, value).into()),
+                            Data::Fuzzable(format!("{key}: {value}").into()),
                         );
                     }
                     if value.is_fuzzable() {
@@ -571,7 +571,7 @@ impl SharedState {
                             request,
                             corpus_name.to_string(),
                             "header",
-                            Data::Fuzzable(format!("{}: {}", key, value).into()),
+                            Data::Fuzzable(format!("{key}: {value}").into()),
                         );
                     }
                 }
@@ -586,7 +586,7 @@ impl SharedState {
                             request,
                             corpus_name.to_string(),
                             "parameter",
-                            Data::Fuzzable(format!("{}={}", key, value).into()),
+                            Data::Fuzzable(format!("{key}={value}").into()),
                         );
                     }
                     if value.is_fuzzable() {
@@ -596,7 +596,7 @@ impl SharedState {
                             request,
                             corpus_name.to_string(),
                             "parameter",
-                            Data::Fuzzable(format!("{}={}", key, value).into()),
+                            Data::Fuzzable(format!("{key}={value}").into()),
                         );
                     }
                 }
@@ -672,18 +672,18 @@ impl Display for SharedState {
 
         for (key, corpus) in self.corpora.iter() {
             if let Ok(guard) = corpus.read() {
-                writeln!(f, "  Corpus[{key}]={},", guard)?;
+                writeln!(f, "  Corpus[{key}]={guard},")?;
             }
         }
 
         if let Ok(guard) = self.stats().read() {
-            writeln!(f, "  Statistics={}", guard)?;
+            writeln!(f, "  Statistics={guard}")?;
         }
 
         if let Ok(guard) = self.metadata().read() {
             #[allow(clippy::significant_drop_in_scrutinee)] // doesn't appear to be an accurate lint
             for (key, value) in guard.iter() {
-                writeln!(f, "  Metadata[{key}]={:?}", value)?;
+                writeln!(f, "  Metadata[{key}]={value:?}")?;
             }
         }
 

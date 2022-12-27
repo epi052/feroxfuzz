@@ -420,7 +420,7 @@ impl Request {
                         error!(?directive, "Invalid directive used");
 
                         return Err(FeroxFuzzError::InvalidDirective {
-                            directive: format!("{:?}", directive),
+                            directive: format!("{directive:?}"),
                         });
                     }
                 }
@@ -686,7 +686,7 @@ impl Request {
 
             return Err(FeroxFuzzError::KeyValueParseError {
                 key_value_pair: to_split.to_vec(),
-                reason: format!("Could not find {:x?} in {:x?}", delim, to_split),
+                reason: format!("Could not find {delim:x?} in {to_split:x?}"),
             });
         }
 
@@ -746,7 +746,7 @@ impl Request {
                     error!(?dir, "Invalid directive");
 
                     return Err(FeroxFuzzError::InvalidDirective {
-                        directive: format!("{:?}", dir),
+                        directive: format!("{dir:?}"),
                     });
                 }
             },

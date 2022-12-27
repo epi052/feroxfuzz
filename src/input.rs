@@ -355,6 +355,6 @@ impl HasBytesVec for Data {
 
 impl Input for Data {
     fn generate_name(&self, idx: usize) -> String {
-        format!("{}_{}", self.format(), idx)
+        format!("{}_{idx}", self.format())
     }
 }

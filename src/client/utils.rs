@@ -17,7 +17,7 @@ pub(super) fn parse_version(data: &Data) -> Result<Version, FeroxFuzzError> {
             error!(%data, "failed to parse http version; must be a valid http version when using a reqwest client");
 
             Err(FeroxFuzzError::InvalidVersionError {
-                version: format!("{}", data),
+                version: format!("{data}"),
             })
         }
     }
