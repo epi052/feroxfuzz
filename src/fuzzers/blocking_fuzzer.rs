@@ -15,7 +15,7 @@ use crate::requests::Request;
 use crate::responses::BlockingResponse;
 use crate::schedulers::Scheduler;
 use crate::state::SharedState;
-use crate::std_ext::ops::{Len, LogicOperation};
+use crate::std_ext::ops::LogicOperation;
 
 use tracing::instrument;
 use tracing::log::warn;
@@ -69,6 +69,11 @@ where
     fn post_send_logic_mut(&mut self) -> &mut LogicOperation {
         &mut self.post_send_logic
     }
+
+    fn reset(&mut self) {
+        // in case we're fuzzing more than once, reset the scheduler
+        self.scheduler.reset();
+    }
 }
 
 impl<B, D, M, O, P, S> BlockingFuzzing for BlockingFuzzer<B, D, M, O, P, S>
@@ -95,10 +100,22 @@ where
             threads: 1,
             pre_send_logic,
             post_send_logic,
-            corpora_length: state.corpora().iter().map(|(_, v)| v.len()).sum(),
+            corpora_length: state.total_corpora_len(),
         });
 
-        while self.scheduler.next().is_ok() {
+        loop {
+            let scheduled = Scheduler::next(&mut self.scheduler);
+
+            if matches!(scheduled, Err(FeroxFuzzError::IterationStopped)) {
+                // if the scheduler returns an iteration stopped error, we
+                // need to stop the fuzzing loop
+                break;
+            } else if matches!(scheduled, Err(FeroxFuzzError::SkipScheduledItem { .. })) {
+                // if the scheduler says we should skip this item, we'll continue to
+                // the next item
+                continue;
+            }
+
             let mut request = self.request.clone();
 
             *request.id_mut() += self.request_id;
@@ -148,6 +165,11 @@ where
                         CorpusItemType::Data(data) => {
                             // todo need to add to corpus and then update the scheduler
                             state.add_data_to_corpus(&name, data)?;
+                        }
+                        CorpusItemType::LotsOfData(data) => {
+                            for item in data {
+                                state.add_data_to_corpus(&name, item)?;
+                            }
                         }
                     }
 
@@ -225,6 +247,11 @@ where
                             // todo need to add to corpus and then update the scheduler
                             state.add_data_to_corpus(&name, data)?;
                         }
+                        CorpusItemType::LotsOfData(data) => {
+                            for item in data {
+                                state.add_data_to_corpus(&name, item)?;
+                            }
+                        }
                     }
 
                     self.scheduler.update_length();
@@ -278,9 +305,6 @@ where
             self.request_id += 1;
         }
 
-        // in case we're fuzzing more than once, reset the scheduler
-        self.scheduler.reset();
-
         if let Some(hook) = &mut self.post_loop_hook {
             // call the post-loop hook if it is defined
             (hook.callback)(state);
@@ -329,6 +353,21 @@ where
     /// get a mutable reference to the baseline request used for mutation
     pub fn request_mut(&mut self) -> &mut Request {
         &mut self.request
+    }
+
+    /// get a mutable reference to the scheduler
+    pub fn scheduler_mut(&mut self) -> &mut S {
+        &mut self.scheduler
+    }
+
+    /// set a function to run before each fuzzing loop
+    pub fn set_pre_loop_hook(&mut self, hook: fn(&mut SharedState)) {
+        self.pre_loop_hook = Some(FuzzingLoopHook::new(hook));
+    }
+
+    /// set a function to run after each fuzzing loop
+    pub fn set_post_loop_hook(&mut self, hook: fn(&mut SharedState)) {
+        self.post_loop_hook = Some(FuzzingLoopHook::new(hook));
     }
 }
 

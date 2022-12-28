@@ -165,7 +165,7 @@ pub trait Mutator: DynClone + AsAny + Named + Send + Sync {
                         &state.events(),
                         request.id,
                         "header",
-                        Data::Fuzzable(format!("{}: {}", key, value).into()),
+                        Data::Fuzzable(format!("{key}: {value}").into()),
                     );
                 }
 
@@ -175,7 +175,7 @@ pub trait Mutator: DynClone + AsAny + Named + Send + Sync {
                         &state.events(),
                         request.id,
                         "header",
-                        Data::Fuzzable(format!("{}: {}", key, value).into()),
+                        Data::Fuzzable(format!("{key}: {value}").into()),
                     );
                 }
             }
@@ -189,7 +189,7 @@ pub trait Mutator: DynClone + AsAny + Named + Send + Sync {
                         &state.events(),
                         request.id,
                         "parameter",
-                        Data::Fuzzable(format!("{}={}", key, value).into()),
+                        Data::Fuzzable(format!("{key}={value}").into()),
                     );
                 }
 
@@ -199,7 +199,7 @@ pub trait Mutator: DynClone + AsAny + Named + Send + Sync {
                         &state.events(),
                         request.id,
                         "parameter",
-                        Data::Fuzzable(format!("{}={}", key, value).into()),
+                        Data::Fuzzable(format!("{key}={value}").into()),
                     );
                 }
             }

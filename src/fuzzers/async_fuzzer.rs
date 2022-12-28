@@ -28,7 +28,6 @@ use crate::requests::Request;
 use crate::responses::{AsyncResponse, Response};
 use crate::schedulers::Scheduler;
 use crate::state::SharedState;
-use crate::std_ext::ops::Len;
 use crate::std_ext::ops::LogicOperation;
 
 /// internal type used to pass a single object from the `tokio::spawn`
@@ -89,6 +88,11 @@ where
     fn post_send_logic_mut(&mut self) -> &mut LogicOperation {
         &mut self.post_send_logic
     }
+
+    fn reset(&mut self) {
+        // in case we're fuzzing more than once, reset the scheduler
+        self.scheduler.reset();
+    }
 }
 
 impl<A, D, M, O, P, S> AsyncFuzzer<A, D, M, O, P, S>
@@ -142,6 +146,21 @@ where
     pub fn request_mut(&mut self) -> &mut Request {
         &mut self.request
     }
+
+    /// get a mutable reference to the scheduler
+    pub fn scheduler_mut(&mut self) -> &mut S {
+        &mut self.scheduler
+    }
+
+    /// set a function to run before each fuzzing loop
+    pub fn set_pre_loop_hook(&mut self, hook: fn(&mut SharedState)) {
+        self.pre_loop_hook = Some(FuzzingLoopHook::new(hook));
+    }
+
+    /// set a function to run after each fuzzing loop
+    pub fn set_post_loop_hook(&mut self, hook: fn(&mut SharedState)) {
+        self.post_loop_hook = Some(FuzzingLoopHook::new(hook));
+    }
 }
 
 #[async_trait]
@@ -165,13 +184,11 @@ where
             hook.called += 1;
         }
 
-        let mut corpus_modified = false;
-
         state.events().notify(FuzzOnce {
             threads: self.threads,
             pre_send_logic: self.pre_send_logic(),
             post_send_logic: self.post_send_logic(),
-            corpora_length: state.corpora().iter().map(|(_, v)| v.len()).sum(),
+            corpora_length: state.total_corpora_len(),
         });
 
         // wrap the client in an Arc so that it can be cheaply moved into the async block
@@ -184,7 +201,19 @@ where
         let mut request_futures = FuturesUnordered::new();
 
         // first loop fires off requests
-        while Scheduler::next(&mut self.scheduler).is_ok() {
+        loop {
+            let scheduled = Scheduler::next(&mut self.scheduler);
+
+            if matches!(scheduled, Err(FeroxFuzzError::IterationStopped)) {
+                // if the scheduler returns an iteration stopped error, we
+                // need to stop the fuzzing loop
+                break;
+            } else if matches!(scheduled, Err(FeroxFuzzError::SkipScheduledItem { .. })) {
+                // if the scheduler says we should skip this item, we'll continue to
+                // the next item
+                continue;
+            }
+
             let mut request = self.request.clone();
 
             *request.id_mut() += self.request_id;
@@ -237,12 +266,12 @@ where
                         CorpusItemType::Data(data) => {
                             state.add_data_to_corpus(&name, data)?;
                         }
+                        CorpusItemType::LotsOfData(data) => {
+                            for item in data {
+                                state.add_data_to_corpus(&name, item)?;
+                            }
+                        }
                     }
-
-                    // now that we've added the relevant info to the corpus, we need to set
-                    // the flag that will trigger an update to the scheduler that will reflect
-                    // the new corpus
-                    corpus_modified = true;
 
                     match flow_control {
                         FlowControl::StopFuzzing => {
@@ -254,11 +283,11 @@ where
                             return Ok(Some(Action::StopFuzzing));
                         }
                         FlowControl::Discard => {
-                            self.request_id += 1;
-
                             state.events().notify(DiscardedRequest {
                                 id: mutated_request.id(),
                             });
+
+                            self.request_id += 1;
 
                             continue;
                         }
@@ -323,6 +352,7 @@ where
 
             self.request_id += 1;
         }
+
         // second loop handles responses
         //
         // outer loop awaits the actual response, which is a double-nested Result
@@ -384,9 +414,12 @@ where
                                 warn!("Could not add {:?} to corpus[{name}]: {:?}", request, err);
                             }
                         }
+                        CorpusItemType::LotsOfData(data) => {
+                            for item in data {
+                                state.add_data_to_corpus(&name, item)?;
+                            }
+                        }
                     }
-
-                    corpus_modified = true;
 
                     match flow_control {
                         FlowControl::StopFuzzing => {
@@ -422,25 +455,6 @@ where
                 None => {}
             }
         }
-
-        if corpus_modified {
-            // if the corpus was modified, we need to allow the two loops to run again
-            //
-            // this is necessary because the first while loop spawns tasks that are
-            // bound by the semaphore. This means that if the corpus is modified, the
-            // there is no opportunity for the first while loop to spawn new tasks
-            //
-            // making a recursive call to the function works because the scheduler's
-            // current position isn't updated when we add new items to the corpus, so
-            // successive calls to fuzz_once will continue from where the first call
-            // left off, from a scheduling perspective
-            self.scheduler.update_length();
-
-            return self.fuzz_once(state).await;
-        }
-
-        // in case we're fuzzing more than once, reset the scheduler
-        self.scheduler.reset();
 
         if let Some(hook) = &mut self.post_loop_hook {
             // call the post-loop hook if it is defined
@@ -652,6 +666,7 @@ mod tests {
         let words = Wordlist::with_words(["0", "1.js", "2"])
             .name("words")
             .build();
+
         let mut state = SharedState::with_corpus(words);
 
         let req_client = reqwest::Client::builder()
@@ -688,9 +703,22 @@ mod tests {
             .deciders(build_deciders!(decider.clone()))
             .build();
 
+        let mut corpora_len = state.total_corpora_len();
+
         fuzzer.fuzz_once(&mut state).await?;
 
-        println!("state: {:?}", state);
+        // corpora_len should be +1 from the initial call
+        assert_eq!(corpora_len + 1, state.total_corpora_len());
+
+        // reset corpora_len to the new value
+        corpora_len = state.total_corpora_len();
+
+        // call again to hit the new /3 entry
+        fuzzer.scheduler_mut().update_length();
+        fuzzer.fuzz_once(&mut state).await?;
+
+        // corpora_len shouldn't have changed
+        assert_eq!(corpora_len, state.total_corpora_len());
 
         // 0-3 sent/recv'd and ok
         assert_eq!(

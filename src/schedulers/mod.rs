@@ -6,7 +6,7 @@ use crate::state::SharedState;
 use crate::std_ext::ops::Len;
 use crate::Named;
 
-use std::sync::atomic::Ordering;
+use std::{fmt::Display, sync::atomic::Ordering};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -14,10 +14,12 @@ use serde::{Deserialize, Serialize};
 mod ordered;
 mod product;
 mod random;
+mod unique;
 
 pub use ordered::OrderedScheduler;
 pub use product::ProductScheduler;
 pub use random::RandomScheduler;
+pub use unique::UniqueProductScheduler;
 
 /// manages how the fuzzer gets entries from the corpus
 pub trait Scheduler: Named {
@@ -136,5 +138,15 @@ impl CorpusIndex {
 impl Len for CorpusIndex {
     fn len(&self) -> usize {
         self.length
+    }
+}
+
+impl Display for CorpusIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}[{}]: {} / {}",
+            self.name, self.current, self.length, self.iterations
+        )
     }
 }

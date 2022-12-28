@@ -59,6 +59,13 @@ pub trait Fuzzer {
     ///
     /// [`Decider`]: crate::deciders::Decider
     fn post_send_logic_mut(&mut self) -> &mut LogicOperation;
+
+    /// reset the internal state of the `Scheduler`, typically called by the [`Fuzzer`]
+    /// once a full iteration of the [`Corpus`] is complete
+    ///
+    /// [`Corpus`]: crate::corpora::Corpus
+    /// [`Fuzzer`]: crate::fuzzers::Fuzzer
+    fn reset(&mut self);
 }
 
 /// trait representing a fuzzer that operates asynchronously, meaning that it executes
@@ -81,6 +88,7 @@ pub trait AsyncFuzzing: Fuzzer {
             if self.fuzz_once(state).await? == Some(Action::StopFuzzing) {
                 break Ok(());
             }
+            self.reset();
         }
     }
 
@@ -116,6 +124,7 @@ pub trait AsyncFuzzing: Fuzzer {
             if self.fuzz_once(state).await? == Some(Action::StopFuzzing) {
                 return Ok(());
             }
+            self.reset();
         }
 
         Ok(())
@@ -141,6 +150,7 @@ pub trait BlockingFuzzing: Fuzzer {
             if self.fuzz_once(state)? == Some(Action::StopFuzzing) {
                 break Ok(());
             }
+            self.reset();
         }
     }
 
@@ -173,6 +183,7 @@ pub trait BlockingFuzzing: Fuzzer {
             if self.fuzz_once(state)? == Some(Action::StopFuzzing) {
                 return Ok(());
             }
+            self.reset();
         }
 
         Ok(())

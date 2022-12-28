@@ -231,6 +231,10 @@ pub enum FeroxFuzzError {
         /// underlying source error-type
         source: AcquireError,
     },
+
+    /// Represents a scheduled item that was already scheduled once before
+    #[error("Skipped a previously scheduled item")]
+    SkipScheduledItem,
 }
 
 /// Used to differentiate between different types of errors that occur when making requests.
