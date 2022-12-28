@@ -1,5 +1,5 @@
 //! Corpora modeled around how the test cases are generated, i.e. from a file/folder etc...
-#![allow(clippy::use_self)] // clippy false-positive on Action, doesn't want to apply directly to the enums that derive Serialize
+#![allow(clippy::use_self)] // clippy false-positive on CorpusItemType, doesn't want to apply directly to the enums that derive Serialize
 mod directory;
 mod http_methods;
 mod range;
