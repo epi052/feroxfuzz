@@ -166,11 +166,18 @@ impl RandomScheduler {
     /// # }
     #[inline]
     #[instrument(skip_all, level = "trace")]
+    #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::cast_sign_loss)]
     pub fn new(state: SharedState) -> Result<Self, FeroxFuzzError> {
         let corpora = state.corpora();
         let mut longest_corpus = 0;
 
         let mut indices = Vec::with_capacity(corpora.len());
+
+        let mut current = state
+            .stats()
+            .read()
+            .map_or(0, |stats| stats.requests() as usize);
 
         for (name, corpus) in corpora.iter() {
             let length = corpus.len();
@@ -199,12 +206,19 @@ impl RandomScheduler {
             return Err(FeroxFuzzError::EmptyCorpusMap);
         }
 
-        Ok(Self {
+        let mut scheduler = Self {
             longest_corpus,
             state,
             indices,
             current: 0,
-        })
+        };
+
+        while current > 0 {
+            Scheduler::next(&mut scheduler)?;
+            current -= 1;
+        }
+
+        Ok(scheduler)
     }
 
     /// by default, the [`RandomScheduler`] will iterate through *every* corpus

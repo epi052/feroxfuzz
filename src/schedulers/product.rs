@@ -262,11 +262,18 @@ impl ProductScheduler {
     /// # }
     #[inline]
     #[instrument(skip(state), level = "trace")]
+    #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::cast_sign_loss)]
     pub fn new<'a, I>(corpus_order: I, state: SharedState) -> Result<Self, FeroxFuzzError>
     where
         I: IntoIterator<Item = &'a str> + std::fmt::Debug,
     {
         let corpora = state.corpora();
+
+        let mut current = state
+            .stats()
+            .read()
+            .map_or(0, |stats| stats.requests() as usize);
 
         let mut lengths = Vec::with_capacity(corpora.len());
 
@@ -307,11 +314,18 @@ impl ProductScheduler {
             indices.push(CorpusIndex::new(name, *length, total_iterations));
         }
 
-        Ok(Self {
+        let mut scheduler = Self {
             indices,
             state,
             current: 0,
-        })
+        };
+
+        while current > 0 {
+            Scheduler::next(&mut scheduler)?;
+            current -= 1;
+        }
+
+        Ok(scheduler)
     }
 }
 
