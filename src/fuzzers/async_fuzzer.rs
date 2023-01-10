@@ -229,20 +229,21 @@ where
                 self.pre_send_logic(),
             );
 
+            self.processors
+                .call_pre_send_hooks(state, &mut mutated_request, decision.as_ref());
+
             if decision.is_some() {
                 // if there is an action to take, based off the deciders, then
                 // we need to set the action on the request, and then call the
                 // state->stats->update method
                 mutated_request.set_action(decision.clone());
 
-                // currently, the only stats update this call performs is to
-                // update the Action tracker with the request's id, so we
-                // can hide it behind the if-let-some
-                state.update_from_request(&mutated_request);
+                // // currently, the only stats update this call performs is to
+                // // update the Action tracker with the request's id, so we
+                // // can hide it behind the if-let-some
+                // state.update_from_request(&mutated_request);
             }
-
-            self.processors
-                .call_pre_send_hooks(state, &mut mutated_request, decision.as_ref());
+            state.update_from_request(&mutated_request);
 
             match decision {
                 Some(Action::Discard) => {
@@ -357,6 +358,7 @@ where
         //
         // outer loop awaits the actual response, which is a double-nested Result
         // Result<Result<RequestFuture, FeroxFuzzError>, tokio::task::JoinError>
+        tracing::debug!("entering the response processing loop...");
         while let Some(handle) = request_futures.next().await {
             let Ok(task_result) = handle else {
                 // tokio::task::JoinError -- task failed to execute to completion
@@ -394,7 +396,7 @@ where
                 // could not update the state via the observers; cannot reliably make
                 // decisions or perform actions on this response as a result and must
                 // skip any post processing actions
-                warn!("Could not update state via observers; skipping Deciders and Processors");
+                warn!("Could not update state via observers; skipping Processors");
                 continue;
             }
 

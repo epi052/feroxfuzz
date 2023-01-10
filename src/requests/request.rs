@@ -15,7 +15,7 @@ use tracing::{error, instrument};
 use url::Url;
 
 use std::fmt::{self, Display, Formatter};
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Rem, Sub, SubAssign};
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -106,6 +106,24 @@ where
         self.0 -= rhs.into();
     }
 }
+
+impl<T> Rem<T> for RequestId
+where
+    T: Into<usize>,
+{
+    type Output = Self;
+
+    fn rem(self, modulus: T) -> Self::Output {
+        RequestId(self.0 % modulus.into())
+    }
+}
+
+impl PartialEq<usize> for RequestId {
+    fn eq(&self, other: &usize) -> bool {
+        self.0 == *other
+    }
+}
+
 
 /// data container representing all possible fields of an http request and its url
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

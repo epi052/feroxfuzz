@@ -362,7 +362,7 @@ impl Statistics {
     {
         // note: if any additional entrypoints are added, the common_updates function must be called
         //       from the new entrypoint (i.e. update and update_from_error)
-        self.common_updates();
+        // self.common_updates();
         self.update_from_response_observer(observers, action)?;
 
         Ok(())
@@ -372,6 +372,7 @@ impl Statistics {
     pub(crate) fn update_from_request(&mut self, request: &Request) {
         // purposefully not calling common_updates here, as those updates aren't relevant to
         // requests
+        self.common_updates();
         self.update_actions(request.id(), request.action(), RequestOrResponse::Request);
     }
 
