@@ -158,9 +158,10 @@ impl OrderedScheduler {
     pub fn new(state: SharedState) -> Result<Self, FeroxFuzzError> {
         let corpora = state.corpora();
 
-        let mut current = state.stats().read().map_or(0, |stats| {
-            stats.requests() as usize
-        });
+        let mut current = state
+            .stats()
+            .read()
+            .map_or(0, |stats| stats.requests() as usize);
 
         let mut indices = Vec::with_capacity(corpora.len());
 

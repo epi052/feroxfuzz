@@ -114,7 +114,7 @@ where
     type Output = Self;
 
     fn rem(self, modulus: T) -> Self::Output {
-        RequestId(self.0 % modulus.into())
+        Self(self.0 % modulus.into())
     }
 }
 
@@ -123,7 +123,6 @@ impl PartialEq<usize> for RequestId {
         self.0 == *other
     }
 }
-
 
 /// data container representing all possible fields of an http request and its url
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

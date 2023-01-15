@@ -235,6 +235,15 @@ pub enum FeroxFuzzError {
     /// Represents a scheduled item that was already scheduled once before
     #[error("Skipped a previously scheduled item")]
     SkipScheduledItem,
+
+    /// Represents a failure to send a response to the post-send processing channel
+    /// during asynchronous fuzzing (i.e. the channel was closed unexpectedly)
+    #[cfg(feature = "tokio")]
+    #[error("Could not send the response to the post-send processing channel")]
+    FailedMPSCSend {
+        /// the underlying error message
+        message: String,
+    },
 }
 
 /// Used to differentiate between different types of errors that occur when making requests.
