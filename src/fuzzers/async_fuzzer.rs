@@ -34,7 +34,7 @@ use crate::std_ext::ops::LogicOperation;
 /// internal type used to pass a single object from the `tokio::spawn`
 /// call to the `FuturesUnordered` stream
 #[derive(Debug, Clone)]
-pub struct RequestFuture {
+struct RequestFuture {
     request: Request,
     response: AsyncResponse,
 }
