@@ -190,7 +190,7 @@ pub enum FeroxFuzzError {
     ///
     /// [`Request`]: crate::requests::Request
     #[error("Mutation failed")]
-    FailedMutation {
+    MutationError {
         /// underlying source error-type
         source: libafl::Error,
     },
@@ -227,7 +227,7 @@ pub enum FeroxFuzzError {
     /// during asynchronous fuzzing
     #[cfg(feature = "tokio")]
     #[error("Could not acquire the concurrency limiting semaphore")]
-    FailedSemaphoreAcquire {
+    SemaphoreAcquisitionError {
         /// underlying source error-type
         source: AcquireError,
     },
@@ -240,7 +240,15 @@ pub enum FeroxFuzzError {
     /// during asynchronous fuzzing (i.e. the channel was closed unexpectedly)
     #[cfg(feature = "tokio")]
     #[error("Could not send the response to the post-send processing channel")]
-    FailedMPSCSend {
+    MPSCChannelSendError {
+        /// the underlying error message
+        message: String,
+    },
+
+    /// Represents a failure to await a backgrounded task
+    #[cfg(feature = "tokio")]
+    #[error("Could not await the backgrounded task")]
+    TaskJoinError {
         /// the underlying error message
         message: String,
     },

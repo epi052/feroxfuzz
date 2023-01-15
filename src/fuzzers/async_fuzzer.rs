@@ -386,17 +386,17 @@ where
                     }
                     Err(err) => {
                         tracing::error!("Failed to acquire semaphore permit: {:?}", err);
-                        Err(FeroxFuzzError::FailedSemaphoreAcquire { source: err })
+                        Err(FeroxFuzzError::SemaphoreAcquisitionError { source: err })
                     }
                 }
             })));
 
             if let Err(err) = sent {
                 tracing::error!(
-                    "Failed to send response to response processing loop: {:?}",
+                    "Failed to send response to response processing task: {:?}",
                     err
                 );
-                return Err(FeroxFuzzError::FailedMPSCSend {
+                return Err(FeroxFuzzError::MPSCChannelSendError {
                     message: err.to_string(),
                 });
             }
@@ -405,10 +405,23 @@ where
         }
 
         // send a None to the receiver, to signal that we're done sending requests
-        tx.send(None).unwrap();
+        if let Err(err) = tx.send(None) {
+            tracing::error!("Failed to tell response processing task to stop: {:?}", err);
+            return Err(FeroxFuzzError::MPSCChannelSendError {
+                message: err.to_string(),
+            });
+        }
 
         // wait for all of the request futures to complete
-        let processed_result = response_processing_handle.await.unwrap_or_default();
+        let processed_result = match response_processing_handle.await {
+            Ok(result) => result,
+            Err(err) => {
+                tracing::error!("Failed to join response processing task: {:?}", err);
+                return Err(FeroxFuzzError::TaskJoinError {
+                    message: err.to_string(),
+                });
+            }
+        };
 
         // if the response processing loop returned an action, return it
         if let Some(action) = processed_result {
