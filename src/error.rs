@@ -190,7 +190,7 @@ pub enum FeroxFuzzError {
     ///
     /// [`Request`]: crate::requests::Request
     #[error("Mutation failed")]
-    FailedMutation {
+    MutationError {
         /// underlying source error-type
         source: libafl::Error,
     },
@@ -227,7 +227,7 @@ pub enum FeroxFuzzError {
     /// during asynchronous fuzzing
     #[cfg(feature = "tokio")]
     #[error("Could not acquire the concurrency limiting semaphore")]
-    FailedSemaphoreAcquire {
+    SemaphoreAcquisitionError {
         /// underlying source error-type
         source: AcquireError,
     },
@@ -235,6 +235,14 @@ pub enum FeroxFuzzError {
     /// Represents a scheduled item that was already scheduled once before
     #[error("Skipped a previously scheduled item")]
     SkipScheduledItem,
+
+    /// Represents a failure to await a backgrounded task
+    #[cfg(feature = "tokio")]
+    #[error("Could not await the backgrounded task")]
+    TaskJoinError {
+        /// the underlying error message
+        message: String,
+    },
 }
 
 /// Used to differentiate between different types of errors that occur when making requests.

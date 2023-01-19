@@ -237,7 +237,7 @@ impl Mutator for LibAflMutator {
         }
         .map_err(|source| {
             error!("LibAFL mutator failed: {}", source);
-            FeroxFuzzError::FailedMutation { source }
+            FeroxFuzzError::MutationError { source }
         })?;
 
         Ok(())

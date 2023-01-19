@@ -153,8 +153,15 @@ impl OrderedScheduler {
     /// # }
     #[inline]
     #[instrument(skip_all, level = "trace")]
+    #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::cast_sign_loss)]
     pub fn new(state: SharedState) -> Result<Self, FeroxFuzzError> {
         let corpora = state.corpora();
+
+        let mut current = state
+            .stats()
+            .read()
+            .map_or(0, |stats| stats.requests() as usize);
 
         let mut indices = Vec::with_capacity(corpora.len());
 
@@ -181,11 +188,18 @@ impl OrderedScheduler {
             return Err(FeroxFuzzError::EmptyCorpusMap);
         }
 
-        Ok(Self {
-            state,
+        let mut scheduler = Self {
+            current,
             indices,
-            current: 0,
-        })
+            state,
+        };
+
+        while current > 0 {
+            Scheduler::next(&mut scheduler)?;
+            current -= 1;
+        }
+
+        Ok(scheduler)
     }
 
     /// by default, the [`OrderedScheduler`] will iterate through *every* corpus

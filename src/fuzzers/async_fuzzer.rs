@@ -4,8 +4,9 @@ use std::marker::Send;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::stream::{FuturesUnordered, StreamExt};
+use tokio::sync::mpsc::{self, UnboundedReceiver};
 use tokio::sync::Semaphore;
+use tokio::task::JoinHandle;
 use tracing::{instrument, warn};
 
 #[allow(clippy::wildcard_imports)]
@@ -167,10 +168,10 @@ where
 impl<A, D, M, O, P, S> AsyncFuzzing for AsyncFuzzer<A, D, M, O, P, S>
 where
     A: client::AsyncRequests + Send + Sync + Clone + 'static,
-    D: Deciders<O, AsyncResponse> + Send + Clone,
+    D: Deciders<O, AsyncResponse> + Send + Clone + 'static,
     M: Mutators + Send,
-    O: Observers<AsyncResponse> + Send + Clone,
-    P: Processors<O, AsyncResponse> + Send + Clone,
+    O: Observers<AsyncResponse> + Send + Clone + 'static,
+    P: Processors<O, AsyncResponse> + Send + Clone + 'static,
     S: Scheduler + Debug + Send,
 {
     #[instrument(skip_all, fields(%self.threads, ?self.post_send_logic, ?self.pre_send_logic) name = "fuzz-loop", level = "trace")]
@@ -197,10 +198,32 @@ where
         // tokio semaphore to limit the number of concurrent requests
         let semaphore = Arc::new(Semaphore::new(self.threads));
 
-        // collection of unordered futures to store the responses in for processing
-        let mut request_futures = FuturesUnordered::new();
+        // in order to process responses as they come in, we need to spawn a new task
+        // that will handle the responses via a mpsc channel. This means that we have
+        // two loops going at any given time: one that sends requests/receives responses
+        // and one that processes responses. In feroxfuzz terms, the first loop can be
+        // thought of as the pre-send loop while the second loop acts as the post-send loop.
 
-        // first loop fires off requests
+        // create a channel to send requests to the async block
+        let (tx, rx) = mpsc::unbounded_channel();
+
+        // clone the deciders, observers, and processors so that they can be moved into the response
+        // processor's async block
+        let c_deciders = self.deciders.clone();
+        let c_observers = self.observers.clone();
+        let c_processors = self.processors.clone();
+        let c_logic = self.post_send_logic;
+        let c_state = state.clone();
+
+        // kick off the response processing t
+        let response_processing_handle = tokio::spawn(async move {
+            process_responses(c_state, c_deciders, c_observers, c_processors, c_logic, rx)
+                .await
+                .unwrap_or_default()
+        });
+
+        // first loop fires off requests and receives the responses
+        // those responses are then sent to the second loop via the mpsc channel
         loop {
             let scheduled = Scheduler::next(&mut self.scheduler);
 
@@ -229,6 +252,9 @@ where
                 self.pre_send_logic(),
             );
 
+            self.processors
+                .call_pre_send_hooks(state, &mut mutated_request, decision.as_ref());
+
             if decision.is_some() {
                 // if there is an action to take, based off the deciders, then
                 // we need to set the action on the request, and then call the
@@ -241,11 +267,14 @@ where
                 state.update_from_request(&mutated_request);
             }
 
-            self.processors
-                .call_pre_send_hooks(state, &mut mutated_request, decision.as_ref());
-
             match decision {
                 Some(Action::Discard) => {
+                    // if the decision is to discard the request, then we need to
+                    // increment the request id and notify the event handler
+                    // that the request was discarded
+                    //
+                    // we also need to continue to the next iteration of the loop
+                    // so that we don't send the request
                     self.request_id += 1;
 
                     state.events().notify(DiscardedRequest {
@@ -258,15 +287,17 @@ where
                     // i can't think of too many uses for an AddToCorpus to run on the
                     // pre-send side of things... maybe a 'seen' corpus or something?
                     // leaving it here for now.
-
                     match corpus_item_type {
                         CorpusItemType::Request => {
+                            // all fuzzable fields of the request are added to the corpus
                             state.add_request_fields_to_corpus(&name, &mutated_request)?;
                         }
                         CorpusItemType::Data(data) => {
+                            // the single given Data item is added to the corpus
                             state.add_data_to_corpus(&name, data)?;
                         }
                         CorpusItemType::LotsOfData(data) => {
+                            // each item in the given Data vector is added to the corpus
                             for item in data {
                                 state.add_data_to_corpus(&name, item)?;
                             }
@@ -279,7 +310,12 @@ where
                                 "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
                                 self.request_id
                             );
+
                             state.events().notify(&StopFuzzing);
+
+                            // bubble the StopFuzzing action up to the caller in case the caller
+                            // is fuzz or fuzz_n_iterations, allowing them to break out of their
+                            // loops as well
                             return Ok(Some(Action::StopFuzzing));
                         }
                         FlowControl::Discard => {
@@ -303,7 +339,9 @@ where
                         "[ID: {}] stopping fuzzing due to StopFuzzing action",
                         mutated_request.id()
                     );
+
                     state.events().notify(&StopFuzzing);
+
                     return Ok(Some(Action::StopFuzzing));
                 }
                 Some(Action::Keep) => {
@@ -318,17 +356,20 @@ where
             let cloned_client = client.clone();
             let cloned_semaphore = semaphore.clone();
 
-            // spawn a new task to send the request, and store the handle in the
-            // request_futures collection
-            request_futures.push(tokio::spawn(async move {
+            // spawn a new task to send the request, and when received, send the response
+            // across the mpsc channel to the second/post-send loop
+            let sent = tx.send(Some(tokio::spawn(async move {
                 // the semaphore only has self.threads permits, so this will block
                 // until one is available, limiting the number of concurrent requests
                 match cloned_semaphore.acquire_owned().await {
                     Ok(permit) => {
                         let cloned_request = mutated_request.clone();
 
+                        // send the request, and await the response
                         let result = cloned_client.send(mutated_request).await;
 
+                        // release the semaphore permit, now that the request has been sent and is
+                        // no longer in-flight
                         drop(permit);
 
                         match result {
@@ -345,115 +386,53 @@ where
                     }
                     Err(err) => {
                         tracing::error!("Failed to acquire semaphore permit: {:?}", err);
-                        Err(FeroxFuzzError::FailedSemaphoreAcquire { source: err })
+                        Err(FeroxFuzzError::SemaphoreAcquisitionError { source: err })
                     }
                 }
-            }));
+            })));
+
+            // UnboundedChannel::send can only error if the receiver has called close()
+            // on the channel, which we don't do, or the receiver has been dropped.
+            //
+            // Since we don't call close() on the channel, an error during send must mean
+            // that None was sent to the receiver. This is possible because send doesn't
+            // block when in an async context, so it's possible for the receiver to
+            // receive None before the sender has a chance to send all of the requests.
+            //
+            // likely this is due in part to the use of the semaphore
+            //
+            // in any case, if this particular send is an error, we'll just log it and
+            // continue on
+
+            if let Err(err) = sent {
+                tracing::error!(
+                    "Failed to send response to response processing task: {:?}",
+                    err
+                );
+            }
 
             self.request_id += 1;
         }
 
-        // second loop handles responses
-        //
-        // outer loop awaits the actual response, which is a double-nested Result
-        // Result<Result<RequestFuture, FeroxFuzzError>, tokio::task::JoinError>
-        while let Some(handle) = request_futures.next().await {
-            let Ok(task_result) = handle else {
-                // tokio::task::JoinError -- task failed to execute to completion
-                // could be a cancelled task, or one that panicked for w/e reason
-                warn!("Task failed to execute to completion: {:?}", handle.err());
-                continue;
-            };
+        // send a None to the receiver, to signal that we're done sending requests
+        if let Err(err) = tx.send(None) {
+            tracing::error!("Failed to tell response processing task to stop: {:?}", err);
+        }
 
-            let Ok(request_future) = task_result else {
-                let error = task_result.err().unwrap();
-
-                // feroxfuzz::client::Client::send returned an error, which is a client error
-                // that means we need to update the statistics and then continue
-                state.update_from_error(&error).unwrap_or_default();
-
-                warn!(%error, "response errored out and will not continue through the fuzz loop");
-                continue;
-            };
-
-            // unpack the request_future into its request and response
-            let (request, response) = (request_future.request, request_future.response);
-
-            let request_id = response.id(); // only used for logging
-
-            self.observers.call_post_send_hooks(response);
-
-            let decision = self.deciders.call_post_send_hooks(
-                state,
-                &self.observers,
-                None,
-                self.post_send_logic(),
-            );
-
-            if state.update(&self.observers, decision.as_ref()).is_err() {
-                // could not update the state via the observers; cannot reliably make
-                // decisions or perform actions on this response as a result and must
-                // skip any post processing actions
-                warn!("Could not update state via observers; skipping Deciders and Processors");
-                continue;
+        // wait for all of the request futures to complete
+        let processed_result = match response_processing_handle.await {
+            Ok(result) => result,
+            Err(err) => {
+                tracing::error!("Failed to join response processing task: {:?}", err);
+                return Err(FeroxFuzzError::TaskJoinError {
+                    message: err.to_string(),
+                });
             }
+        };
 
-            self.processors
-                .call_post_send_hooks(state, &self.observers, decision.as_ref());
-
-            match decision {
-                Some(Action::AddToCorpus(name, corpus_item_type, flow_control)) => {
-                    match corpus_item_type {
-                        CorpusItemType::Request => {
-                            if let Err(err) = state.add_request_fields_to_corpus(&name, &request) {
-                                warn!("Could not add {:?} to corpus[{name}]: {:?}", &request, err);
-                            }
-                        }
-                        CorpusItemType::Data(data) => {
-                            if let Err(err) = state.add_data_to_corpus(&name, data) {
-                                warn!("Could not add {:?} to corpus[{name}]: {:?}", request, err);
-                            }
-                        }
-                        CorpusItemType::LotsOfData(data) => {
-                            for item in data {
-                                state.add_data_to_corpus(&name, item)?;
-                            }
-                        }
-                    }
-
-                    match flow_control {
-                        FlowControl::StopFuzzing => {
-                            tracing::info!(
-                                "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
-                                request_id
-                            );
-                            state.events().notify(&StopFuzzing);
-                            return Ok(Some(Action::StopFuzzing));
-                        }
-                        FlowControl::Discard => {
-                            state.events().notify(DiscardedResponse { id: request_id });
-                        }
-                        FlowControl::Keep => {
-                            state.events().notify(KeptResponse { id: request_id });
-                        }
-                    }
-                }
-                Some(Action::StopFuzzing) => {
-                    tracing::info!(
-                        "[ID: {}] stopping fuzzing due to StopFuzzing action",
-                        request_id
-                    );
-                    state.events().notify(&StopFuzzing);
-                    return Ok(Some(Action::StopFuzzing));
-                }
-                Some(Action::Discard) => {
-                    state.events().notify(DiscardedResponse { id: request_id });
-                }
-                Some(Action::Keep) => {
-                    state.events().notify(KeptResponse { id: request_id });
-                }
-                None => {}
-            }
+        // if the response processing loop returned an action, return it
+        if let Some(action) = processed_result {
+            return Ok(Some(action));
         }
 
         if let Some(hook) = &mut self.post_loop_hook {
@@ -464,6 +443,135 @@ where
 
         Ok(None) // no action taken
     }
+}
+
+/// The main loop for processing responses
+///
+/// This loop is responsible for processing responses, and will continue to do
+/// so until the `receiver` channel receives `None` from the `fuzz_once` loop.
+async fn process_responses<D, O, P>(
+    state: SharedState,
+    mut deciders: D,
+    mut observers: O,
+    mut processors: P,
+    post_send_logic: LogicOperation,
+    mut receiver: UnboundedReceiver<Option<JoinHandle<Result<RequestFuture, FeroxFuzzError>>>>,
+) -> Result<Option<Action>, FeroxFuzzError>
+where
+    D: Deciders<O, AsyncResponse> + Send + Clone,
+    O: Observers<AsyncResponse> + Send + Clone,
+    P: Processors<O, AsyncResponse> + Send + Clone,
+{
+    // second loop handles responses
+    //
+    // outer loop awaits the actual response, which is a double-nested Result
+    // Result<Result<RequestFuture, FeroxFuzzError>, tokio::task::JoinError>
+    tracing::debug!("entering the response processing loop...");
+    while let Some(handle) = receiver.recv().await {
+        if handle.is_none() {
+            // if the handle is None, then the sender has closed the channel
+            // and we should exit the loop
+            break;
+        }
+
+        // safe to unwrap here, because we know the handle is Some
+        let handle = handle.unwrap().await;
+
+        let Ok(task_result) = handle else {
+            // tokio::task::JoinError -- task failed to execute to completion
+            // could be a cancelled task, or one that panicked for w/e reason
+            //
+            // either way, we can't process the response, so we just continue
+            warn!("Task failed to execute to completion: {:?}", handle.err());
+            continue;
+        };
+
+        let Ok(request_future) = task_result else {
+            let error = task_result.err().unwrap();
+
+            // feroxfuzz::client::Client::send returned an error, which is a client error
+            // that means we need to update the statistics and then continue
+            state.update_from_error(&error).unwrap_or_default();
+
+            warn!(%error, "response errored out and will not continue through the fuzz loop");
+            continue;
+        };
+
+        // unpack the request_future into its request and response parts for convenience
+        let (request, response) = (request_future.request, request_future.response);
+
+        let request_id = response.id(); // grab the id; only used for logging
+
+        observers.call_post_send_hooks(response);
+
+        let decision = deciders.call_post_send_hooks(&state, &observers, None, post_send_logic);
+
+        if state.update(&observers, decision.as_ref()).is_err() {
+            // could not update the state via the observers; cannot reliably make
+            // decisions or perform actions on this response as a result and must
+            // skip any post processing actions
+            warn!("Could not update state via observers; skipping Processors");
+            continue;
+        }
+
+        processors.call_post_send_hooks(&state, &observers, decision.as_ref());
+
+        match decision {
+            Some(Action::AddToCorpus(name, corpus_item_type, flow_control)) => {
+                match corpus_item_type {
+                    CorpusItemType::Request => {
+                        if let Err(err) = state.add_request_fields_to_corpus(&name, &request) {
+                            warn!("Could not add {:?} to corpus[{name}]: {:?}", &request, err);
+                        }
+                    }
+                    CorpusItemType::Data(data) => {
+                        if let Err(err) = state.add_data_to_corpus(&name, data) {
+                            warn!("Could not add {:?} to corpus[{name}]: {:?}", request, err);
+                        }
+                    }
+                    CorpusItemType::LotsOfData(data) => {
+                        for item in data {
+                            state.add_data_to_corpus(&name, item)?;
+                        }
+                    }
+                }
+
+                match flow_control {
+                    FlowControl::StopFuzzing => {
+                        tracing::info!(
+                            "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
+                            request_id
+                        );
+                        state.events().notify(&StopFuzzing);
+                        return Ok(Some(Action::StopFuzzing));
+                    }
+                    FlowControl::Discard => {
+                        state.events().notify(DiscardedResponse { id: request_id });
+                    }
+                    FlowControl::Keep => {
+                        state.events().notify(KeptResponse { id: request_id });
+                    }
+                }
+            }
+            Some(Action::StopFuzzing) => {
+                tracing::info!(
+                    "[ID: {}] stopping fuzzing due to StopFuzzing action",
+                    request_id
+                );
+                state.events().notify(&StopFuzzing);
+                return Ok(Some(Action::StopFuzzing));
+            }
+            Some(Action::Discard) => {
+                state.events().notify(DiscardedResponse { id: request_id });
+            }
+            Some(Action::Keep) => {
+                state.events().notify(KeptResponse { id: request_id });
+            }
+            None => {}
+        }
+    }
+
+    Ok(None)
 }
 
 #[cfg(test)]
@@ -487,7 +595,7 @@ mod tests {
 
     /// test that the fuzz loop will stop if the decider returns a StopFuzzing action in
     /// the pre-send phase
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_async_fuzzer_stops_fuzzing_pre_send() -> Result<(), Box<dyn std::error::Error>> {
         let srv = MockServer::start();
 
@@ -520,7 +628,7 @@ mod tests {
             }
         });
 
-        let mut fuzzer = AsyncFuzzer::new(1)
+        let mut fuzzer = AsyncFuzzer::new(3)
             .client(client.clone())
             .request(request.clone())
             .scheduler(OrderedScheduler::new(state.clone())?)
@@ -532,40 +640,43 @@ mod tests {
         let result = fuzzer.fuzz_once(&mut state.clone()).await?;
         assert!(matches!(result, Some(Action::StopFuzzing)));
 
-        // due to how the async fuzzer works, no requests will be sent in this short
-        // of a test, so we can't assert that the mock server received any requests
-        assert_eq!(mock.hits(), 0);
+        // due to how the async fuzzer works, it's possible that no requests will
+        // be sent in this short of a test, so the mock server may or may not
+        // have received requests
+        assert!(mock.hits() == 1 || mock.hits() == 0);
 
         fuzzer.scheduler.reset();
         fuzzer.fuzz_n_iterations(3, &mut state).await?;
 
-        assert_eq!(mock.hits(), 0);
+        assert!(mock.hits() <= 2);
 
         fuzzer.scheduler.reset();
         fuzzer.fuzz(&mut state).await?;
 
-        assert_eq!(mock.hits(), 0);
+        assert!(mock.hits() <= 3);
 
         Ok(())
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     /// test that the fuzz loop will stop if the decider returns a StopFuzzing action
     /// in the post-send phase
     async fn test_async_fuzzer_stops_fuzzing_post_send() -> Result<(), Box<dyn std::error::Error>> {
         let srv = MockServer::start();
 
-        let _mock = srv.mock(|when, then| {
-            // registers hits for 0
-            when.method(GET).path_matches(Regex::new("[02]").unwrap());
-            then.status(200).body("this is a test");
+        let _mock0 = srv.mock(|when, then| {
+            when.method(GET).path("/0");
+            then.status(200);
+        });
+
+        let _mock1 = srv.mock(|when, then| {
+            when.method(GET).path("/1");
+            then.status(201).body("derp");
         });
 
         let _mock2 = srv.mock(|when, then| {
-            // registers hits for 1, 2
-            #[allow(clippy::trivial_regex)]
-            when.method(GET).path_matches(Regex::new("1").unwrap());
-            then.status(201).body("derp");
+            when.method(GET).path("/2");
+            then.status(200);
         });
 
         // 0, 1, 2
@@ -582,7 +693,7 @@ mod tests {
 
         let request = Request::from_url(&srv.url("/FUZZ"), Some(&[ShouldFuzz::URLPath]))?;
 
-        // stop fuzzing if path matches '1'
+        // stop fuzzing if body matches 'derp' which should be '/1' endpoint
         let decider = ResponseRegexDecider::new("derp", |regex, response, _state| {
             if regex.is_match(response.body()) {
                 Action::StopFuzzing
@@ -598,7 +709,7 @@ mod tests {
         let deciders = build_deciders!(decider);
         let mutators = build_mutators!(mutator);
 
-        let mut fuzzer = AsyncFuzzer::new(1)
+        let mut fuzzer = AsyncFuzzer::new(5)
             .client(client)
             .request(request)
             .scheduler(scheduler)

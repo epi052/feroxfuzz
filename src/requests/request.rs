@@ -15,7 +15,7 @@ use tracing::{error, instrument};
 use url::Url;
 
 use std::fmt::{self, Display, Formatter};
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Rem, Sub, SubAssign};
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -104,6 +104,23 @@ where
 {
     fn sub_assign(&mut self, rhs: T) {
         self.0 -= rhs.into();
+    }
+}
+
+impl<T> Rem<T> for RequestId
+where
+    T: Into<usize>,
+{
+    type Output = Self;
+
+    fn rem(self, modulus: T) -> Self::Output {
+        Self(self.0 % modulus.into())
+    }
+}
+
+impl PartialEq<usize> for RequestId {
+    fn eq(&self, other: &usize) -> bool {
+        self.0 == *other
     }
 }
 
