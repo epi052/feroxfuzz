@@ -9,7 +9,7 @@
 
 <p align="center">
   <a href="https://github.com/epi052/feroxfuzz/actions?query=workflow%3A%22CI+Pipeline%22">
-    <img src="https://img.shields.io/github/workflow/status/epi052/feroxfuzz/CI%20Pipeline/main?logo=github">
+    <img src="https://img.shields.io/github/actions/workflow/status/epi052/feroxfuzz/.github/workflows/check.yml?branch=main&logo=github">
   </a>
 
   <a href="https://github.com/epi052/feroxfuzz/commits/master">
