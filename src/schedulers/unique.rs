@@ -54,15 +54,15 @@ use tracing::{error, instrument, trace};
 /// the scheduler will ensure that each user is paired with each password
 /// by maintaining a set of all scheduled combinations.
 ///
-///   Users[0] Passwords[0] -> scheduled
-///   Users[0] Passwords[1] -> scheduled
-///   Users[0] Passwords[2] -> scheduled
-///   Users[1] Passwords[0] -> scheduled
-///   Users[1] Passwords[1] -> scheduled
-///   Users[1] Passwords[2] -> scheduled
-///   Users[2] Passwords[0] -> scheduled
-///   Users[2] Passwords[1] -> scheduled
-///   Users[2] Passwords[2] -> scheduled
+///   Users\[0\] Passwords\[0\] -> scheduled
+///   Users\[0\] Passwords\[1\] -> scheduled
+///   Users\[0\] Passwords\[2\] -> scheduled
+///   Users\[1\] Passwords\[0\] -> scheduled
+///   Users\[1\] Passwords\[1\] -> scheduled
+///   Users\[1\] Passwords\[2\] -> scheduled
+///   Users\[2\] Passwords\[0\] -> scheduled
+///   Users\[2\] Passwords\[1\] -> scheduled
+///   Users\[2\] Passwords\[2\] -> scheduled
 ///
 /// If you add a new user to the corpus, the scheduler will ensure that
 /// the new user is paired with each password, and that each existing
@@ -72,9 +72,9 @@ use tracing::{error, instrument, trace};
 /// `fuzzer.scheduler.update_length()`;  <- update the scheduler to reflect the new length
 /// `fuzzer.fuzz_once()`;  <- allow the scheduler to schedule the new user
 ///
-///   Users[3] Passwords[0] -> scheduled
-///   Users[3] Passwords[1] -> scheduled
-///   Users[3] Passwords[2] -> scheduled
+///   Users\[3\] Passwords\[0\] -> scheduled
+///   Users\[3\] Passwords\[1\] -> scheduled
+///   Users\[3\] Passwords\[2\] -> scheduled
 ///
 #[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

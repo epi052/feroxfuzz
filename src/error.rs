@@ -236,15 +236,6 @@ pub enum FeroxFuzzError {
     #[error("Skipped a previously scheduled item")]
     SkipScheduledItem,
 
-    /// Represents a failure to send a response to the post-send processing channel
-    /// during asynchronous fuzzing (i.e. the channel was closed unexpectedly)
-    #[cfg(feature = "tokio")]
-    #[error("Could not send the response to the post-send processing channel")]
-    MPSCChannelSendError {
-        /// the underlying error message
-        message: String,
-    },
-
     /// Represents a failure to await a backgrounded task
     #[cfg(feature = "tokio")]
     #[error("Could not await the backgrounded task")]

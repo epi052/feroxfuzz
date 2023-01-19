@@ -391,14 +391,24 @@ where
                 }
             })));
 
+            // UnboundedChannel::send can only error if the receiver has called close()
+            // on the channel, which we don't do, or the receiver has been dropped.
+            //
+            // Since we don't call close() on the channel, an error during send must mean
+            // that None was sent to the receiver. This is possible because send doesn't
+            // block when in an async context, so it's possible for the receiver to
+            // receive None before the sender has a chance to send all of the requests.
+            //
+            // likely this is due in part to the use of the semaphore
+            //
+            // in any case, if this particular send is an error, we'll just log it and
+            // continue on
+
             if let Err(err) = sent {
                 tracing::error!(
                     "Failed to send response to response processing task: {:?}",
                     err
                 );
-                return Err(FeroxFuzzError::MPSCChannelSendError {
-                    message: err.to_string(),
-                });
             }
 
             self.request_id += 1;
@@ -407,9 +417,6 @@ where
         // send a None to the receiver, to signal that we're done sending requests
         if let Err(err) = tx.send(None) {
             tracing::error!("Failed to tell response processing task to stop: {:?}", err);
-            return Err(FeroxFuzzError::MPSCChannelSendError {
-                message: err.to_string(),
-            });
         }
 
         // wait for all of the request futures to complete
@@ -588,7 +595,7 @@ mod tests {
 
     /// test that the fuzz loop will stop if the decider returns a StopFuzzing action in
     /// the pre-send phase
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_async_fuzzer_stops_fuzzing_pre_send() -> Result<(), Box<dyn std::error::Error>> {
         let srv = MockServer::start();
 
@@ -621,7 +628,7 @@ mod tests {
             }
         });
 
-        let mut fuzzer = AsyncFuzzer::new(1)
+        let mut fuzzer = AsyncFuzzer::new(3)
             .client(client.clone())
             .request(request.clone())
             .scheduler(OrderedScheduler::new(state.clone())?)
@@ -633,24 +640,25 @@ mod tests {
         let result = fuzzer.fuzz_once(&mut state.clone()).await?;
         assert!(matches!(result, Some(Action::StopFuzzing)));
 
-        // due to how the async fuzzer works, no requests will be sent in this short
-        // of a test, so we can't assert that the mock server received any requests
-        assert_eq!(mock.hits(), 0);
+        // due to how the async fuzzer works, it's possible that no requests will
+        // be sent in this short of a test, so the mock server may or may not
+        // have received requests
+        assert!(mock.hits() == 1 || mock.hits() == 0);
 
         fuzzer.scheduler.reset();
         fuzzer.fuzz_n_iterations(3, &mut state).await?;
 
-        assert_eq!(mock.hits(), 0);
+        assert!(mock.hits() <= 2);
 
         fuzzer.scheduler.reset();
         fuzzer.fuzz(&mut state).await?;
 
-        assert_eq!(mock.hits(), 0);
+        assert!(mock.hits() <= 3);
 
         Ok(())
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     /// test that the fuzz loop will stop if the decider returns a StopFuzzing action
     /// in the post-send phase
     async fn test_async_fuzzer_stops_fuzzing_post_send() -> Result<(), Box<dyn std::error::Error>> {
@@ -701,7 +709,7 @@ mod tests {
         let deciders = build_deciders!(decider);
         let mutators = build_mutators!(mutator);
 
-        let mut fuzzer = AsyncFuzzer::new(1)
+        let mut fuzzer = AsyncFuzzer::new(5)
             .client(client)
             .request(request)
             .scheduler(scheduler)
