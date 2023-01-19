@@ -15,6 +15,10 @@
   <a href="https://github.com/epi052/feroxfuzz/commits/master">
     <img src="https://img.shields.io/github/last-commit/epi052/feroxfuzz?logo=github">
   </a>
+  
+  <a href="https://codecov.io/gh/epi052/feroxfuzz">
+    <img src="https://codecov.io/gh/epi052/feroxfuzz/branch/main/graph/badge.svg" />
+  </a>
 
   <a href="https://crates.io/crates/feroxfuzz">
     <img src="https://img.shields.io/crates/v/feroxfuzz?color=blue&label=version&logo=rust">
