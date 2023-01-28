@@ -34,6 +34,10 @@ pub(super) fn reqwest_to_ferox_error(source: reqwest::Error) -> FeroxFuzzError {
         RequestErrorKind::Body(status)
     } else if source.is_connect() {
         // Returns true if the error is related to connect
+        //
+        // note: connect is a more specific error than a request error and both
+        // can be true at the same time; don't change the order of the if statements
+        // without thinking about the specificity of the error
         RequestErrorKind::Connect(status)
     } else if source.is_decode() {
         // Returns true if the error is related to decoding the response’s body
