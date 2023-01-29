@@ -89,13 +89,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         print!("{}?", request.original_url());
 
         for (key, value) in request.params().unwrap().iter() {
-            print!("{}={}", key, value);
+            print!("{key}={value}");
         }
 
         println!();
 
         for (key, value) in request.headers().unwrap().iter() {
-            println!("   {}: {}", key, value);
+            println!("   {key}: {value}");
         }
     });
 

@@ -791,8 +791,7 @@ impl<'de> Visitor<'de> for LibAflMutatorVisitor<String, String> {
                     WordInterestingMutator::new(),
                 )),
                 _ => Err(de::Error::custom(format!(
-                    "unknown LibAflMutator variant: {}:{}",
-                    key, value
+                    "unknown LibAflMutator variant: {key}:{value}",
                 ))),
             };
         }

@@ -91,9 +91,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         for (i, (key, value)) in request.params().unwrap().iter().enumerate() {
             if i == num_positions - 1 {
-                print!("{}={}", key, value);
+                print!("{key}={value}");
             } else {
-                print!("{}={}&", key, value);
+                print!("{key}={value}&");
             }
         }
 
