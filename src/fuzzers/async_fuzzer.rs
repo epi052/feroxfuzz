@@ -237,6 +237,22 @@ where
                 continue;
             }
 
+            // the semaphore only has self.threads permits, so this will block
+            // until one is available, limiting the number of concurrent requests
+            let permit = match semaphore.clone().acquire_owned().await {
+                Ok(permit) => permit,
+                Err(err) => {
+                    tracing::error!(
+                        "Failed to acquire semaphore permit, skipping RequestId<{}>: {:?}",
+                        self.request_id + 1, // +1 because we haven't incremented the request id yet
+                        err
+                    );
+
+                    // if we couldn't get a permit from the semaphore, we'll skip this request
+                    continue;
+                }
+            };
+
             let mut request = self.request.clone();
 
             *request.id_mut() += self.request_id;
@@ -352,42 +368,33 @@ where
                 None => {} // do nothing
             }
 
-            // two arc clones are needed here, one for the semaphore, and one for the client
+            // we need to clone the Arc-wrapped client here, because the client is moved to the spawned task
             let cloned_client = client.clone();
-            let cloned_semaphore = semaphore.clone();
 
             // spawn a new task to send the request, and when received, send the response
             // across the mpsc channel to the second/post-send loop
             let sent = tx.send(Some(tokio::spawn(async move {
-                // the semaphore only has self.threads permits, so this will block
-                // until one is available, limiting the number of concurrent requests
-                match cloned_semaphore.acquire_owned().await {
-                    Ok(permit) => {
-                        let cloned_request = mutated_request.clone();
+                let cloned_request = mutated_request.clone();
 
-                        // send the request, and await the response
-                        let result = cloned_client.send(mutated_request).await;
+                // send the request, and await the response
+                let result = cloned_client.send(mutated_request).await;
 
-                        // release the semaphore permit, now that the request has been sent and is
-                        // no longer in-flight
-                        drop(permit);
+                // release the semaphore permit, now that the request has been sent and is
+                // no longer in-flight
+                //
+                // for reference: the permit is acquired at the top of the loop
+                drop(permit);
 
-                        match result {
-                            // if the request was successful, return the response
-                            // and the request that generated it
-                            Ok(response) => Ok(RequestFuture {
-                                response,
-                                request: cloned_request,
-                            }),
-                            // otherwise, allow the error to bubble up to the processing
-                            // loop
-                            Err(err) => Err(err),
-                        }
-                    }
-                    Err(err) => {
-                        tracing::error!("Failed to acquire semaphore permit: {:?}", err);
-                        Err(FeroxFuzzError::SemaphoreAcquisitionError { source: err })
-                    }
+                match result {
+                    // if the request was successful, return the response
+                    // and the request that generated it
+                    Ok(response) => Ok(RequestFuture {
+                        response,
+                        request: cloned_request,
+                    }),
+                    // otherwise, allow the error to bubble up to the processing
+                    // loop
+                    Err(err) => Err(err),
                 }
             })));
 
@@ -395,20 +402,24 @@ where
             // on the channel, which we don't do, or the receiver has been dropped.
             //
             // Since we don't call close() on the channel, an error during send must mean
-            // that None was sent to the receiver. This is possible because send doesn't
-            // block when in an async context, so it's possible for the receiver to
+            // that either
+            // - None was sent to the receiver
+            // - StopFuzzing was returned from a post-send decider
+            //
+            // Receiving None while this loop is still active is possible because send
+            // doesn't block when in an async context, so it's possible for the receiver to
             // receive None before the sender has a chance to send all of the requests.
             //
             // likely this is due in part to the use of the semaphore
             //
-            // in any case, if this particular send is an error, we'll just log it and
-            // continue on
-
+            // in any case, to support StopFuzzing behavior, if this particular send is an
+            // error, we'll log it and break out of the loop
             if let Err(err) = sent {
                 tracing::error!(
                     "Failed to send response to response processing task: {:?}",
                     err
                 );
+                break;
             }
 
             self.request_id += 1;
