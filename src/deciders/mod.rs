@@ -112,18 +112,24 @@ where
             }
         }
 
-        let new_action = self.decide_with_request(state, request)?;
+        let new_action = self.decide_with_request(state, request);
 
-        // take the current action that was decided upon via decide_with_observers, and the
+        // take the current action that was decided upon via decide_with_request, and the
         // previously decided action (if any) to arrive at what should be returned as the
         // current decided action
-        let final_action = match (action, operation) {
-            (None, _) => new_action,
-            (Some(old_action), LogicOperation::And) => new_action & old_action,
-            (Some(old_action), LogicOperation::Or) => new_action | old_action,
+        let final_action = match (action, new_action, operation) {
+            (None, None, _) => None,
+            (None, Some(new_action), _) => Some(new_action),
+            (Some(old_action), None, _) => Some(old_action),
+            (Some(old_action), Some(new_action), LogicOperation::And) => {
+                Some(old_action & new_action)
+            }
+            (Some(old_action), Some(new_action), LogicOperation::Or) => {
+                Some(old_action | new_action)
+            }
         };
 
-        Some(final_action)
+        final_action
     }
 
     /// called after an [`HttpClient`] receives a [`Response`]
@@ -149,18 +155,24 @@ where
             }
         }
 
-        let new_action = self.decide_with_observers(state, observers)?;
+        let new_action = self.decide_with_observers(state, observers);
 
         // take the current action that was decided upon via decide_with_observers, and the
         // previously decided action (if any) to arrive at what should be returned as the
         // current decided action
-        let final_action = match (action, operation) {
-            (None, _) => new_action,
-            (Some(old_action), LogicOperation::And) => new_action & old_action,
-            (Some(old_action), LogicOperation::Or) => new_action | old_action,
+        let final_action = match (action, new_action, operation) {
+            (None, None, _) => None,
+            (None, Some(new_action), _) => Some(new_action),
+            (Some(old_action), None, _) => Some(old_action),
+            (Some(old_action), Some(new_action), LogicOperation::And) => {
+                Some(old_action & new_action)
+            }
+            (Some(old_action), Some(new_action), LogicOperation::Or) => {
+                Some(old_action | new_action)
+            }
         };
 
-        Some(final_action)
+        final_action
     }
 }
 

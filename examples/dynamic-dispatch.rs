@@ -75,16 +75,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for option in parse_cli() {
         // create a new mutator, which will replace the keyword "FUZZ-[0,1,2]" with a random word from the corpus
-        let dynamic_keyword = format!("FUZZ-{}", option);
+        let dynamic_keyword = format!("FUZZ-{option}");
         let mutator = ReplaceKeyword::new(&dynamic_keyword, "words");
 
         // add the mutator to our `DynamicMutators` struct
         dynamic_mutators.inner.push(Box::new(mutator));
 
         params.push(match option {
-            0 => format!("admin={}", dynamic_keyword),
-            1 => format!("password={}", dynamic_keyword),
-            2 => format!("domain={}", dynamic_keyword),
+            0 => format!("admin={dynamic_keyword}"),
+            1 => format!("password={dynamic_keyword}"),
+            2 => format!("domain={dynamic_keyword}"),
             _ => panic!("invalid option"),
         });
     }

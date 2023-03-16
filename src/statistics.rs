@@ -40,6 +40,10 @@ pub struct Statistics {
     requests: f64,
 
     /// tracker for total number of errors encountered by the client
+    ///
+    /// these errors are not related to status code based errors in the
+    /// 400 or 500 range. The errors tracked here reflect things like
+    /// network connection errors, timeouts, etc...
     errors: usize,
 
     /// tracker for overall number of 1xx status codes seen by the client
@@ -68,6 +72,11 @@ pub struct Statistics {
 
     /// tracker for when the fuzzing began
     start_time: Duration,
+
+    /// total number of seconds the scan has run
+    ///
+    /// this value is a snapshot in time from when `common_updates` was last called
+    elapsed: f64,
 
     /// average number of requests per second
     avg_reqs_per_sec: f64,
@@ -210,10 +219,6 @@ impl Statistics {
     }
 
     /// Inspect the given status code and increment the appropriate fields
-    ///
-    /// Implies incrementing:
-    ///     - appropriate status_* codes
-    ///     - errors (when code is [45]xx)
     #[instrument(skip(self), level = "trace")]
     fn add_status_code(&mut self, status: u16) -> Result<(), FeroxFuzzError> {
         match status {
@@ -231,15 +236,13 @@ impl Statistics {
             }
             400..=499 => {
                 // client error
-                self.errors += 1;
                 self.client_errors += 1;
             }
             500..=599 => {
-                self.errors += 1;
                 self.server_errors += 1;
             }
-            // anything outside 100-599 is invalid
             _ => {
+                // anything outside 100-599 is invalid
                 error!(%status, "The status code is invalid and couldn't be parsed");
 
                 return Err(FeroxFuzzError::InvalidStatusCode {
@@ -323,10 +326,10 @@ impl Statistics {
     }
 
     #[inline]
-    fn update_requests_per_second(&mut self, elapsed: f64) {
+    fn update_requests_per_second(&mut self) {
         // invariant: self.requests was incremented at least once
         //   prior to this function executing
-        self.avg_reqs_per_sec = self.requests / elapsed;
+        self.avg_reqs_per_sec = self.requests / self.elapsed;
     }
 
     /// update total # of requests and average # of requests per second
@@ -340,13 +343,13 @@ impl Statistics {
         // increment total # of requests
         self.requests += 1.0;
 
-        let elapsed = self.elapsed();
+        self.elapsed = self.elapsed();
 
-        if elapsed == 0.0 {
+        if self.elapsed == 0.0 {
             // set to 0 if checked_sub failed above
             self.avg_reqs_per_sec = 0.0;
         } else {
-            self.update_requests_per_second(elapsed);
+            self.update_requests_per_second();
         }
     }
 
