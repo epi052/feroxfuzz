@@ -719,3 +719,22 @@ impl HasMaxSize for SharedState {
         // need for it in feroxfuzz
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::corpora::RangeCorpus;
+
+    #[test]
+    fn default_state_can_add_corpus_after_creation() {
+        let mut state = SharedState::default();
+
+        assert_eq!(state.corpora().len(), 0);
+        assert_eq!(state.corpus_indices().len(), 0);
+
+        state.add_corpus(RangeCorpus::new().name("corpus").stop(10).build().unwrap());
+
+        assert_eq!(state.corpora().len(), 1);
+        assert_eq!(state.corpus_indices().len(), 1);
+    }
+}
