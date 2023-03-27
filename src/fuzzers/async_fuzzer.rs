@@ -4,7 +4,6 @@ use std::marker::Send;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use tokio::sync::mpsc::{self, UnboundedReceiver};
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 use tracing::{instrument, warn};
@@ -30,6 +29,27 @@ use crate::responses::{AsyncResponse, Response};
 use crate::schedulers::Scheduler;
 use crate::state::SharedState;
 use crate::std_ext::ops::LogicOperation;
+
+/// the number of post-processors (i.e. recv side of `flume::mpmc`) to handle
+/// the post-send loop logic / execution
+///
+/// 6 was chosen based on local testing and could be adjusted if needed
+///
+/// note: if you change this value, you must also change the number of .pop
+/// calls that we make on the post-processors vec in the call to
+/// `tokio::join` later in this module
+const NUM_POST_PROCESSORS: usize = 6;
+
+/// a crude way of passing information from the post-send loops
+/// back up to the pre-send loop
+///
+/// using return values isn't possible because the post-send loops
+/// are spawned as background tasks. attempting to use `try_join`
+/// doesn't work because the error that is returned is a
+/// `tokio::task::JoinError`. We can't trigger an early return
+/// from the post-send loop because we don't really own the
+/// initial `Result` that is returned from the `tokio::spawn` call
+static mut STOP_FUZZING_FLAG: bool = false;
 
 /// internal type used to pass a single object from the `tokio::spawn`
 /// call to the `FuturesUnordered` stream
@@ -198,29 +218,49 @@ where
         // tokio semaphore to limit the number of concurrent requests
         let semaphore = Arc::new(Semaphore::new(self.threads));
 
-        // in order to process responses as they come in, we need to spawn a new task
-        // that will handle the responses via a mpsc channel. This means that we have
+        // in order to process responses as they come in, we need to spawn new tasks
+        // that will handle the responses via an mpmc channel. This means that we have
         // two loops going at any given time: one that sends requests/receives responses
         // and one that processes responses. In feroxfuzz terms, the first loop can be
         // thought of as the pre-send loop while the second loop acts as the post-send loop.
 
-        // create a channel to send requests to the async block
-        let (tx, rx) = mpsc::unbounded_channel();
+        // create an unbounded mpmc channel to send requests to the async block
+        let (tx, rx) = flume::unbounded();
 
-        // clone the deciders, observers, and processors so that they can be moved into the response
-        // processor's async block
-        let c_deciders = self.deciders.clone();
-        let c_observers = self.observers.clone();
-        let c_processors = self.processors.clone();
-        let c_logic = self.post_send_logic;
-        let c_state = state.clone();
+        // kick off the response processing threads
+        let mut post_processing_handles = Vec::with_capacity(NUM_POST_PROCESSORS);
 
-        // kick off the response processing t
-        let response_processing_handle = tokio::spawn(async move {
-            process_responses(c_state, c_deciders, c_observers, c_processors, c_logic, rx)
+        for _ in 0..NUM_POST_PROCESSORS {
+            // clone the deciders, observers, and processors so that they can be moved into the response
+            // processor's async block
+            let c_deciders = self.deciders.clone();
+            let c_observers = self.observers.clone();
+            let c_processors = self.processors.clone();
+            let c_logic = self.post_send_logic;
+            let c_state = state.clone();
+            let c_rx = rx.clone();
+
+            // each spawned post-processor uses the same mpmc recv channel to receive responses
+            // from the pre-send loop; changing from mpsc to mpmc dramatically sped up
+            // processing time since the pre-send loop could pretty easily overwhelm the
+            // post-send loop. as a result, overall scan time was dramatically reduced as well
+            // since we could get into situations where all requests/responses were complete
+            // but the single consumer was still processing responses
+            let handle = tokio::spawn(async move {
+                process_responses(
+                    c_state,
+                    c_deciders,
+                    c_observers,
+                    c_processors,
+                    c_logic,
+                    c_rx,
+                )
                 .await
-                .unwrap_or_default()
-        });
+                .unwrap_or_default();
+            });
+
+            post_processing_handles.push(handle);
+        }
 
         // first loop fires off requests and receives the responses
         // those responses are then sent to the second loop via the mpsc channel
@@ -239,6 +279,10 @@ where
 
             // the semaphore only has self.threads permits, so this will block
             // until one is available, limiting the number of concurrent requests
+            //
+            // for the clippy allow: as far as I can tell, this is a false positive since
+            // we actually take ownership of the permit in the match arm
+            #[allow(clippy::significant_drop_in_scrutinee)]
             let permit = match semaphore.clone().acquire_owned().await {
                 Ok(permit) => permit,
                 Err(err) => {
@@ -252,6 +296,13 @@ where
                     continue;
                 }
             };
+
+            if unsafe { STOP_FUZZING_FLAG } {
+                // if one of the post-processing tasks set the stop flag, we need to stop
+                // here as well. The check is placed here to catch any requests that were
+                // previously held by the semaphore but not yet sent
+                return Ok(Some(Action::StopFuzzing));
+            }
 
             let mut request = self.request.clone();
 
@@ -373,7 +424,7 @@ where
 
             // spawn a new task to send the request, and when received, send the response
             // across the mpsc channel to the second/post-send loop
-            let sent = tx.send(Some(tokio::spawn(async move {
+            let sent = tx.send(tokio::spawn(async move {
                 let cloned_request = mutated_request.clone();
 
                 // send the request, and await the response
@@ -396,7 +447,7 @@ where
                     // loop
                     Err(err) => Err(err),
                 }
-            })));
+            }));
 
             // UnboundedChannel::send can only error if the receiver has called close()
             // on the channel, which we don't do, or the receiver has been dropped.
@@ -425,26 +476,38 @@ where
             self.request_id += 1;
         }
 
-        // send a None to the receiver, to signal that we're done sending requests
-        if let Err(err) = tx.send(None) {
-            tracing::error!("Failed to tell response processing task to stop: {:?}", err);
-        }
+        // now that all requests have been spawned/sent, we can close the tx side of the
+        // connection. this will allow the receivers to complete when all of the requests
+        // have been processed
+        drop(tx);
 
-        // wait for all of the request futures to complete
-        let processed_result = match response_processing_handle.await {
-            Ok(result) => result,
-            Err(err) => {
+        // the join! macro here is not driving the spawned tasks, rather it is waiting for
+        // the task handles to complete. This is the reason for the use of the
+        // STOP_FUZZING_FLAG, since we can't get returned error values early from the spawned
+        // tasks
+        let (first, second, third, fourth, fifth, sixth) = tokio::join!(
+            // note: these unwraps are ok, since the NUM_POST_PROCESSING_TASKS value is a const, without
+            // any possibility of user interaction. However, if that value changes, then the
+            // number of calls to .pop will need to change to reflect that
+            post_processing_handles.pop().unwrap(),
+            post_processing_handles.pop().unwrap(),
+            post_processing_handles.pop().unwrap(),
+            post_processing_handles.pop().unwrap(),
+            post_processing_handles.pop().unwrap(),
+            post_processing_handles.pop().unwrap(),
+        );
+
+        // if any of the tasks failed, log the error and move along, nothing can really be
+        // done about it from here
+        [first, second, third, fourth, fifth, sixth]
+            .into_iter()
+            .filter_map(|result| match result {
+                Ok(_) => None,
+                Err(err) => Some(err),
+            })
+            .for_each(|err| {
                 tracing::error!("Failed to join response processing task: {:?}", err);
-                return Err(FeroxFuzzError::TaskJoinError {
-                    message: err.to_string(),
-                });
-            }
-        };
-
-        // if the response processing loop returned an action, return it
-        if let Some(action) = processed_result {
-            return Ok(Some(action));
-        }
+            });
 
         if let Some(hook) = &mut self.post_loop_hook {
             // call the post-loop hook if it is defined
@@ -466,8 +529,8 @@ async fn process_responses<D, O, P>(
     mut observers: O,
     mut processors: P,
     post_send_logic: LogicOperation,
-    mut receiver: UnboundedReceiver<Option<JoinHandle<Result<RequestFuture, FeroxFuzzError>>>>,
-) -> Result<Option<Action>, FeroxFuzzError>
+    receiver: flume::Receiver<JoinHandle<Result<RequestFuture, FeroxFuzzError>>>,
+) -> Result<(), FeroxFuzzError>
 where
     D: Deciders<O, AsyncResponse> + Send + Clone,
     O: Observers<AsyncResponse> + Send + Clone,
@@ -478,22 +541,25 @@ where
     // outer loop awaits the actual response, which is a double-nested Result
     // Result<Result<RequestFuture, FeroxFuzzError>, tokio::task::JoinError>
     tracing::debug!("entering the response processing loop...");
-    while let Some(handle) = receiver.recv().await {
-        if handle.is_none() {
-            // if the handle is None, then the sender has closed the channel
-            // and we should exit the loop
-            break;
+
+    while let Ok(handle) = receiver.recv_async().await {
+        if unsafe { STOP_FUZZING_FLAG } {
+            // if one task sets the stop fuzzing flag, all other tasks need to
+            // act on it as well, so we check for the flag at the top of the loop
+            //
+            // purposely placing this before the handle.await, so that in the event
+            // that the flag is set, while awaiting a given handle, we'll still
+            // process that last handle before exiting
+            return Ok(());
         }
 
-        // safe to unwrap here, because we know the handle is Some
-        let handle = handle.unwrap().await;
+        let handle = handle.await;
 
         let Ok(task_result) = handle else {
             // tokio::task::JoinError -- task failed to execute to completion
             // could be a cancelled task, or one that panicked for w/e reason
             //
             // either way, we can't process the response, so we just continue
-            warn!("Task failed to execute to completion: {:?}", handle.err());
             continue;
         };
 
@@ -553,8 +619,14 @@ where
                             "[ID: {}] stopping fuzzing due to AddToCorpus[StopFuzzing] action",
                             request_id
                         );
+
                         state.events().notify(&StopFuzzing);
-                        return Ok(Some(Action::StopFuzzing));
+
+                        unsafe {
+                            STOP_FUZZING_FLAG = true;
+                        }
+
+                        return Err(FeroxFuzzError::FuzzingStopped);
                     }
                     FlowControl::Discard => {
                         state.events().notify(DiscardedResponse { id: request_id });
@@ -569,8 +641,14 @@ where
                     "[ID: {}] stopping fuzzing due to StopFuzzing action",
                     request_id
                 );
+
                 state.events().notify(&StopFuzzing);
-                return Ok(Some(Action::StopFuzzing));
+
+                unsafe {
+                    STOP_FUZZING_FLAG = true;
+                }
+
+                return Err(FeroxFuzzError::FuzzingStopped);
             }
             Some(Action::Discard) => {
                 state.events().notify(DiscardedResponse { id: request_id });
@@ -582,7 +660,7 @@ where
         }
     }
 
-    Ok(None)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -669,9 +747,10 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     /// test that the fuzz loop will stop if the decider returns a StopFuzzing action
     /// in the post-send phase
+    #[allow(clippy::too_many_lines)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_async_fuzzer_stops_fuzzing_post_send() -> Result<(), Box<dyn std::error::Error>> {
         let srv = MockServer::start();
 
@@ -720,7 +799,59 @@ mod tests {
         let deciders = build_deciders!(decider);
         let mutators = build_mutators!(mutator);
 
-        let mut fuzzer = AsyncFuzzer::new(5)
+        let mut fuzzer = AsyncFuzzer::new(1)
+            .client(client.clone())
+            .request(request.clone())
+            .scheduler(scheduler.clone())
+            .mutators(mutators.clone())
+            .observers(observers.clone())
+            .deciders(deciders.clone())
+            .build();
+
+        fuzzer.fuzz_once(&mut state).await?;
+
+        if let Ok(guard) = state.stats().read() {
+            assert!((guard.requests() - 2.0).abs() < std::f64::EPSILON);
+            assert_eq!(guard.status_code_count(200).unwrap(), 1);
+            assert_eq!(guard.status_code_count(201).unwrap(), 1);
+            assert_eq!(
+                guard
+                    .actions()
+                    .get("response")
+                    .unwrap()
+                    .get(&Action::StopFuzzing)
+                    .unwrap(),
+                &1
+            );
+        }
+
+        fuzzer = AsyncFuzzer::new(1)
+            .client(client.clone())
+            .request(request.clone())
+            .scheduler(scheduler.clone())
+            .mutators(mutators.clone())
+            .observers(observers.clone())
+            .deciders(deciders.clone())
+            .build();
+
+        fuzzer.fuzz_n_iterations(2, &mut state).await?;
+
+        if let Ok(guard) = state.stats().read() {
+            assert!((guard.requests() - 2.0).abs() < std::f64::EPSILON);
+            assert_eq!(guard.status_code_count(200).unwrap(), 1);
+            assert_eq!(guard.status_code_count(201).unwrap(), 1);
+            assert_eq!(
+                guard
+                    .actions()
+                    .get("response")
+                    .unwrap()
+                    .get(&Action::StopFuzzing)
+                    .unwrap(),
+                &1
+            );
+        }
+
+        fuzzer = AsyncFuzzer::new(1)
             .client(client)
             .request(request)
             .scheduler(scheduler)
@@ -729,39 +860,22 @@ mod tests {
             .deciders(deciders)
             .build();
 
-        fuzzer.fuzz_once(&mut state).await?;
-
-        // /0 sent/recv'd and ok
-        // /1 sent/recv'd and bad
-        // /2 never *processed*
-        //
-        // in an async context, this works ok by itself with a threadcount of 1, but the other request
-        // is still in-flight and will likely hit the target, this matters for the following test
-        // assertions as the expected count is more than what one may think is accurate
-        if let Ok(guard) = state.stats().read() {
-            assert!((guard.requests() - 2.0).abs() < std::f64::EPSILON);
-            assert_eq!(guard.status_code_count(200).unwrap(), 1);
-            assert_eq!(guard.status_code_count(201).unwrap(), 1);
-        }
-
-        fuzzer.scheduler.reset();
-        fuzzer.fuzz_n_iterations(2, &mut state).await?;
-
-        // at this point, /2 was hit from the previous test, so we're 1 higher than expected
-        if let Ok(guard) = state.stats().read() {
-            assert!((guard.requests() - 4.0).abs() < std::f64::EPSILON);
-            assert_eq!(guard.status_code_count(200).unwrap(), 2);
-            assert_eq!(guard.status_code_count(201).unwrap(), 2);
-        }
-
-        fuzzer.scheduler.reset();
         fuzzer.fuzz(&mut state).await?;
 
         // at this point, /2 was hit from both previous tests, so we're 2 higher than expected
         if let Ok(guard) = state.stats().read() {
-            assert!((guard.requests() - 6.0).abs() < std::f64::EPSILON);
-            assert_eq!(guard.status_code_count(200).unwrap(), 3);
-            assert_eq!(guard.status_code_count(201).unwrap(), 3);
+            assert!((guard.requests() - 2.0).abs() < std::f64::EPSILON);
+            assert_eq!(guard.status_code_count(200).unwrap(), 1);
+            assert_eq!(guard.status_code_count(201).unwrap(), 1);
+            assert_eq!(
+                guard
+                    .actions()
+                    .get("response")
+                    .unwrap()
+                    .get(&Action::StopFuzzing)
+                    .unwrap(),
+                &1
+            );
         }
 
         // the take away is that the fuzz/fuzz_n_iterations methods stop when told to, even though

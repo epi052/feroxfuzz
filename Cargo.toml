@@ -1,6 +1,6 @@
 [package]
 name = "feroxfuzz"
-version = "1.0.0-rc.9"
+version = "1.0.0-rc.10"
 edition = "2021"
 authors = ["Ben 'epi' Risher (@epi052)"]
 license = "Apache-2.0"
@@ -47,7 +47,7 @@ tokio = { version = "1.20", optional = true, features = [
 num = { version = "0.4" }
 cfg-if = { version = "1.0" }
 dyn-clone = { version = "1.0.9" }
-libafl = { version = "0.8.2", default-features = false, features = ["std"] }
+libafl = { version = "0.9.0", default-features = false, features = ["std"] }
 url = { version = "2.2", features = ["serde"] }
 ## optional
 serde = { version = "1.0", optional = true, features = ["derive", "rc"] }
@@ -63,8 +63,9 @@ regex = { version = "1.6" }
 serde_regex = { version = "1.1.0" }
 lazy_static = { version = "1.4" }
 futures = { version = "0.3", optional = true }
-base64 = { version = "0.13.0", optional = true }
+base64 = { version = "0.13.1", optional = true }
 hex = { version = "0.4.3", optional = true }
+flume = { version = "0.10.14" }
 
 [dev-dependencies]
 http = { version = "0.2" }
