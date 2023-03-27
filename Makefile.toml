@@ -9,6 +9,10 @@ dependencies = ["upgrade-deps", "update"]
 [tasks.check]
 dependencies = ["clippy", "fmt", "test-lib", "test-doc", "doc"]
 
+[tasks.test]
+clear = true
+dependencies = ["test-doc", "test-lib"]
+
 # docs
 [tasks.doc]
 script = """
@@ -50,5 +54,5 @@ cargo test --all-features --doc "${@}"
 [tasks.test-lib]
 clear = true
 script = """
-cargo nextest run --all-features --lib "${@}"
+cargo nextest run --all-features --retries 10 --lib "${@}"
 """

@@ -117,7 +117,7 @@ where
         // take the current action that was decided upon via decide_with_request, and the
         // previously decided action (if any) to arrive at what should be returned as the
         // current decided action
-        let final_action = match (action, new_action, operation) {
+        match (action, new_action, operation) {
             (None, None, _) => None,
             (None, Some(new_action), _) => Some(new_action),
             (Some(old_action), None, _) => Some(old_action),
@@ -127,9 +127,7 @@ where
             (Some(old_action), Some(new_action), LogicOperation::Or) => {
                 Some(old_action | new_action)
             }
-        };
-
-        final_action
+        }
     }
 
     /// called after an [`HttpClient`] receives a [`Response`]
@@ -160,7 +158,7 @@ where
         // take the current action that was decided upon via decide_with_observers, and the
         // previously decided action (if any) to arrive at what should be returned as the
         // current decided action
-        let final_action = match (action, new_action, operation) {
+        match (action, new_action, operation) {
             (None, None, _) => None,
             (None, Some(new_action), _) => Some(new_action),
             (Some(old_action), None, _) => Some(old_action),
@@ -170,9 +168,7 @@ where
             (Some(old_action), Some(new_action), LogicOperation::Or) => {
                 Some(old_action | new_action)
             }
-        };
-
-        final_action
+        }
     }
 }
 
