@@ -279,6 +279,10 @@ where
 
             // the semaphore only has self.threads permits, so this will block
             // until one is available, limiting the number of concurrent requests
+            //
+            // for the clippy allow: as far as I can tell, this is a false positive since
+            // we actually take ownership of the permit in the match arm
+            #[allow(clippy::significant_drop_in_scrutinee)]
             let permit = match semaphore.clone().acquire_owned().await {
                 Ok(permit) => permit,
                 Err(err) => {
