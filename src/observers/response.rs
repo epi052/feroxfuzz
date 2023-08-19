@@ -1,6 +1,6 @@
 use super::{Observer, ObserverHooks};
 use crate::actions::Action;
-use crate::requests::RequestId;
+use crate::requests::{Request, RequestId};
 use crate::responses::{Response, Timed};
 use crate::std_ext::tuple::Named;
 
@@ -382,6 +382,11 @@ where
     #[must_use]
     fn action(&self) -> Option<&Action> {
         self.response.action()
+    }
+
+    #[must_use]
+    fn request(&self) -> &Request {
+        self.response.request()
     }
 }
 
