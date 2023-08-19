@@ -1,7 +1,8 @@
 //! Asynchronous and blocking http response traits, with optional implementations using [`reqwest`]
 use cfg_if::cfg_if;
 
-use crate::{actions::Action, requests::RequestId};
+use crate::actions::Action;
+use crate::requests::{Request, RequestId};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -244,6 +245,10 @@ pub trait Response {
     /// [`Request`]: crate::requests::Request
     #[must_use]
     fn method(&self) -> &str;
+
+    /// Get the [`Request`] from which this [`Response`] was generated
+    #[must_use]
+    fn request(&self) -> &Request;
 }
 
 /// a trait to provide the amount of time taken to perform an action
