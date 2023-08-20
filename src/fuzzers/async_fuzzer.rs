@@ -554,15 +554,24 @@ where
             continue;
         };
 
-        let request_id = response.id(); // grab the id; only used for logging
-                                        // let request = response.request().clone();
-
         observers.call_post_send_hooks(response);
 
+        // at this point, we still need a reference to the request
+        //
+        // the response observer takes ownership of the response, so we can grab a
+        // reference to the response observer and then extract out the request
+        // from the observer's reference to the response. this is a rather
+        // convoluted way of avoiding an unnecessary clone while not having to
+        // rework a bunch of internal implementation details
         let response_observer = observers
             .match_name::<ResponseObserver<AsyncResponse>>("ResponseObserver")
+            // reasonable to assume one exists, if not, we can figure it out then
+            // if someone comes along with a use-case for not using one, we can
+            // figure it out then
             .unwrap();
+
         let request = response_observer.request();
+        let request_id = request.id();
 
         let decision = deciders.call_post_send_hooks(&state, &observers, None, post_send_logic);
 
