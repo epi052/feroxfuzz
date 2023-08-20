@@ -70,7 +70,7 @@ pub trait Response {
     /// ```
     /// # use http::response;
     /// # use feroxfuzz::responses::{Response, AsyncResponse};
-    /// # use feroxfuzz::requests::RequestId;
+    /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::error::FeroxFuzzError;
     /// # use reqwest::StatusCode;
     /// # use std::borrow::Cow;
@@ -85,13 +85,10 @@ pub trait Response {
     /// let mut expected = HashMap::new();
     /// expected.insert(String::from("stuff"), String::from("things"));
     ///
-    /// // should come from the related Request
-    /// let id = RequestId::new(0);
-    ///
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
+    /// let response = AsyncResponse::try_from_reqwest_response(Request::default(), reqwest_response.into(), elapsed).await?;
     ///
     /// let json = response.json::<HashMap<String, String>>()?;
     ///
@@ -130,7 +127,7 @@ pub trait Response {
     /// ```
     /// # use http::response;
     /// # use feroxfuzz::responses::{Response, AsyncResponse};
-    /// # use feroxfuzz::requests::RequestId;
+    /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::error::FeroxFuzzError;
     /// # use tokio_test;
     /// # use std::time::Duration;
@@ -139,13 +136,10 @@ pub trait Response {
     /// // for testing, normal Response comes as a result of a sent request
     /// let reqwest_response = http::response::Response::new("");
     ///
-    /// // should come from the related Request
-    /// let id = RequestId::new(0);
-    ///
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
+    /// let response = AsyncResponse::try_from_reqwest_response(Request::default(), reqwest_response.into(), elapsed).await?;
     ///
     /// assert_eq!(response.content(), None);
     /// # Result::<(), FeroxFuzzError>::Ok(())
@@ -181,7 +175,7 @@ pub trait Response {
     /// ```
     /// # use http::response;
     /// # use feroxfuzz::responses::{Response, AsyncResponse};
-    /// # use feroxfuzz::requests::RequestId;
+    /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::error::FeroxFuzzError;
     /// # use tokio_test;
     /// # use std::time::Duration;
@@ -190,13 +184,10 @@ pub trait Response {
     /// // for testing, normal Response comes as a result of a sent request
     /// let reqwest_response = http::response::Response::new("this\nbody\n\n\n\n\ncontains\r\nfive\r\nlines\r\n");
     ///
-    /// // should come from the related Request
-    /// let id = RequestId::new(0);
-    ///
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
+    /// let response = AsyncResponse::try_from_reqwest_response(Request::default(), reqwest_response.into(), elapsed).await?;
     ///
     /// assert_eq!(response.line_count(), 5);
     /// # Result::<(), FeroxFuzzError>::Ok(())
@@ -215,7 +206,7 @@ pub trait Response {
     /// ```
     /// # use http::response;
     /// # use feroxfuzz::responses::{Response, AsyncResponse};
-    /// # use feroxfuzz::requests::RequestId;
+    /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::error::FeroxFuzzError;
     /// # use tokio_test;
     /// # use std::time::Duration;
@@ -224,13 +215,10 @@ pub trait Response {
     /// // for testing, normal Response comes as a result of a sent request
     /// let reqwest_response = http::response::Response::new("this\tbody     contains\rfive\u{000c}words");
     ///
-    /// // should come from the related Request
-    /// let id = RequestId::new(0);
-    ///
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
+    /// let response = AsyncResponse::try_from_reqwest_response(Request::default(), reqwest_response.into(), elapsed).await?;
     ///
     /// assert_eq!(response.word_count(), 5);
     /// # Result::<(), FeroxFuzzError>::Ok(())

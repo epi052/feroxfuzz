@@ -22,7 +22,7 @@ use crate::events::{
     StopFuzzing,
 };
 use crate::mutators::Mutators;
-use crate::observers::Observers;
+use crate::observers::{Observers, ResponseObserver};
 use crate::processors::Processors;
 use crate::requests::Request;
 use crate::responses::{AsyncResponse, Response};
@@ -50,14 +50,6 @@ const NUM_POST_PROCESSORS: usize = 6;
 /// from the post-send loop because we don't really own the
 /// initial `Result` that is returned from the `tokio::spawn` call
 static mut STOP_FUZZING_FLAG: bool = false;
-
-/// internal type used to pass a single object from the `tokio::spawn`
-/// call to the `FuturesUnordered` stream
-#[derive(Debug, Clone)]
-struct RequestFuture {
-    request: Request,
-    response: AsyncResponse,
-}
 
 /// A fuzzer that sends requests asynchronously
 #[derive(Clone, Debug, Default)]
@@ -425,8 +417,6 @@ where
             // spawn a new task to send the request, and when received, send the response
             // across the mpsc channel to the second/post-send loop
             let sent = tx.send(tokio::spawn(async move {
-                let cloned_request = mutated_request.clone();
-
                 // send the request, and await the response
                 let result = cloned_client.send(mutated_request).await;
 
@@ -436,17 +426,7 @@ where
                 // for reference: the permit is acquired at the top of the loop
                 drop(permit);
 
-                match result {
-                    // if the request was successful, return the response
-                    // and the request that generated it
-                    Ok(response) => Ok(RequestFuture {
-                        response,
-                        request: cloned_request,
-                    }),
-                    // otherwise, allow the error to bubble up to the processing
-                    // loop
-                    Err(err) => Err(err),
-                }
+                result
             }));
 
             // UnboundedChannel::send can only error if the receiver has called close()
@@ -529,7 +509,7 @@ async fn process_responses<D, O, P>(
     mut observers: O,
     mut processors: P,
     post_send_logic: LogicOperation,
-    receiver: flume::Receiver<JoinHandle<Result<RequestFuture, FeroxFuzzError>>>,
+    receiver: flume::Receiver<JoinHandle<Result<AsyncResponse, FeroxFuzzError>>>,
 ) -> Result<(), FeroxFuzzError>
 where
     D: Deciders<O, AsyncResponse> + Send + Clone,
@@ -539,7 +519,7 @@ where
     // second loop handles responses
     //
     // outer loop awaits the actual response, which is a double-nested Result
-    // Result<Result<RequestFuture, FeroxFuzzError>, tokio::task::JoinError>
+    // Result<Result<AsyncResponse, FeroxFuzzError>, tokio::task::JoinError>
     tracing::debug!("entering the response processing loop...");
 
     while let Ok(handle) = receiver.recv_async().await {
@@ -563,7 +543,7 @@ where
             continue;
         };
 
-        let Ok(request_future) = task_result else {
+        let Ok(response) = task_result else {
             let error = task_result.err().unwrap();
 
             // feroxfuzz::client::Client::send returned an error, which is a client error
@@ -574,12 +554,15 @@ where
             continue;
         };
 
-        // unpack the request_future into its request and response parts for convenience
-        let (request, response) = (request_future.request, request_future.response);
-
         let request_id = response.id(); // grab the id; only used for logging
+                                        // let request = response.request().clone();
 
         observers.call_post_send_hooks(response);
+
+        let response_observer = observers
+            .match_name::<ResponseObserver<AsyncResponse>>("ResponseObserver")
+            .unwrap();
+        let request = response_observer.request();
 
         let decision = deciders.call_post_send_hooks(&state, &observers, None, post_send_logic);
 
