@@ -900,6 +900,11 @@ mod tests {
 
         // add /3 to the path corpus
         let decider = ResponseRegexDecider::new("/1.js", |regex, observer, _state| {
+            println!(
+                "is match: {}",
+                regex.is_match(observer.url().as_str().as_bytes())
+            );
+            println!("url: {}", observer.url().as_str());
             if regex.is_match(observer.url().as_str().as_bytes()) {
                 Action::AddToCorpus(
                     "words".to_string(),

@@ -87,7 +87,14 @@ impl AsyncResponse {
         resp: reqwest::Response,
         elapsed: Duration,
     ) -> Result<Self, FeroxFuzzError> {
+        let mut request = request;
+
+        if request.url_is_fuzzable() {
+            request.parsed_url = resp.url().clone();
+        }
+
         let status_code = resp.status().as_u16();
+
         let headers = resp
             .headers()
             .iter()
@@ -118,7 +125,6 @@ impl AsyncResponse {
 
         let body = body.as_ref().to_vec();
         let elapsed = elapsed;
-        let request = request;
 
         Ok(Self {
             status_code,
