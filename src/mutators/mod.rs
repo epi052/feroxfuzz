@@ -129,9 +129,7 @@ pub trait Mutator: DynClone + AsAny + Named + Send + Sync {
         }
 
         if request.path.is_fuzzable() {
-            println!("before {}", request.path);
             self.mutate(&mut request.path, state)?;
-            println!("after {}", request.path);
             notify_listeners(&state.events(), request.id, "path", request.path.clone());
         }
 
@@ -278,7 +276,6 @@ where
         request: Request,
     ) -> Result<Request, FeroxFuzzError> {
         let mutated_request = self.0.mutate_fields(state, request)?;
-        println!("in mutation hook: {:?}", mutated_request);
         self.1.call_mutate_hooks(state, mutated_request)
     }
 }
