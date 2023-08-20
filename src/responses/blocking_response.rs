@@ -85,6 +85,18 @@ impl BlockingResponse {
         resp: reqwest::blocking::Response,
         elapsed: Duration,
     ) -> Result<Self, FeroxFuzzError> {
+        let mut request = request;
+
+        if request.url_is_fuzzable() {
+            // when building out the reqwest request, the reqwest::builder produces a
+            // Url based on the feroxfuzz::Request's mutated fields. prior to that
+            // call to builder, the feroxfuzz::Request's url is the original url
+            //
+            // since this only matters when a part of the url is fuzzable, we
+            // hide the clone behind that logic
+            request.parsed_url = resp.url().clone();
+        }
+
         let status_code = resp.status().as_u16();
 
         let headers = resp
@@ -116,7 +128,6 @@ impl BlockingResponse {
         };
 
         let body = body.as_ref().to_vec();
-        let elapsed = elapsed;
 
         Ok(Self {
             status_code,
