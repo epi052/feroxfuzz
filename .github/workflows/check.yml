@@ -39,7 +39,7 @@ jobs:
           command: nextest
           args: run --all-targets --all-features
       - name: Cargo semver checks
-        uses: obi1kenobi/cargo-semver-checks-action@v1
+        uses: obi1kenobi/cargo-semver-checks-action@v2
 
   fmt:
     name: Rust fmt
