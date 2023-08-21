@@ -19,6 +19,8 @@ macro_rules! encode_optional_field {
         cfg_if! {  // feature-gated base64 encoder
             if #[cfg(any(feature = "encoders", feature = "base64"))] {
                 if matches!($encoder, Encoder::Base64) {
+                    use base64::{Engine as _, engine::general_purpose};
+
                     if $field.is_empty() {
                         // can't encode nothing
                         return;
@@ -29,11 +31,14 @@ macro_rules! encode_optional_field {
                     buffer.resize($field.len() * 4 / 3 + 4, 0);
 
                     // perform the write
-                    let written = base64::encode_config_slice(
+                    let written = general_purpose::URL_SAFE.encode_slice(
                         $field.as_ref(),  // Data's inner vec as an &[u8]
-                        base64::URL_SAFE,
                         &mut buffer,
-                    );
+                    ).unwrap_or(0);
+
+                    if written == 0 {
+                        tracing::debug!("failed to base64 encode {:?}, will result in an empty buffer", $field.as_ref());
+                    }
 
                     // resize back down to account for any overages
                     buffer.resize(written, 0);

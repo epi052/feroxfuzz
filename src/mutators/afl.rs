@@ -19,7 +19,6 @@ use crate::{atomic_load, AsBytes};
 
 use libafl::bolts::rands::Rand;
 use libafl::inputs::HasBytesVec;
-use libafl::mutators::mutations::{buffer_copy, buffer_self_copy};
 use libafl::state::{HasMaxSize, HasRand};
 #[cfg(feature = "serde")]
 use serde::{
@@ -35,6 +34,40 @@ pub use libafl::mutators::mutations::{
     BytesRandSetMutator, BytesSetMutator, BytesSwapMutator, DwordAddMutator,
     DwordInterestingMutator, QwordAddMutator, WordAddMutator, WordInterestingMutator,
 };
+
+// note: the following two functions are from libafl, they were a part of the public api
+// and then were later made private. there wasn't a public replacement, so in the interest
+// of time, they're copied here
+
+/// Mem move in the own vec
+#[inline]
+pub(crate) unsafe fn buffer_self_copy<T>(data: &mut [T], from: usize, to: usize, len: usize) {
+    debug_assert!(!data.is_empty());
+    debug_assert!(from + len <= data.len());
+    debug_assert!(to + len <= data.len());
+    if len != 0 && from != to {
+        let ptr = data.as_mut_ptr();
+        unsafe {
+            core::ptr::copy(ptr.add(from), ptr.add(to), len);
+        }
+    }
+}
+
+/// Mem move between vecs
+#[inline]
+pub(crate) unsafe fn buffer_copy<T>(dst: &mut [T], src: &[T], from: usize, to: usize, len: usize) {
+    debug_assert!(!dst.is_empty());
+    debug_assert!(!src.is_empty());
+    debug_assert!(from + len <= src.len());
+    debug_assert!(to + len <= dst.len());
+    let dst_ptr = dst.as_mut_ptr();
+    let src_ptr = src.as_ptr();
+    if len != 0 {
+        unsafe {
+            core::ptr::copy(src_ptr.add(from), dst_ptr.add(to), len);
+        }
+    }
+}
 
 /// An enum wrapper for libafl mutators that facilitates static dispatch
 #[derive(Debug)]
@@ -601,8 +634,10 @@ impl Mutator for CrossoverInsertMutator {
 
             // perform the actual mutation
             input.bytes_mut().resize(size + len, 0);
-            buffer_self_copy(input.bytes_mut(), to, to + len, size - to);
-            buffer_copy(input.bytes_mut(), other_entry.as_bytes(), from, to, len);
+            unsafe {
+                buffer_self_copy(input.bytes_mut(), to, to + len, size - to);
+                buffer_copy(input.bytes_mut(), other_entry.as_bytes(), from, to, len);
+            }
         }
 
         Ok(())
@@ -693,7 +728,9 @@ impl Mutator for CrossoverReplaceMutator {
             let len = state.rand_mut().below(min(other_size - from, size) as u64) as usize;
             let to = state.rand_mut().below((size - len) as u64) as usize;
 
-            buffer_copy(input.bytes_mut(), other_entry.as_bytes(), from, to, len);
+            unsafe {
+                buffer_copy(input.bytes_mut(), other_entry.as_bytes(), from, to, len);
+            }
         }
 
         Ok(())
