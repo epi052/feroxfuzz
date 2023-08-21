@@ -589,7 +589,7 @@ where
             Some(Action::AddToCorpus(name, corpus_item_type, flow_control)) => {
                 match corpus_item_type {
                     CorpusItemType::Request => {
-                        if let Err(err) = state.add_request_fields_to_corpus(&name, &request) {
+                        if let Err(err) = state.add_request_fields_to_corpus(&name, request) {
                             warn!("Could not add {:?} to corpus[{name}]: {:?}", &request, err);
                         }
                     }

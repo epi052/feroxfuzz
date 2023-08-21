@@ -7,7 +7,7 @@
 dependencies = ["upgrade-deps", "update"]
 
 [tasks.check]
-dependencies = ["clippy", "fmt", "test-lib", "test-doc", "doc"]
+dependencies = ["clippy", "fmt", "test-lib", "test-doc", "doc", "semver"]
 
 [tasks.test]
 clear = true
@@ -55,4 +55,10 @@ cargo test --all-features --doc "${@}"
 clear = true
 script = """
 cargo nextest run --all-features --retries 10 --lib "${@}"
+"""
+
+[tasks.semver]
+clear = true
+script = """
+cargo semver-checks check-release
 """

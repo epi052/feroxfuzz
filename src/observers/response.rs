@@ -100,7 +100,7 @@ where
     /// ```
     /// # use http;
     /// # use feroxfuzz::responses::{Response, AsyncResponse};
-/// # use feroxfuzz::requests::Request;
+    /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::error::FeroxFuzzError;
     /// # use feroxfuzz::observers::ResponseObserver;
     /// # use tokio_test;
@@ -141,7 +141,7 @@ where
     /// # use http;
     /// # use feroxfuzz::responses::{Response, AsyncResponse};
     /// # use feroxfuzz::observers::ResponseObserver;
-/// # use feroxfuzz::requests::Request;
+    /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::error::FeroxFuzzError;
     /// # use tokio_test;
     /// # use std::time::Duration;
@@ -152,7 +152,7 @@ where
     ///
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
-    /// 
+    ///
     /// let response = AsyncResponse::try_from_reqwest_response(Request::default(), reqwest_response.into(), elapsed).await?;
     /// let observer: ResponseObserver<_> = response.into();
     ///
@@ -185,7 +185,7 @@ where
     /// ```
     /// # use http;
     /// # use feroxfuzz::responses::{Response, AsyncResponse};
-/// # use feroxfuzz::requests::Request;
+    /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::error::FeroxFuzzError;
     /// # use feroxfuzz::observers::ResponseObserver;
     /// # use tokio_test;
@@ -214,7 +214,7 @@ where
     /// # use http;
     /// # use feroxfuzz::responses::{Response, AsyncResponse};
     /// # use feroxfuzz::observers::ResponseObserver;
-/// # use feroxfuzz::requests::Request;
+    /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::error::FeroxFuzzError;
     /// # use tokio_test;
     /// # use std::time::Duration;

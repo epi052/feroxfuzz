@@ -41,7 +41,7 @@ pub use libafl::mutators::mutations::{
 
 /// Mem move in the own vec
 #[inline]
-pub(crate) unsafe fn buffer_self_copy<T>(data: &mut [T], from: usize, to: usize, len: usize) {
+pub fn buffer_self_copy<T>(data: &mut [T], from: usize, to: usize, len: usize) {
     debug_assert!(!data.is_empty());
     debug_assert!(from + len <= data.len());
     debug_assert!(to + len <= data.len());
@@ -55,7 +55,7 @@ pub(crate) unsafe fn buffer_self_copy<T>(data: &mut [T], from: usize, to: usize,
 
 /// Mem move between vecs
 #[inline]
-pub(crate) unsafe fn buffer_copy<T>(dst: &mut [T], src: &[T], from: usize, to: usize, len: usize) {
+pub fn buffer_copy<T>(dst: &mut [T], src: &[T], from: usize, to: usize, len: usize) {
     debug_assert!(!dst.is_empty());
     debug_assert!(!src.is_empty());
     debug_assert!(from + len <= src.len());
@@ -634,10 +634,9 @@ impl Mutator for CrossoverInsertMutator {
 
             // perform the actual mutation
             input.bytes_mut().resize(size + len, 0);
-            unsafe {
-                buffer_self_copy(input.bytes_mut(), to, to + len, size - to);
-                buffer_copy(input.bytes_mut(), other_entry.as_bytes(), from, to, len);
-            }
+
+            buffer_self_copy(input.bytes_mut(), to, to + len, size - to);
+            buffer_copy(input.bytes_mut(), other_entry.as_bytes(), from, to, len);
         }
 
         Ok(())
@@ -728,9 +727,7 @@ impl Mutator for CrossoverReplaceMutator {
             let len = state.rand_mut().below(min(other_size - from, size) as u64) as usize;
             let to = state.rand_mut().below((size - len) as u64) as usize;
 
-            unsafe {
-                buffer_copy(input.bytes_mut(), other_entry.as_bytes(), from, to, len);
-            }
+            buffer_copy(input.bytes_mut(), other_entry.as_bytes(), from, to, len);
         }
 
         Ok(())

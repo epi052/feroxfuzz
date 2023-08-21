@@ -15,7 +15,7 @@ use tracing::{error, instrument};
 
 /// feroxfuzz implementation of [`Response`] that extends [`reqwest::blocking::Response`]
 /// for additional functionality
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(docsrs, doc(cfg(feature = "blocking")))]
 #[non_exhaustive]
@@ -163,7 +163,7 @@ impl Response for BlockingResponse {
     }
 
     fn url(&self) -> &Url {
-        &self.request.parsed_url()
+        self.request.parsed_url()
     }
 
     fn status_code(&self) -> u16 {
@@ -191,7 +191,7 @@ impl Response for BlockingResponse {
     }
 
     fn method(&self) -> &str {
-        &self.request.method.as_str().unwrap_or_default()
+        self.request.method.as_str().unwrap_or_default()
     }
 
     fn action(&self) -> Option<&Action> {
@@ -206,21 +206,5 @@ impl Response for BlockingResponse {
 impl Timed for BlockingResponse {
     fn elapsed(&self) -> &Duration {
         &self.elapsed
-    }
-}
-
-impl Default for BlockingResponse {
-    fn default() -> Self {
-        Self {
-            status_code: Default::default(),
-            headers: HashMap::default(),
-            body: Vec::default(),
-            elapsed: Duration::default(),
-            content_length: Default::default(),
-            line_count: Default::default(),
-            word_count: Default::default(),
-            action: Option::default(),
-            request: Request::default(),
-        }
     }
 }
