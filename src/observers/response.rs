@@ -1,6 +1,6 @@
 use super::{Observer, ObserverHooks};
 use crate::actions::Action;
-use crate::requests::RequestId;
+use crate::requests::{Request, RequestId};
 use crate::responses::{Response, Timed};
 use crate::std_ext::tuple::Named;
 
@@ -61,7 +61,7 @@ where
     /// ```
     /// # use http;
     /// # use feroxfuzz::responses::{Response, AsyncResponse};
-    /// # use feroxfuzz::requests::RequestId;
+    /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::prelude::*;
     /// # use feroxfuzz::observers::ResponseObserver;
     /// # use tokio_test;
@@ -71,13 +71,10 @@ where
     /// // for testing, normal Response comes as a result of a sent request
     /// let reqwest_response = http::response::Builder::new().status(302).header("Location", "/somewhere").body("").unwrap();
     ///
-    /// // should come from the related Request
-    /// let id = RequestId::new(0);
-    ///
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
+    /// let response = AsyncResponse::try_from_reqwest_response(Request::default(), reqwest_response.into(), elapsed).await?;
     /// let observer = ResponseObserver::with_response(response);
     ///
     /// # Result::<(), FeroxFuzzError>::Ok(())
@@ -103,7 +100,7 @@ where
     /// ```
     /// # use http;
     /// # use feroxfuzz::responses::{Response, AsyncResponse};
-    /// # use feroxfuzz::requests::RequestId;
+    /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::error::FeroxFuzzError;
     /// # use feroxfuzz::observers::ResponseObserver;
     /// # use tokio_test;
@@ -113,13 +110,10 @@ where
     /// // for testing, normal Response comes as a result of a sent request
     /// let reqwest_response = http::response::Builder::new().status(302).header("Location", "/somewhere").body("").unwrap();
     ///
-    /// // should come from the related Request
-    /// let id = RequestId::new(0);
-    ///
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
+    /// let response = AsyncResponse::try_from_reqwest_response(Request::default(), reqwest_response.into(), elapsed).await?;
     /// let observer: ResponseObserver<_> = response.into();
     ///
     /// assert_eq!(observer.is_redirect(), true);
@@ -147,7 +141,7 @@ where
     /// # use http;
     /// # use feroxfuzz::responses::{Response, AsyncResponse};
     /// # use feroxfuzz::observers::ResponseObserver;
-    /// # use feroxfuzz::requests::RequestId;
+    /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::error::FeroxFuzzError;
     /// # use tokio_test;
     /// # use std::time::Duration;
@@ -156,13 +150,10 @@ where
     /// // for testing, normal Response comes as a result of a sent request
     /// let reqwest_response = http::response::Builder::new().status(308).header("Location", "/somewhere").body("").unwrap();
     ///
-    /// // should come from the related Request
-    /// let id = RequestId::new(0);
-    ///
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
+    /// let response = AsyncResponse::try_from_reqwest_response(Request::default(), reqwest_response.into(), elapsed).await?;
     /// let observer: ResponseObserver<_> = response.into();
     ///
     /// assert_eq!(observer.is_redirect(), true);
@@ -194,7 +185,7 @@ where
     /// ```
     /// # use http;
     /// # use feroxfuzz::responses::{Response, AsyncResponse};
-    /// # use feroxfuzz::requests::RequestId;
+    /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::error::FeroxFuzzError;
     /// # use feroxfuzz::observers::ResponseObserver;
     /// # use tokio_test;
@@ -204,13 +195,10 @@ where
     /// // for testing, normal Response comes as a result of a sent request
     /// let reqwest_response = http::response::Builder::new().status(200).body("derp").unwrap();
     ///
-    /// // should come from the related Request
-    /// let id = RequestId::new(0);
-    ///
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
+    /// let response = AsyncResponse::try_from_reqwest_response(Request::default(), reqwest_response.into(), elapsed).await?;
     /// let observer: ResponseObserver<_> = response.into();
     ///
     /// assert_eq!(observer.url().as_str(), "http://no.url.provided.local/");
@@ -226,7 +214,7 @@ where
     /// # use http;
     /// # use feroxfuzz::responses::{Response, AsyncResponse};
     /// # use feroxfuzz::observers::ResponseObserver;
-    /// # use feroxfuzz::requests::RequestId;
+    /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::error::FeroxFuzzError;
     /// # use tokio_test;
     /// # use std::time::Duration;
@@ -235,13 +223,10 @@ where
     /// // for testing, normal Response comes as a result of a sent request
     /// let mut reqwest_response = http::response::Builder::new().status(301).header("Location", "/").body("").unwrap();
     ///
-    /// // should come from the related Request
-    /// let id = RequestId::new(0);
-    ///
     /// // should come from timing during the client's send function
     /// let elapsed = Duration::from_secs(1);  
     ///
-    /// let response = AsyncResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed).await?;
+    /// let response = AsyncResponse::try_from_reqwest_response(Request::default(), reqwest_response.into(), elapsed).await?;
     /// let observer: ResponseObserver<_> = response.into();
     ///
     /// assert_eq!(observer.url().as_str(), "http://no.url.provided.local/");
@@ -382,6 +367,11 @@ where
     #[must_use]
     fn action(&self) -> Option<&Action> {
         self.response.action()
+    }
+
+    #[must_use]
+    fn request(&self) -> &Request {
+        self.response.request()
     }
 }
 

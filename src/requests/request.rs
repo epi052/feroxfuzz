@@ -1915,10 +1915,7 @@ impl Request {
         self.action.as_ref()
     }
 
-    /// get a mutable reference to the fuzzers's decided upon action
-    /// for this request
-    ///
-    /// use this as the action setter, if necessary
+    /// update the fuzzers's decided upon action for this request
     ///
     /// # Examples
     ///

@@ -98,7 +98,7 @@ where
 mod tests {
     use super::*;
     use crate::build_observers;
-    use crate::requests::{Request, RequestId};
+    use crate::requests::Request;
     use crate::responses::AsyncResponse;
     use std::time::Duration;
 
@@ -120,12 +120,10 @@ mod tests {
 
         let request = Request::new();
 
-        let id = RequestId::new(0);
         let elapsed = Duration::from_secs(1);
         let reqwest_response = http::response::Response::new("{\"stuff\":\"things\"}");
         let response = AsyncResponse::try_from_reqwest_response(
-            id,
-            String::from("GET"),
+            request.clone(),
             reqwest_response.into(),
             elapsed,
         )

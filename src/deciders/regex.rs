@@ -141,14 +141,13 @@ where
 /// # use feroxfuzz::deciders::{ResponseRegexDecider, DeciderHooks, LogicOperation, Deciders};
 /// # use feroxfuzz::observers::ResponseObserver;
 /// # use feroxfuzz::responses::BlockingResponse;
-/// # use feroxfuzz::requests::{Request, RequestId};
+/// # use feroxfuzz::requests::Request;
 /// # use regex::bytes::Regex;
 /// # fn main() -> Result<(), FeroxFuzzError> {
 /// // for testing; normally a Response comes as a result of a sent request
 /// let reqwest_response = http::response::Builder::new().status(200).body("XyZDeRpZyX").unwrap();
-/// let id = RequestId::new(0);
 /// let elapsed = Duration::from_secs(1);
-/// let response = BlockingResponse::try_from_reqwest_response(id, String::from("GET"), reqwest_response.into(), elapsed)?;
+/// let response = BlockingResponse::try_from_reqwest_response(Request::default(), reqwest_response.into(), elapsed)?;
 ///
 /// // not relevant to the current example, but needed to make the call to .post_send_hook
 /// let mut state = SharedState::with_corpus(RangeCorpus::with_stop(10).name("corpus").build()?);

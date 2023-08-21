@@ -109,11 +109,7 @@ impl AsyncRequests for AsyncClient {
         let parsed_version = parse_version(request.version())?;
 
         // build out the reqwest::Request from our mutated feroxfuzz::Request
-
-        let request_id = request.id;
-        let request_method = request.method().as_str()?.to_string();
-
-        let reqwest_request = self.build_request(parsed_version, request)?;
+        let reqwest_request = self.build_request(parsed_version, request.clone())?;
 
         // start timer for the request
         let now = Instant::now();
@@ -126,13 +122,9 @@ impl AsyncRequests for AsyncClient {
             .map_err(reqwest_to_ferox_error)?;
 
         // build the AsyncResponse, the await is for reqwest's asynchronous read of the response body
-        let response = AsyncResponse::try_from_reqwest_response(
-            request_id,
-            request_method,
-            reqwest_response,
-            now.elapsed(),
-        )
-        .await?;
+        let response =
+            AsyncResponse::try_from_reqwest_response(request, reqwest_response, now.elapsed())
+                .await?;
 
         Ok(response)
     }
