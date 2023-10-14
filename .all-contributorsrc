@@ -22,6 +22,16 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "mgr0dzicki",
+      "name": "Mieszko Grodzicki",
+      "avatar_url": "https://avatars.githubusercontent.com/u/29335183?v=4",
+      "profile": "https://github.com/mgr0dzicki",
+      "contributions": [
+        "code",
+        "infra"
+      ]
     }
   ],
   "contributorsPerLine": 7,
@@ -29,5 +39,7 @@
   "projectOwner": "epi052",
   "repoType": "github",
   "repoHost": "https://github.com",
-  "skipCi": true
+  "skipCi": true,
+  "commitType": "docs",
+  "commitConvention": "angular"
 }
