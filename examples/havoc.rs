@@ -1,7 +1,7 @@
 //! first, update the variable named target with a valid url to scan
 //!
 //! then run the example with the following command
-//! cargo run --example havoc
+//! cargo run --features havoc --example havoc
 use feroxfuzz::actions::{Action, FlowControl};
 use feroxfuzz::client::{AsyncClient, HttpClient};
 use feroxfuzz::corpora::{CorpusItemType, Wordlist};
