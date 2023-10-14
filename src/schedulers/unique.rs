@@ -92,7 +92,7 @@ impl std::fmt::Debug for UniqueProductScheduler {
         f.debug_struct("UniqueProductScheduler")
             .field("current", &self.current)
             .field("indices", &self.indices)
-            .finish()
+            .finish_non_exhaustive()  // purposely skip state
     }
 }
 

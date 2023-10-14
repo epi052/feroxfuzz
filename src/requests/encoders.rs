@@ -27,8 +27,7 @@ macro_rules! encode_optional_field {
                     }
 
                     // buffer of a size big enough to hold the encoded value
-                    let mut buffer = Vec::new();
-                    buffer.resize($field.len() * 4 / 3 + 4, 0);
+                    let mut buffer = vec![0; $field.len() * 4 / 3 + 4];
 
                     // perform the write
                     let written = general_purpose::URL_SAFE.encode_slice(
@@ -63,8 +62,7 @@ macro_rules! encode_optional_field {
                     }
 
                     // buffer of a size big enough to hold the encoded value
-                    let mut buffer = Vec::new();
-                    buffer.resize($field.len() * 2, 0);
+                    let mut buffer = vec![0; $field.len() * 2];
 
                     // perform the write
                     //

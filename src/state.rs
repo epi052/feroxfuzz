@@ -631,7 +631,7 @@ impl SharedState {
             }
 
             if let Some(headers) = request.headers() {
-                for (key, value) in headers.iter() {
+                for (key, value) in headers {
                     if key.is_fuzzable() {
                         guard.add(key.clone());
 
@@ -656,7 +656,7 @@ impl SharedState {
             }
 
             if let Some(params) = request.params() {
-                for (key, value) in params.iter() {
+                for (key, value) in params {
                     if key.is_fuzzable() {
                         guard.add(key.clone());
 
@@ -748,7 +748,7 @@ impl Display for SharedState {
         writeln!(f, "  Seed={}", self.seed)?;
         writeln!(f, "  Rng={:?}", self.rng)?;
 
-        for (key, corpus) in self.corpora.iter() {
+        for (key, corpus) in &*self.corpora {
             if let Ok(guard) = corpus.read() {
                 writeln!(f, "  Corpus[{key}]={guard},")?;
             }
@@ -760,7 +760,7 @@ impl Display for SharedState {
 
         if let Ok(guard) = self.metadata().read() {
             #[allow(clippy::significant_drop_in_scrutinee)] // doesn't appear to be an accurate lint
-            for (key, value) in guard.iter() {
+            for (key, value) in &*guard {
                 writeln!(f, "  Metadata[{key}]={value:?}")?;
             }
         }

@@ -180,7 +180,7 @@ impl RandomScheduler {
             .read()
             .map_or(0, |stats| stats.requests() as usize);
 
-        for (name, corpus) in corpora.iter() {
+        for (name, corpus) in &*corpora {
             let length = corpus.len();
 
             if length == 0 {

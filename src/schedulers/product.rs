@@ -49,7 +49,7 @@ impl std::fmt::Debug for ProductScheduler {
         f.debug_struct("ProductScheduler")
             .field("current", &self.current)
             .field("indices", &self.indices)
-            .finish()
+            .finish_non_exhaustive() // purposely skip state
     }
 }
 
@@ -121,7 +121,7 @@ impl Scheduler for ProductScheduler {
 
         // The pattern is that when an index reaches its modulo value, it is
         // reset to 0 and the next greater loop is incremented.
-        for index in self.indices[1..].iter_mut() {
+        for index in &mut self.indices[1..] {
             // due to len==1 check above, the slice is ok
             index.next()?;
 

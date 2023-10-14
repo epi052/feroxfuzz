@@ -164,7 +164,7 @@ pub trait Mutator: DynClone + AsAny + Named + Send + Sync {
         }
 
         if let Some(headers) = request.headers.as_mut() {
-            for (key, value) in headers.iter_mut() {
+            for (key, value) in &mut *headers {
                 if key.is_fuzzable() {
                     self.mutate(key, state)?;
                     notify_listeners(
@@ -188,7 +188,7 @@ pub trait Mutator: DynClone + AsAny + Named + Send + Sync {
         }
 
         if let Some(params) = request.params.as_mut() {
-            for (key, value) in params.iter_mut() {
+            for (key, value) in &mut *params {
                 if key.is_fuzzable() {
                     self.mutate(key, state)?;
                     notify_listeners(

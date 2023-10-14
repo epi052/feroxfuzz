@@ -165,7 +165,7 @@ impl OrderedScheduler {
 
         let mut indices = Vec::with_capacity(corpora.len());
 
-        for (name, corpus) in corpora.iter() {
+        for (name, corpus) in &*corpora {
             let length = corpus.len();
 
             if length == 0 {

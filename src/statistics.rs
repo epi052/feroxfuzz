@@ -291,7 +291,7 @@ impl Statistics {
                 *self
                     .actions
                     .entry("request".to_string())
-                    .or_insert_with(HashMap::new)
+                    .or_default()
                     .entry(to_update)
                     .or_insert(0) += 1;
             }
@@ -299,7 +299,7 @@ impl Statistics {
                 *self
                     .actions
                     .entry("response".to_string())
-                    .or_insert_with(HashMap::new)
+                    .or_default()
                     .entry(to_update)
                     .or_insert(0) += 1;
             }
