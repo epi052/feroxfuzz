@@ -267,7 +267,7 @@ where
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "blocking"))]
 mod tests {
     #![allow(clippy::similar_names)]
     use super::*;

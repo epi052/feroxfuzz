@@ -343,7 +343,7 @@ impl RequestExt for Request {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "encoders"))]
 mod tests {
     use super::*;
     use crate::requests::ShouldFuzz;
