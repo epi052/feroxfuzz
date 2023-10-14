@@ -2,7 +2,7 @@
 use std::any::Any;
 use std::sync::atomic::Ordering;
 
-use libafl::bolts::rands::Rand;
+use libafl_bolts::rands::Rand;
 use libafl::state::HasRand;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
