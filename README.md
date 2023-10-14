@@ -247,8 +247,9 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <table>
   <tbody>
     <tr>
-      <td align="center"><a href="https://github.com/iustin24"><img src="https://avatars.githubusercontent.com/u/62765470?v=4?s=100" width="100px;" alt=""/><br /><sub><b>iustin24</b></sub></a><br /><a href="https://github.com/epi052/feroxfuzz/commits?author=iustin24" title="Code">💻</a></td>
-      <td align="center"><a href="https://github.com/andreademurtas"><img src="https://avatars.githubusercontent.com/u/56048157?v=4?s=100" width="100px;" alt=""/><br /><sub><b>andreademurtas</b></sub></a><br /><a href="https://github.com/epi052/feroxfuzz/commits?author=andreademurtas" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/iustin24"><img src="https://avatars.githubusercontent.com/u/62765470?v=4?s=100" width="100px;" alt="iustin24"/><br /><sub><b>iustin24</b></sub></a><br /><a href="https://github.com/epi052/feroxfuzz/commits?author=iustin24" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/andreademurtas"><img src="https://avatars.githubusercontent.com/u/56048157?v=4?s=100" width="100px;" alt="andreademurtas"/><br /><sub><b>andreademurtas</b></sub></a><br /><a href="https://github.com/epi052/feroxfuzz/commits?author=andreademurtas" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/mgr0dzicki"><img src="https://avatars.githubusercontent.com/u/29335183?v=4?s=100" width="100px;" alt="Mieszko Grodzicki"/><br /><sub><b>Mieszko Grodzicki</b></sub></a><br /><a href="https://github.com/epi052/feroxfuzz/commits?author=mgr0dzicki" title="Code">💻</a> <a href="#infra-mgr0dzicki" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a></td>
     </tr>
   </tbody>
 </table>
