@@ -62,7 +62,8 @@ pub use tuple_list::TupleList as MutatorsList;
 pub use tuple_list::TupleList as ProcessorsList;
 
 // re-exported 3rd party crate traits
-pub use libafl::bolts::rands::Rand;
+#[cfg(feature = "libafl")]
+pub use libafl_bolts::rands::Rand;
 
 /// Wrapper `Atomic*.fetch_add` to save me from writing `Ordering::SeqCst` a bajillion times
 ///

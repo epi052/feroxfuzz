@@ -189,6 +189,7 @@ pub enum FeroxFuzzError {
     /// Represents a failed mutation of a [`Request`] object
     ///
     /// [`Request`]: crate::requests::Request
+    #[cfg(feature = "libafl")]
     #[error("Mutation failed")]
     MutationError {
         /// underlying source error-type

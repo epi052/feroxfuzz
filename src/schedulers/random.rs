@@ -7,7 +7,8 @@ use crate::state::SharedState;
 use crate::std_ext::ops::Len;
 use crate::std_ext::tuple::Named;
 
-use libafl::bolts::rands::Rand;
+#[cfg(feature = "libafl")]
+use libafl_bolts::rands::Rand;
 use tracing::{error, instrument, trace};
 
 /// Random access of the associated [`Corpus`]
