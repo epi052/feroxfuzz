@@ -7,7 +7,8 @@ use crate::state::SharedState;
 use crate::std_ext::ops::Len;
 use crate::std_ext::tuple::Named;
 
-use libafl::bolts::rands::Rand;
+#[cfg(feature = "libafl")]
+use libafl_bolts::rands::Rand;
 use tracing::{error, instrument, trace};
 
 /// Random access of the associated [`Corpus`]
@@ -179,7 +180,7 @@ impl RandomScheduler {
             .read()
             .map_or(0, |stats| stats.requests() as usize);
 
-        for (name, corpus) in corpora.iter() {
+        for (name, corpus) in &*corpora {
             let length = corpus.len();
 
             if length == 0 {

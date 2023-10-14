@@ -3,8 +3,7 @@
 //! [`Deciders`]: crate::deciders::Deciders
 use crate::requests::Request;
 use crate::responses::Response;
-use crate::std_ext::tuple::Named;
-use crate::MatchName;
+use crate::std_ext::tuple::{MatchName, Named};
 use crate::ObserversList;
 
 mod response;

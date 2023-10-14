@@ -189,10 +189,24 @@ pub enum FeroxFuzzError {
     /// Represents a failed mutation of a [`Request`] object
     ///
     /// [`Request`]: crate::requests::Request
+    #[cfg(feature = "libafl")]
     #[error("Mutation failed")]
     MutationError {
         /// underlying source error-type
         source: libafl::Error,
+    },
+
+    /// Represents a failure to convert between two number types
+    #[error("Conversion from {value}_{from} to {to} failed")]
+    ConversionError {
+        /// value that couldn't be converted
+        value: String,
+
+        /// type to which conversion was attempted
+        to: String,
+
+        /// type from which conversion was attempted
+        from: String,
     },
 
     /// Represents a failure encountered during sending a request / receiving a response

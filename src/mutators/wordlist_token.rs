@@ -144,7 +144,27 @@ impl Mutator for ReplaceKeyword {
                 // piece of data, the index gathered above will move by some amount.
                 // the `step` value here is one piece of info necessary to calculate
                 // how far the move is.
-                let step = entry.len() as i64 - self.keyword.len() as i64;
+                let entry_length = i64::try_from(entry.len()).map_err(|source| {
+                    tracing::error!(%source, "could not convert from {} to an i64", entry.len());
+
+                    FeroxFuzzError::ConversionError {
+                        value: format!("{}", entry.len()),
+                        to: String::from("i64"),
+                        from: String::from("usize"),
+                    }
+                })?;
+
+                let keyword_length = i64::try_from(self.keyword.len()).map_err(|source| {
+                    tracing::error!(%source, "could not convert from {} to an i64", self.keyword.len());
+
+                    FeroxFuzzError::ConversionError {
+                        value: format!("{}", self.keyword.len()),
+                        to: String::from("i64"),
+                        from: String::from("usize"),
+                    }
+                })?;
+
+                let step = entry_length - keyword_length;
 
                 indices.iter().enumerate().for_each(|(i, &idx)| {
                     // when the step is negative, we need to subtract the

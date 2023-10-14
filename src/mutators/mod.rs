@@ -1,9 +1,22 @@
 //! actions taken against [`Data`] that change the underlying bytes in some way
-mod afl;
-mod havoc;
 mod wordlist_token;
+pub use self::wordlist_token::ReplaceKeyword;
+
+use cfg_if::cfg_if;
+
+cfg_if! {
+    if #[cfg(any(feature = "havoc", feature = "libafl"))] {
+        mod afl;
+        mod havoc;
+        pub use self::afl::*;
+        pub use self::havoc::HavocMutator;
+    }
+}
 
 use std::sync::{Arc, Once, RwLock};
+
+use dyn_clone::DynClone;
+use tracing::instrument;
 
 use crate::error::FeroxFuzzError;
 use crate::events::{EventPublisher, Mutation, Publisher};
@@ -13,13 +26,6 @@ use crate::requests::{Request, RequestId};
 use crate::state::SharedState;
 use crate::std_ext::tuple::Named;
 use crate::MutatorsList;
-
-pub use self::afl::*;
-pub use self::havoc::HavocMutator;
-pub use self::wordlist_token::ReplaceKeyword;
-
-use dyn_clone::DynClone;
-use tracing::instrument;
 
 static mut HAS_LISTENERS: bool = false;
 static INIT: Once = Once::new();
@@ -158,7 +164,7 @@ pub trait Mutator: DynClone + AsAny + Named + Send + Sync {
         }
 
         if let Some(headers) = request.headers.as_mut() {
-            for (key, value) in headers.iter_mut() {
+            for (key, value) in &mut *headers {
                 if key.is_fuzzable() {
                     self.mutate(key, state)?;
                     notify_listeners(
@@ -182,7 +188,7 @@ pub trait Mutator: DynClone + AsAny + Named + Send + Sync {
         }
 
         if let Some(params) = request.params.as_mut() {
-            for (key, value) in params.iter_mut() {
+            for (key, value) in &mut *params {
                 if key.is_fuzzable() {
                     self.mutate(key, state)?;
                     notify_listeners(

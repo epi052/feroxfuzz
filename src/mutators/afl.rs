@@ -17,9 +17,9 @@ use crate::std_ext::ops::Len;
 use crate::std_ext::tuple::Named;
 use crate::{atomic_load, AsBytes};
 
-use libafl::bolts::rands::Rand;
 use libafl::inputs::HasBytesVec;
 use libafl::state::{HasMaxSize, HasRand};
+use libafl_bolts::rands::Rand;
 #[cfg(feature = "serde")]
 use serde::{
     de::{self, Deserialize, Deserializer, MapAccess, Visitor},

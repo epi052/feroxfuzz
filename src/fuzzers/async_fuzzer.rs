@@ -479,10 +479,11 @@ where
 
         // if any of the tasks failed, log the error and move along, nothing can really be
         // done about it from here
+        #[allow(clippy::tuple_array_conversions)] // false positive
         [first, second, third, fourth, fifth, sixth]
             .into_iter()
             .filter_map(|result| match result {
-                Ok(_) => None,
+                Ok(()) => None,
                 Err(err) => Some(err),
             })
             .for_each(|err| {

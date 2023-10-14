@@ -54,6 +54,7 @@ cargo test --all-features --doc "${@}"
 [tasks.test-lib]
 clear = true
 script = """
+cargo nextest run --retries 10 --lib "${@}"
 cargo nextest run --all-features --retries 10 --lib "${@}"
 """
 
