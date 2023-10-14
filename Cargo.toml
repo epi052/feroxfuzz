@@ -50,10 +50,6 @@ tokio = { version = "1.20", optional = true, features = [
 num = { version = "0.4" }
 cfg-if = { version = "1.0" }
 dyn-clone = { version = "1.0.9" }
-libafl = { version = "0.11.1", default-features = false, features = [
-    "std",
-], optional = true }
-libafl_bolts = { version = "0.11.1", default-features = false, optional = true }
 url = { version = "2.2", features = ["serde"] }
 ## optional
 serde = { version = "1.0", optional = true, features = ["derive", "rc"] }
@@ -72,6 +68,10 @@ futures = { version = "0.3", optional = true }
 base64 = { version = "0.21.2", optional = true }
 hex = { version = "0.4.3", optional = true }
 flume = { version = "0.11.0" }
+libafl = { version = "0.11.1", default-features = false, features = [
+    "std",
+], optional = true }
+libafl_bolts = { version = "0.11.1", default-features = false, optional = true }
 
 [dev-dependencies]
 http = { version = "0.2" }
