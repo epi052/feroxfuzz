@@ -804,7 +804,7 @@ mod tests {
         fuzzer.fuzz_once(&mut state).await?;
 
         if let Ok(guard) = state.stats().read() {
-            assert!((guard.requests() - 2.0).abs() < std::f64::EPSILON);
+            assert!((guard.requests() - 2.0).abs() < f64::EPSILON);
             assert_eq!(guard.status_code_count(200).unwrap(), 1);
             assert_eq!(guard.status_code_count(201).unwrap(), 1);
             assert_eq!(
@@ -830,7 +830,7 @@ mod tests {
         fuzzer.fuzz_n_iterations(2, &mut state).await?;
 
         if let Ok(guard) = state.stats().read() {
-            assert!((guard.requests() - 2.0).abs() < std::f64::EPSILON);
+            assert!((guard.requests() - 2.0).abs() < f64::EPSILON);
             assert_eq!(guard.status_code_count(200).unwrap(), 1);
             assert_eq!(guard.status_code_count(201).unwrap(), 1);
             assert_eq!(
@@ -857,7 +857,7 @@ mod tests {
 
         // at this point, /2 was hit from both previous tests, so we're 2 higher than expected
         if let Ok(guard) = state.stats().read() {
-            assert!((guard.requests() - 2.0).abs() < std::f64::EPSILON);
+            assert!((guard.requests() - 2.0).abs() < f64::EPSILON);
             assert_eq!(guard.status_code_count(200).unwrap(), 1);
             assert_eq!(guard.status_code_count(201).unwrap(), 1);
             assert_eq!(
