@@ -107,7 +107,7 @@ where
 
             let reader = BufReader::new(file);
 
-            for line in reader.lines().flatten() {
+            for line in reader.lines().map_while(Result::ok) {
                 if line.is_empty() || line.starts_with('#') {
                     // skip empty lines and comments
                     continue;
@@ -260,6 +260,18 @@ impl DirCorpus {
     #[inline]
     pub fn items_mut(&mut self) -> &mut [Data] {
         &mut self.items
+    }
+
+    /// Returns a mutable iterator over the items in the corpus.
+    #[must_use]
+    pub fn iter_mut(&mut self) -> <&mut [Data] as IntoIterator>::IntoIter {
+        <&mut Self as IntoIterator>::into_iter(self)
+    }
+
+    /// Returns an iterator over the items in the corpus.
+    #[must_use]
+    pub fn iter(&self) -> <&[Data] as IntoIterator>::IntoIter {
+        <&Self as IntoIterator>::into_iter(self)
     }
 }
 
