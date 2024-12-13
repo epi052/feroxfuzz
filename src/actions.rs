@@ -53,7 +53,8 @@ pub enum Action {
 impl Action {
     /// returns `true` if the action is [`Action::Discard`] or has a flow control
     /// directive of [`FlowControl::Discard`]; false otherwise
-    pub fn should_discard(&self) -> bool {
+    #[must_use]
+    pub const fn should_discard(&self) -> bool {
         matches!(self, Self::Discard)
             || matches!(self, Action::AddToCorpus(_, _, FlowControl::Discard))
     }
