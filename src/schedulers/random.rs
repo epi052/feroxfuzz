@@ -6,9 +6,6 @@ use crate::error::FeroxFuzzError;
 use crate::state::SharedState;
 use crate::std_ext::ops::Len;
 use crate::std_ext::tuple::Named;
-
-#[cfg(feature = "libafl")]
-use libafl_bolts::rands::Rand;
 use tracing::{error, instrument, trace};
 
 /// Random access of the associated [`Corpus`]
@@ -36,6 +33,7 @@ use tracing::{error, instrument, trace};
 /// the scheduler will select a random index for the `FUZZ_USER` corpus
 /// from 0-2 and a random index for the `FUZZ_PASS` corpus from 0-2. It
 /// will do this 3 times before it stops.
+#[allow(clippy::doc_link_with_quotes)]
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RandomScheduler {
@@ -61,10 +59,9 @@ impl Scheduler for RandomScheduler {
         // iterate through the indices and increment the current index
         for index in &mut self.indices {
             let length = index.len();
-            let random_idx = self.state.rng_mut().below(length as u64);
+            let random_idx = self.state.rng_mut().below(length);
 
-            #[allow(clippy::cast_possible_truncation)]
-            set_states_corpus_index(&self.state, index.name(), random_idx as usize)?;
+            set_states_corpus_index(&self.state, index.name(), random_idx)?;
 
             // don't care about keeping track of each index's current index, so no index.next()
         }

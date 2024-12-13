@@ -4,7 +4,6 @@ use std::fmt::{self, Display, Formatter};
 use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Once, RwLock};
 
-use cfg_if::cfg_if;
 use tracing::{debug, error, instrument, warn};
 
 use crate::actions::Action;
@@ -22,83 +21,160 @@ use crate::Len;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-cfg_if! {
-    if #[cfg(feature = "libafl")] {
-        use libafl_bolts::rands::RomuDuoJrRand;
-        use libafl::state::{HasMaxSize, HasRand, DEFAULT_MAX_SIZE};
-    } else {
-        // note: the following rng is from libafl. It was too heavy a solution to bring LibAFL
-        // along for a few traits and this rand implementation, so it's copied here instead.
-        // Full credit for the following rng implementation goes to the LibAFL authors.
-        use std::time::{UNIX_EPOCH, SystemTime};
+// note: the following rng is from libafl. It was too heavy a solution to bring LibAFL
+// along for a few traits and this rand implementation, so it's copied here instead.
+// Full credit for the following rng implementation goes to the LibAFL authors.
+use std::time::{SystemTime, UNIX_EPOCH};
 
-        /// see <https://arxiv.org/pdf/2002.11331.pdf>
-        #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
-        pub struct RomuDuoJrRand {
-            x_state: u64,
-            y_state: u64,
+/// Faster and almost unbiased alternative to `rand % n`.
+///
+/// For N-bit bound, probability of getting a biased value is 1/2^(64-N).
+/// At least 2^2*(64-N) samples are required to detect this amount of bias.
+///
+/// See: [An optimal algorithm for bounded random integers](https://github.com/apple/swift/pull/39143).
+#[allow(clippy::cast_possible_truncation)]
+#[inline]
+#[must_use]
+pub fn fast_bound(rand: u64, n: usize) -> usize {
+    debug_assert_ne!(n, 0);
+    let mul = u128::from(rand).wrapping_mul(u128::from(n as u64));
+    (mul >> 64) as usize
+}
+
+// https://prng.di.unimi.it/splitmix64.c
+fn splitmix64(x: &mut u64) -> u64 {
+    *x = x.wrapping_add(0x9e37_79b9_7f4a_7c15);
+    let mut z = *x;
+    z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    z ^ (z >> 31)
+}
+
+/// see <https://arxiv.org/pdf/2002.11331.pdf>
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+pub struct RomuDuoJrRand {
+    x_state: u64,
+    y_state: u64,
+}
+
+impl RomuDuoJrRand {
+    /// Creates a rand instance, pre-seeded with the current time in nanoseconds.
+    #[allow(clippy::cast_possible_truncation)]
+    #[must_use]
+    pub fn new() -> Self {
+        let current_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default();
+        Self::with_seed(current_time.as_nanos() as u64)
+    }
+
+    /// Creates a new `RomuDuoJrRand` with the given seed.
+    #[must_use]
+    pub fn with_seed(seed: u64) -> Self {
+        let mut rand = Self {
+            x_state: 0,
+            y_state: 0,
+        };
+        rand.set_seed(seed);
+        rand
+    }
+
+    /// Sets the seed for the random number generator.
+    pub fn set_seed(&mut self, mut seed: u64) {
+        self.x_state = splitmix64(&mut seed);
+        self.y_state = splitmix64(&mut seed);
+    }
+
+    /// This method uses [`Iterator::size_hint`] for optimization. With an
+    /// accurate hint and where [`Iterator::nth`] is a constant-time operation
+    /// this method can offer `O(1)` performance. Where no size hint is
+    /// available, complexity is `O(n)` where `n` is the iterator length.
+    /// Partial hints (where `lower > 0`) also improve performance.
+    ///
+    /// Copy&paste from [`rand::IteratorRandom`](https://docs.rs/rand/0.8.5/rand/seq/trait.IteratorRandom.html#method.choose)
+    pub fn choose<I>(&mut self, from: I) -> Option<I::Item>
+    where
+        I: IntoIterator,
+    {
+        let mut iter = from.into_iter();
+        let (mut lower, mut upper) = iter.size_hint();
+        let mut consumed = 0;
+        let mut result = None;
+
+        // Handling for this condition outside the loop allows the optimizer to eliminate the loop
+        // when the Iterator is an ExactSizeIterator. This has a large performance impact on e.g.
+        // seq_iter_choose_from_1000.
+        if upper == Some(lower) {
+            return if lower == 0 {
+                None
+            } else {
+                iter.nth(self.below(lower))
+            };
         }
 
-        impl RomuDuoJrRand {
-            /// Creates a rand instance, pre-seeded with the current time in nanoseconds.
-            pub fn new() -> Self {
-                let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-                Self::with_seed(current_time.as_nanos() as u64)
-            }
-
-            /// Creates a new `RomuDuoJrRand` with the given seed.
-            #[must_use]
-            pub fn with_seed(seed: u64) -> Self {
-                let mut rand = Self {
-                    x_state: 0,
-                    y_state: 0,
+        // Continue until the iterator is exhausted
+        loop {
+            if lower > 1 {
+                let ix = self.below(lower + consumed);
+                let skip = if ix < lower {
+                    result = iter.nth(ix);
+                    lower - (ix + 1)
+                } else {
+                    lower
                 };
-                rand.set_seed(seed);
-                rand
-            }
-
-            fn set_seed(&mut self, seed: u64) {
-                self.x_state = seed ^ 0x12345;
-                self.y_state = seed ^ 0x6789A;
-            }
-
-            #[inline]
-            fn next(&mut self) -> u64 {
-                let xp = self.x_state;
-                self.x_state = 15241094284759029579_u64.wrapping_mul(self.y_state);
-                self.y_state = self.y_state.wrapping_sub(xp).rotate_left(27);
-                xp
-            }
-
-            /// Gets a value below the given 64 bit val (exclusive)
-            pub fn below(&mut self, upper_bound_excl: u64) -> u64 {
-                if upper_bound_excl <= 1 {
-                    return 0;
+                if upper == Some(lower) {
+                    return result;
                 }
-
-                /*
-                Modulo is biased - we don't want our fuzzing to be biased so let's do it
-                right. See
-                https://stackoverflow.com/questions/10984974/why-do-people-say-there-is-modulo-bias-when-using-a-random-number-generator
-                */
-                let mut unbiased_rnd: u64;
-                loop {
-                    unbiased_rnd = self.next();
-                    if unbiased_rnd < (u64::MAX - (u64::MAX % upper_bound_excl)) {
-                        break;
-                    }
+                consumed += lower;
+                if skip > 0 {
+                    iter.nth(skip - 1);
                 }
-
-                unbiased_rnd % upper_bound_excl
+            } else {
+                let elem = iter.next();
+                if elem.is_none() {
+                    return result;
+                }
+                consumed += 1;
+                if self.below(consumed) == 0 {
+                    result = elem;
+                }
             }
 
+            let hint = iter.size_hint();
+            lower = hint.0;
+            upper = hint.1;
         }
+    }
 
-        impl Default for RomuDuoJrRand {
-            fn default() -> Self {
-                Self::new()
-            }
-        }
+    /// Gets a value below the given bound (exclusive)
+    #[inline]
+    pub fn below(&mut self, upper_bound_excl: usize) -> usize {
+        fast_bound(self.next().unwrap_or_default(), upper_bound_excl)
+    }
+
+    /// Generates the next random number in the sequence
+    #[inline]
+    pub fn next_u64(&mut self) -> u64 {
+        let xp = self.x_state;
+        self.x_state = 15_241_094_284_759_029_579_u64.wrapping_mul(self.y_state);
+        self.y_state = self.y_state.wrapping_sub(xp).rotate_left(27);
+        xp
+    }
+}
+
+#[allow(clippy::copy_iterator)]
+impl Iterator for RomuDuoJrRand {
+    type Item = u64;
+
+    /// Generates the next random number in the sequence.
+    fn next(&mut self) -> Option<Self::Item> {
+        Some(self.next_u64())
+    }
+}
+
+impl Default for RomuDuoJrRand {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -485,6 +561,7 @@ impl SharedState {
         let has_listeners = has_corpus_listeners(&self.events());
 
         if has_listeners {
+            // todo: this looks suspiciously like test/dev code, i think the fn is supposed to be generic?
             self.events().notify(ModifiedCorpus {
                 id: request.id(),
                 corpus: corpus_name,
@@ -771,37 +848,6 @@ impl Display for SharedState {
     }
 }
 
-cfg_if! {
-    if #[cfg(feature = "libafl")] {
-        // implement the HasRand and HasMaxSize traits from libafl so our
-        // state plays nicely with libafl mutators
-        impl HasRand for SharedState {
-            type Rand = RomuDuoJrRand;
-
-            fn rand(&self) -> &Self::Rand {
-                &self.rng
-            }
-
-            fn rand_mut(&mut self) -> &mut Self::Rand {
-                &mut self.rng
-            }
-        }
-
-        impl HasMaxSize for SharedState {
-            fn max_size(&self) -> usize {
-                DEFAULT_MAX_SIZE
-            }
-
-            fn set_max_size(&mut self, _max_size: usize) {
-                // - pass -
-                //
-                // nothing calls this from libafl's code, and i don't see a
-                // need for it in feroxfuzz
-            }
-        }
-
-    }
-}
 #[cfg(test)]
 mod tests {
     use super::*;

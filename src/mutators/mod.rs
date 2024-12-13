@@ -2,17 +2,6 @@
 mod wordlist_token;
 pub use self::wordlist_token::ReplaceKeyword;
 
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(any(feature = "havoc", feature = "libafl"))] {
-        mod afl;
-        mod havoc;
-        pub use self::afl::*;
-        pub use self::havoc::HavocMutator;
-    }
-}
-
 use std::sync::{Arc, Once, RwLock};
 
 use dyn_clone::DynClone;

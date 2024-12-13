@@ -48,6 +48,7 @@ mod std_ext;
 
 // re-exported traits, to be available as top-level imports for users
 pub use metadata::{AsAny, AsAnyMut, Metadata};
+pub use state::RomuDuoJrRand as Rand;
 pub use std_ext::convert::{AsBytes, AsInner, IntoInner};
 pub use std_ext::ops::Len;
 pub use std_ext::tuple::{MatchName, Named};
@@ -60,10 +61,6 @@ pub use tuple_list::TupleList as DecidersList;
 pub use tuple_list::TupleList as ObserversList;
 pub use tuple_list::TupleList as MutatorsList;
 pub use tuple_list::TupleList as ProcessorsList;
-
-// re-exported 3rd party crate traits
-#[cfg(feature = "libafl")]
-pub use libafl_bolts::rands::Rand;
 
 /// Wrapper `Atomic*.fetch_add` to save me from writing `Ordering::SeqCst` a bajillion times
 ///
