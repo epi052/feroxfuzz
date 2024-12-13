@@ -362,16 +362,16 @@ mod tests {
         )
         .unwrap();
 
-        let allocations = allocation_counter::count(|| {
+        let allocations = allocation_counter::measure(|| {
             request.encode_header(0, Encoder::Base64);
         });
 
-        assert_eq!(allocations, 1); // count # of allocations during encode
+        assert_eq!(allocations.count_total, 1); // count # of allocations during encode
         assert_eq!(
             request
                 .headers()
                 .unwrap()
-                .get(0)
+                .first()
                 .unwrap()
                 .1
                 .as_str()
@@ -391,16 +391,16 @@ mod tests {
         )
         .unwrap();
 
-        let allocations = allocation_counter::count(|| {
+        let allocations = allocation_counter::measure(|| {
             request.encode_header(0, Encoder::Url);
         });
 
-        assert_eq!(allocations, 1); // count # of allocations during encode
+        assert_eq!(allocations.count_total, 1); // count # of allocations during encode
         assert_eq!(
             request
                 .headers()
                 .unwrap()
-                .get(0)
+                .first()
                 .unwrap()
                 .1
                 .as_str()
@@ -420,16 +420,16 @@ mod tests {
         )
         .unwrap();
 
-        let allocations = allocation_counter::count(|| {
+        let allocations = allocation_counter::measure(|| {
             request.encode_header(0, Encoder::Hex);
         });
 
-        assert_eq!(allocations, 1); // count # of allocations during encode
+        assert_eq!(allocations.count_total, 1); // count # of allocations during encode
         assert_eq!(
             request
                 .headers()
                 .unwrap()
-                .get(0)
+                .first()
                 .unwrap()
                 .1
                 .as_str()
@@ -449,16 +449,16 @@ mod tests {
         )
         .unwrap();
 
-        let allocations = allocation_counter::count(|| {
+        let allocations = allocation_counter::measure(|| {
             request.encode_param(0, Encoder::Base64);
         });
 
-        assert_eq!(allocations, 1); // count # of allocations during encode
+        assert_eq!(allocations.count_total, 1); // count # of allocations during encode
         assert_eq!(
             request
                 .params()
                 .unwrap()
-                .get(0)
+                .first()
                 .unwrap()
                 .1
                 .as_str()
@@ -478,16 +478,16 @@ mod tests {
         )
         .unwrap();
 
-        let allocations = allocation_counter::count(|| {
+        let allocations = allocation_counter::measure(|| {
             request.encode_param(0, Encoder::Url);
         });
 
-        assert_eq!(allocations, 1); // count # of allocations during encode
+        assert_eq!(allocations.count_total, 1); // count # of allocations during encode
         assert_eq!(
             request
                 .params()
                 .unwrap()
-                .get(0)
+                .first()
                 .unwrap()
                 .1
                 .as_str()
@@ -507,16 +507,16 @@ mod tests {
         )
         .unwrap();
 
-        let allocations = allocation_counter::count(|| {
+        let allocations = allocation_counter::measure(|| {
             request.encode_param(0, Encoder::Hex);
         });
 
-        assert_eq!(allocations, 1); // count # of allocations during encode
+        assert_eq!(allocations.count_total, 1); // count # of allocations during encode
         assert_eq!(
             request
                 .params()
                 .unwrap()
-                .get(0)
+                .first()
                 .unwrap()
                 .1
                 .as_str()
@@ -534,11 +534,11 @@ mod tests {
         let mut request =
             Request::from_url("http://localhost:8000", Some(&[ShouldFuzz::URLHost])).unwrap();
 
-        let allocations = allocation_counter::count(|| {
+        let allocations = allocation_counter::measure(|| {
             request.encode(RequestField::Host, Encoder::Base64);
         });
 
-        assert_eq!(allocations, 1); // count # of allocations during encode
+        assert_eq!(allocations.count_total, 1); // count # of allocations during encode
         assert_eq!(request.host().unwrap().as_str().unwrap(), "bG9jYWxob3N0");
     }
 
@@ -547,11 +547,11 @@ mod tests {
         let mut request =
             Request::from_url("http://localhost:8000", Some(&[ShouldFuzz::URLHost])).unwrap();
 
-        let allocations = allocation_counter::count(|| {
+        let allocations = allocation_counter::measure(|| {
             request.encode(RequestField::Host, Encoder::Url);
         });
 
-        assert_eq!(allocations, 1); // count # of allocations during encode
+        assert_eq!(allocations.count_total, 1); // count # of allocations during encode
         assert_eq!(request.host().unwrap().as_str().unwrap(), "localhost");
     }
 
@@ -560,11 +560,11 @@ mod tests {
         let mut request =
             Request::from_url("http://localhost", Some(&[ShouldFuzz::URLHost])).unwrap();
 
-        let allocations = allocation_counter::count(|| {
+        let allocations = allocation_counter::measure(|| {
             request.encode(RequestField::Host, Encoder::Hex);
         });
 
-        assert_eq!(allocations, 1); // count # of allocations during encode
+        assert_eq!(allocations.count_total, 1); // count # of allocations during encode
         assert_eq!(
             request.host().unwrap().as_str().unwrap(),
             "6c6f63616c686f7374"
@@ -591,11 +591,11 @@ mod tests {
                 )
                 .unwrap();
 
-                let allocations = allocation_counter::count(|| {
+                let allocations = allocation_counter::measure(|| {
                     request.encode($field, $encoder);
                 });
 
-                assert_eq!(allocations, 1); // count # of allocations during encode
+                assert_eq!(allocations.count_total, 1); // count # of allocations during encode
                 assert_eq!(request.$method().unwrap().as_str().unwrap(), $expected);
             }
         };
@@ -617,11 +617,11 @@ mod tests {
                 )
                 .unwrap();
 
-                let allocations = allocation_counter::count(|| {
+                let allocations = allocation_counter::measure(|| {
                     request.encode($field, $encoder);
                 });
 
-                assert_eq!(allocations, 1); // count # of allocations during encode
+                assert_eq!(allocations.count_total, 1); // count # of allocations during encode
                 assert_eq!(request.$method().as_str().unwrap(), $expected);
             }
         };
@@ -640,11 +640,11 @@ mod tests {
             fn $func_name() {
                 let mut request = Request::from_url($url, Some(&[$directive])).unwrap();
 
-                let allocations = allocation_counter::count(|| {
+                let allocations = allocation_counter::measure(|| {
                     request.encode($field, $encoder);
                 });
 
-                assert_eq!(allocations, 1); // count # of allocations during encode
+                assert_eq!(allocations.count_total, 1); // count # of allocations during encode
                 assert_eq!(request.$method().unwrap().as_str().unwrap(), $expected);
             }
         };
@@ -663,11 +663,11 @@ mod tests {
             fn $func_name() {
                 let mut request = Request::from_url($url, Some(&[$directive])).unwrap();
 
-                let allocations = allocation_counter::count(|| {
+                let allocations = allocation_counter::measure(|| {
                     request.encode($field, $encoder);
                 });
 
-                assert_eq!(allocations, 1); // count # of allocations during encode
+                assert_eq!(allocations.count_total, 1); // count # of allocations during encode
                 assert_eq!(request.$method().as_str().unwrap(), $expected);
             }
         };
