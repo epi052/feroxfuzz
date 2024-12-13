@@ -31,6 +31,7 @@ use tracing::{error, instrument, trace};
 /// `http://example.com/login?username=user2&password=pass2`
 /// `http://example.com/login?username=user3&password=pass3`
 ///
+#[allow(clippy::doc_link_with_quotes)]
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct OrderedScheduler {

@@ -26,21 +26,21 @@ use tracing::{error, instrument, trace};
 /// # notes
 ///
 /// - this is the least efficient scheduler, but is the most robust
-/// in terms of ensuring that each entry is scheduled exactly once and
-/// that adding entries at runtime still results in all new entries
-/// being scheduled along with any existing entries/fuzzable field
-/// combinations.
+///   in terms of ensuring that each entry is scheduled exactly once and
+///   that adding entries at runtime still results in all new entries
+///   being scheduled along with any existing entries/fuzzable field
+///   combinations.
 /// - in between calls to `fuzzer.fuzz_once()`, if the corpora length
-/// changes, you must call `scheduler.update_length()` to ensure that
-/// the scheduler is aware of the new length. After that, you must
-/// call `fuzzer.fuzz_once()` again to allow the scheduler to continue
-/// scheduling new entries.
+///   changes, you must call `scheduler.update_length()` to ensure that
+///   the scheduler is aware of the new length. After that, you must
+///   call `fuzzer.fuzz_once()` again to allow the scheduler to continue
+///   scheduling new entries.
 /// - this scheduler DOES NOT prevent duplicate entries from being
-/// added to the corpus/scheduled. if you want to prevent duplicate
-/// entries from being added to the corpus, use the `.unique()` method
-/// during corpus construction.
+///   added to the corpus/scheduled. if you want to prevent duplicate
+///   entries from being added to the corpus, use the `.unique()` method
+///   during corpus construction.
 /// - this scheduler DOES prevent scheduling of the same corpus entries
-/// more than once.
+///   more than once.
 ///
 /// [`Corpus`]: crate::corpora::Corpus
 ///
@@ -76,6 +76,7 @@ use tracing::{error, instrument, trace};
 ///   Users\[3\] Passwords\[1\] -> scheduled
 ///   Users\[3\] Passwords\[2\] -> scheduled
 ///
+#[allow(clippy::doc_link_with_quotes)]
 #[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct UniqueProductScheduler {
