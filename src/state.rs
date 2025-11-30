@@ -352,6 +352,11 @@ impl SharedState {
         self.rng = RomuDuoJrRand::with_seed(seed);
     }
 
+    /// get the seed used to initialize the random number generator
+    pub fn seed(&self) -> u64 {
+        self.seed
+    }
+
     /// given a single implementor of [`Corpus`], create a new `SharedState` object
     ///
     /// [`Corpus`]: crate::corpora::Corpus
@@ -377,17 +382,21 @@ impl SharedState {
     /// # Ok(())
     /// # }
     /// ```
-    #[instrument(skip_all, level = "trace")]
+    #[instrument(skip_all, fields(corpus_name = %corpus.name()), level = "trace")]
     pub fn add_corpus(&mut self, corpus: CorpusType) {
         let corpora_len = self.corpora.len();
         let indices_len = self.corpus_indices.len();
 
         if let Some(indices) = Arc::get_mut(&mut self.corpus_indices) {
             indices.insert(corpus.name().to_string(), AtomicUsize::new(0));
+        } else {
+            warn!("could not get mutable reference to Arc<CorpusIndices>");
         }
 
         if let Some(corpora) = Arc::get_mut(&mut self.corpora) {
             corpora.insert(corpus.name().to_string(), Arc::new(RwLock::new(corpus)));
+        } else {
+            warn!("could not get mutable reference to Arc<CorpusMap>");
         }
 
         if self.corpora.len() == corpora_len + 1 && self.corpus_indices.len() == indices_len + 1 {
@@ -442,6 +451,12 @@ impl SharedState {
     #[must_use]
     pub fn corpus_indices(&self) -> CorpusIndices {
         self.corpus_indices.clone()
+    }
+
+    /// get the mapping of corpus names to their current index
+    #[must_use]
+    pub fn corpus_indices_mut(&mut self) -> &mut CorpusIndices {
+        &mut self.corpus_indices
     }
 
     /// get the random number generator

@@ -295,7 +295,6 @@ impl HttpMethodsCorpus {
 
 impl Len for HttpMethodsCorpus {
     #[inline]
-    #[must_use]
     fn len(&self) -> usize {
         self.items.len()
     }

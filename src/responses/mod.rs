@@ -162,7 +162,7 @@ pub trait Response {
     /// Conversion performed on call, cache results
     /// if you're into that sort of thing
     #[must_use]
-    fn text(&self) -> Cow<str> {
+    fn text(&self) -> Cow<'_, str> {
         String::from_utf8_lossy(self.body())
     }
 

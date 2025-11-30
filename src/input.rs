@@ -52,8 +52,6 @@ impl IntoInner for Data {
     /// # Ok(())
     /// # }
     /// ```
-    #[must_use]
-    // #[allow(clippy::missing_const_for_fn)]
     fn into_inner(self) -> Self::Type {
         match self {
             Self::Fuzzable(value) | Self::Static(value) => value,

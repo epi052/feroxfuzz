@@ -282,7 +282,6 @@ impl Named for DirCorpus {
 
 impl Len for DirCorpus {
     #[inline]
-    #[must_use]
     fn len(&self) -> usize {
         self.items.len()
     }

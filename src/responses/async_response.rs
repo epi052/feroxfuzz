@@ -34,6 +34,34 @@ pub struct AsyncResponse {
 }
 
 impl AsyncResponse {
+    /// Create a new `AsyncResponse` object
+    pub fn new(status_code: u16, body: Vec<u8>) -> Self {
+        let content_length = body.len();
+        let line_count = body
+            .split(|byte| byte == &b'\n')
+            .filter(|s| !s.is_empty())
+            .count();
+        let word_count = if body.is_empty() {
+            0
+        } else {
+            body.split(|byte| ASCII_WHITESPACE.contains(byte))
+                .filter(|s| !s.is_empty())
+                .count()
+        };
+
+        Self {
+            status_code,
+            headers: HashMap::new(),
+            elapsed: Duration::default(),
+            content_length,
+            line_count,
+            word_count,
+            action: None,
+            request: Request::default(),
+            body,
+        }
+    }
+
     /// get the original url (pre-parse/raw) of the request that generated this response
     #[must_use]
     #[inline]
