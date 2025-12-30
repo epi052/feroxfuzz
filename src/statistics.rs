@@ -116,6 +116,18 @@ impl Statistics {
         self.requests
     }
 
+    /// get a mutable reference to the number of requests sent
+    ///
+    /// This is primarily useful for pause/resume workflows, or for starting a
+    /// [`Scheduler`] from a known offset in its iteration (see scheduler constructors).
+    ///
+    /// [`Scheduler`]: crate::schedulers::Scheduler
+    #[inline]
+    #[must_use]
+    pub fn requests_mut(&mut self) -> &mut f64 {
+        &mut self.requests
+    }
+
     /// get the number of general errors
     #[inline]
     #[must_use]
@@ -403,6 +415,24 @@ impl Statistics {
         // purposefully not calling common_updates here, as those updates aren't relevant to
         // requests
         self.update_actions(request.id(), request.action(), RequestOrResponse::Request);
+
+        // If the request resulted in a StopFuzzing action (directly, or via AddToCorpus with
+        // FlowControl::StopFuzzing), refresh the elapsed snapshot so downstream consumers that
+        // persist/read `elapsed` as a field get an accurate final value.
+        if matches!(request.action(), Some(Action::StopFuzzing))
+            || matches!(
+                request.action(),
+                Some(Action::AddToCorpus(_, _, FlowControl::StopFuzzing))
+            )
+        {
+            self.elapsed = self.elapsed();
+
+            if self.elapsed == 0.0 {
+                self.avg_reqs_per_sec = 0.0;
+            } else if self.requests > 0.0 {
+                self.update_requests_per_second();
+            }
+        }
     }
 
     /// update the internal trackers from the given error
