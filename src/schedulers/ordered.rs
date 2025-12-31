@@ -174,7 +174,7 @@ impl OrderedScheduler {
                 error!(%name, "corpus is empty");
 
                 return Err(FeroxFuzzError::EmptyCorpus {
-                    name: name.to_string(),
+                    name: name.clone(),
                 });
             }
 
@@ -225,6 +225,7 @@ impl Iterator for OrderedScheduler {
 }
 
 impl Named for OrderedScheduler {
+    #[allow(clippy::unnecessary_literal_bound)]
     fn name(&self) -> &str {
         "OrderedScheduler"
     }

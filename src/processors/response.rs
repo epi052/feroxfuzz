@@ -135,6 +135,7 @@ where
     F: Fn(&ResponseObserver<FnR>, Option<&Action>, &SharedState),
     FnR: Response,
 {
+    #[allow(clippy::unnecessary_literal_bound)]
     fn name(&self) -> &str {
         "ResponseProcessor"
     }

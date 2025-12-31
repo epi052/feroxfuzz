@@ -191,7 +191,7 @@ impl HttpMethodsCorpus {
         }
     }
 
-    /// create a new [`Corpus`] consisting of HTTP methods that  
+    /// create a new [`Corpus`] consisting of HTTP methods that
     /// indicate responses to them are allowed to be stored for
     /// future reuse
     ///

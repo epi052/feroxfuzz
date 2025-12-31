@@ -145,14 +145,14 @@ impl BlockingResponse {
     /// get a mutable reference to the id
     #[must_use]
     #[inline]
-    pub fn id_mut(&mut self) -> &mut RequestId {
+    pub const fn id_mut(&mut self) -> &mut RequestId {
         self.request.id_mut()
     }
 
     /// get a mutable reference to the headers
     #[must_use]
     #[inline]
-    pub fn headers_mut(&mut self) -> &mut HashMap<String, Vec<u8>> {
+    pub const fn headers_mut(&mut self) -> &mut HashMap<String, Vec<u8>> {
         &mut self.headers
     }
 }

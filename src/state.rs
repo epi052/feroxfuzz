@@ -42,7 +42,7 @@ pub fn fast_bound(rand: u64, n: usize) -> usize {
 }
 
 // https://prng.di.unimi.it/splitmix64.c
-fn splitmix64(x: &mut u64) -> u64 {
+const fn splitmix64(x: &mut u64) -> u64 {
     *x = x.wrapping_add(0x9e37_79b9_7f4a_7c15);
     let mut z = *x;
     z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
@@ -70,7 +70,7 @@ impl RomuDuoJrRand {
 
     /// Creates a new `RomuDuoJrRand` with the given seed.
     #[must_use]
-    pub fn with_seed(seed: u64) -> Self {
+    pub const fn with_seed(seed: u64) -> Self {
         let mut rand = Self {
             x_state: 0,
             y_state: 0,
@@ -80,7 +80,7 @@ impl RomuDuoJrRand {
     }
 
     /// Sets the seed for the random number generator.
-    pub fn set_seed(&mut self, mut seed: u64) {
+    pub const fn set_seed(&mut self, mut seed: u64) {
         self.x_state = splitmix64(&mut seed);
         self.y_state = splitmix64(&mut seed);
     }
@@ -154,7 +154,7 @@ impl RomuDuoJrRand {
 
     /// Generates the next random number in the sequence
     #[inline]
-    pub fn next_u64(&mut self) -> u64 {
+    pub const fn next_u64(&mut self) -> u64 {
         let xp = self.x_state;
         self.x_state = 15_241_094_284_759_029_579_u64.wrapping_mul(self.y_state);
         self.y_state = self.y_state.wrapping_sub(xp).rotate_left(27);
@@ -353,7 +353,8 @@ impl SharedState {
     }
 
     /// get the seed used to initialize the random number generator
-    pub fn seed(&self) -> u64 {
+    #[must_use]
+    pub const fn seed(&self) -> u64 {
         self.seed
     }
 
@@ -438,7 +439,7 @@ impl SharedState {
     /// ```
     #[must_use]
     pub fn total_corpora_len(&self) -> usize {
-        self.corpora().iter().map(|(_, v)| v.len()).sum()
+        self.corpora().values().map(Len::len).sum()
     }
 
     /// get the statistics container
@@ -455,7 +456,7 @@ impl SharedState {
 
     /// get the mapping of corpus names to their current index
     #[must_use]
-    pub fn corpus_indices_mut(&mut self) -> &mut CorpusIndices {
+    pub const fn corpus_indices_mut(&mut self) -> &mut CorpusIndices {
         &mut self.corpus_indices
     }
 
@@ -467,7 +468,7 @@ impl SharedState {
 
     /// get a mutable reference to the random number generator
     #[must_use]
-    pub fn rng_mut(&mut self) -> &mut RomuDuoJrRand {
+    pub const fn rng_mut(&mut self) -> &mut RomuDuoJrRand {
         &mut self.rng
     }
 
@@ -616,6 +617,7 @@ impl SharedState {
     ///
     /// If the `corpus_name` is not found, a [`FeroxFuzzError`] is returned.
     #[instrument(skip(self, request), level = "trace")]
+    #[allow(clippy::too_many_lines)]
     pub fn add_request_fields_to_corpus(
         &self,
         corpus_name: &str,
@@ -818,7 +820,7 @@ impl SharedState {
     pub fn has_metadata(&self, name: &str) -> bool {
         self.metadata
             .read()
-            .map_or(false, |guard| guard.contains_key(name))
+            .is_ok_and(|guard| guard.contains_key(name))
     }
 
     /// add an implementor of [`Metadata`] to the `[MetadataMap]`

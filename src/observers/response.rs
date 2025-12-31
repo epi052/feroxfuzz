@@ -281,7 +281,7 @@ where
         //     (which may be empty).
         //
         // meaning: the two unwraps here are fine, the worst outcome is an empty string
-        let filename = self.url().path_segments().unwrap().last().unwrap();
+        let filename = self.url().path_segments().unwrap().next_back().unwrap();
 
         if !filename.is_empty() {
             // non-empty string, try to get extension

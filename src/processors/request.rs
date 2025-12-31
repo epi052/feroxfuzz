@@ -80,6 +80,7 @@ impl<F> Named for RequestProcessor<F>
 where
     F: Fn(&mut Request, Option<&Action>, &SharedState) + 'static,
 {
+    #[allow(clippy::unnecessary_literal_bound)]
     fn name(&self) -> &str {
         "RequestProcessor"
     }

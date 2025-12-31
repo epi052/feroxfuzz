@@ -340,6 +340,7 @@ impl Iterator for ProductScheduler {
 }
 
 impl Named for ProductScheduler {
+    #[allow(clippy::unnecessary_literal_bound)]
     fn name(&self) -> &str {
         "ProductScheduler"
     }

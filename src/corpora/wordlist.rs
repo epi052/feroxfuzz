@@ -294,11 +294,7 @@ impl Wordlist {
                 continue;
             }
 
-            // since the associated type `Item` must implement FromStr
-            // we can call .parse() to convert it into the expected
-            // type before pushing it onto the container. unwrap is safe here
-            let associated_type = line.parse().unwrap();
-            items.push(associated_type);
+            items.push(line.into());
         }
 
         Ok(WordlistBuilder {

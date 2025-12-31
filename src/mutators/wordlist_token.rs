@@ -193,6 +193,7 @@ impl Mutator for ReplaceKeyword {
 }
 
 impl Named for ReplaceKeyword {
+    #[allow(clippy::unnecessary_literal_bound)]
     fn name(&self) -> &str {
         "ReplaceKeyword"
     }

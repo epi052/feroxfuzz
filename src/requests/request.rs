@@ -7,7 +7,6 @@ use crate::input::Data;
 use crate::std_ext::convert::IntoInner;
 
 use derive_more::{Constructor, From, Into, Not, Sum};
-use lazy_static::lazy_static;
 use regex::Regex;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -17,14 +16,14 @@ use url::Url;
 use std::fmt::{self, Display, Formatter};
 use std::ops::{Add, AddAssign, Rem, Sub, SubAssign};
 use std::str::FromStr;
+use std::sync::LazyLock;
 use std::time::Duration;
 
-lazy_static! {
-    /// uri parsing regex found in RFC 3986
-    ///   -> https://www.rfc-editor.org/rfc/rfc3986#appendix-B
-    static ref URL_PARTS_REGEX: Regex =
-        Regex::new(r"^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?").unwrap();
-}
+/// uri parsing regex found in RFC 3986
+///   -> <https://www.rfc-editor.org/rfc/rfc3986#appendix-B>
+static URL_PARTS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?").unwrap()
+});
 
 impl IntoInner for Url {
     type Type = Self;
@@ -306,6 +305,7 @@ impl Request {
     /// - `Value`
     /// - `KeyAndValue`
     #[allow(clippy::missing_panics_doc)]
+    #[allow(clippy::too_many_lines)]
     #[instrument(level = "trace")]
     pub fn from_url(
         url: &str,
@@ -313,9 +313,9 @@ impl Request {
     ) -> Result<Self, FeroxFuzzError> {
         let maybe_parsed = Url::parse(url);
 
-        let mut request: Self = if maybe_parsed.is_ok() {
+        let mut request: Self = if let Ok(parsed) = maybe_parsed {
             // well-formed URL, can just use the `From` impl
-            maybe_parsed.unwrap().into()
+            parsed.into()
         } else {
             // malformed URL, need to try to parse manually
             tracing::warn!("given URL is malformed, attempting to parse manually");
@@ -805,7 +805,7 @@ impl Request {
     /// ```
     #[must_use]
     #[inline]
-    pub fn id_mut(&mut self) -> &mut RequestId {
+    pub const fn id_mut(&mut self) -> &mut RequestId {
         &mut self.id
     }
 
@@ -826,7 +826,7 @@ impl Request {
     /// get a mutable reference to the scheme
     #[must_use]
     #[inline]
-    pub fn scheme_mut(&mut self) -> &mut Data {
+    pub const fn scheme_mut(&mut self) -> &mut Data {
         &mut self.scheme
     }
 
@@ -889,7 +889,7 @@ impl Request {
     /// get a mutable reference to the username
     #[must_use]
     #[inline]
-    pub fn username_mut(&mut self) -> Option<&mut Data> {
+    pub const fn username_mut(&mut self) -> Option<&mut Data> {
         self.username.as_mut()
     }
 
@@ -952,7 +952,7 @@ impl Request {
     /// get a mutable reference to the password
     #[must_use]
     #[inline]
-    pub fn password_mut(&mut self) -> Option<&mut Data> {
+    pub const fn password_mut(&mut self) -> Option<&mut Data> {
         self.password.as_mut()
     }
 
@@ -1016,7 +1016,7 @@ impl Request {
     /// get a mutable reference to the host
     #[must_use]
     #[inline]
-    pub fn host_mut(&mut self) -> Option<&mut Data> {
+    pub const fn host_mut(&mut self) -> Option<&mut Data> {
         self.host.as_mut()
     }
 
@@ -1079,7 +1079,7 @@ impl Request {
     /// get a mutable reference to the port
     #[must_use]
     #[inline]
-    pub fn port_mut(&mut self) -> Option<&mut Data> {
+    pub const fn port_mut(&mut self) -> Option<&mut Data> {
         self.port.as_mut()
     }
 
@@ -1142,7 +1142,7 @@ impl Request {
     /// get a mutable reference to the path
     #[must_use]
     #[inline]
-    pub fn path_mut(&mut self) -> &mut Data {
+    pub const fn path_mut(&mut self) -> &mut Data {
         &mut self.path
     }
 
@@ -1205,7 +1205,7 @@ impl Request {
     /// get a mutable reference to the fragment
     #[must_use]
     #[inline]
-    pub fn fragment_mut(&mut self) -> Option<&mut Data> {
+    pub const fn fragment_mut(&mut self) -> Option<&mut Data> {
         self.fragment.as_mut()
     }
 
@@ -1268,7 +1268,7 @@ impl Request {
     /// get a mutable reference to the method
     #[must_use]
     #[inline]
-    pub fn method_mut(&mut self) -> &mut Data {
+    pub const fn method_mut(&mut self) -> &mut Data {
         &mut self.method
     }
 
@@ -1331,7 +1331,7 @@ impl Request {
     /// get a mutable reference to the body
     #[must_use]
     #[inline]
-    pub fn body_mut(&mut self) -> Option<&mut Data> {
+    pub const fn body_mut(&mut self) -> Option<&mut Data> {
         self.body.as_mut()
     }
 
@@ -1394,6 +1394,7 @@ impl Request {
     /// get a mutable reference to the headers
     #[must_use]
     #[inline]
+    #[allow(clippy::missing_const_for_fn)]
     pub fn headers_mut(&mut self) -> Option<&mut [(Data, Data)]> {
         self.headers.as_deref_mut()
     }
@@ -1574,6 +1575,7 @@ impl Request {
     /// get a mutable reference to the url parameters
     #[must_use]
     #[inline]
+    #[allow(clippy::missing_const_for_fn)]
     pub fn params_mut(&mut self) -> Option<&mut [(Data, Data)]> {
         self.params.as_deref_mut()
     }
@@ -1759,7 +1761,7 @@ impl Request {
     /// get a mutable reference to the user-agent
     #[must_use]
     #[inline]
-    pub fn user_agent_mut(&mut self) -> Option<&mut Data> {
+    pub const fn user_agent_mut(&mut self) -> Option<&mut Data> {
         self.user_agent.as_mut()
     }
 
@@ -1822,7 +1824,7 @@ impl Request {
     /// get a mutable reference to the version
     #[must_use]
     #[inline]
-    pub fn version_mut(&mut self) -> &mut Data {
+    pub const fn version_mut(&mut self) -> &mut Data {
         &mut self.version
     }
 
@@ -1903,7 +1905,7 @@ impl Request {
     /// ```
     #[must_use]
     #[inline]
-    pub fn timeout_mut(&mut self) -> &mut Duration {
+    pub const fn timeout_mut(&mut self) -> &mut Duration {
         &mut self.timeout
     }
 

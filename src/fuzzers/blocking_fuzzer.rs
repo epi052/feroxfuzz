@@ -86,6 +86,7 @@ where
     S: Scheduler,
 {
     #[instrument(skip_all, fields(?self.post_send_logic, ?self.pre_send_logic), name = "fuzz-loop", level = "trace")]
+    #[allow(clippy::too_many_lines)]
     fn fuzz_once(&mut self, state: &mut SharedState) -> Result<Option<Action>, FeroxFuzzError> {
         let pre_send_logic = self.pre_send_logic();
         let post_send_logic = self.post_send_logic();
@@ -110,7 +111,7 @@ where
                 // if the scheduler returns an iteration stopped error, we
                 // need to stop the fuzzing loop
                 break;
-            } else if matches!(scheduled, Err(FeroxFuzzError::SkipScheduledItem { .. })) {
+            } else if matches!(scheduled, Err(FeroxFuzzError::SkipScheduledItem)) {
                 // if the scheduler says we should skip this item, we'll continue to
                 // the next item
                 continue;
@@ -351,12 +352,12 @@ where
     }
 
     /// get a mutable reference to the baseline request used for mutation
-    pub fn request_mut(&mut self) -> &mut Request {
+    pub const fn request_mut(&mut self) -> &mut Request {
         &mut self.request
     }
 
     /// get a mutable reference to the scheduler
-    pub fn scheduler_mut(&mut self) -> &mut S {
+    pub const fn scheduler_mut(&mut self) -> &mut S {
         &mut self.scheduler
     }
 
@@ -444,19 +445,19 @@ mod tests {
         fuzzer.fuzz_once(&mut state.clone())?;
 
         // /1 and /2 never sent
-        mock.assert_hits(1);
+        mock.assert_calls(1);
 
         fuzzer.scheduler.reset();
         fuzzer.fuzz_n_iterations(1, &mut state.clone())?;
 
         // /1 and /2 never sent, but /0 was sent again
-        mock.assert_hits(2);
+        mock.assert_calls(2);
 
         fuzzer.scheduler.reset();
         fuzzer.fuzz(&mut state)?;
 
         // /1 and /2 never sent, but /0 was sent again
-        mock.assert_hits(3);
+        mock.assert_calls(3);
 
         Ok(())
     }
@@ -524,8 +525,8 @@ mod tests {
         // /0 sent/recv'd and ok
         // /1 sent/recv'd and bad
         // /2 never sent
-        mock.assert_hits(1);
-        mock2.assert_hits(1);
+        mock.assert_calls(1);
+        mock2.assert_calls(1);
 
         // fuzzer.scheduler.reset();
         // fuzzer.fuzz_n_iterations(2, &mut state)?;
@@ -533,8 +534,8 @@ mod tests {
         // // /0 sent/recv'd and ok
         // // /1 sent/recv'd and bad
         // // /2 never sent
-        // mock.assert_hits(2);
-        // mock2.assert_hits(2);
+        // mock.assert_calls(2);
+        // mock2.assert_calls(2);
 
         // fuzzer.scheduler.reset();
         // fuzzer.fuzz(&mut state)?;
@@ -542,8 +543,8 @@ mod tests {
         // // /0 sent/recv'd and ok
         // // /1 sent/recv'd and bad
         // // /2 never sent
-        // mock.assert_hits(3);
-        // mock2.assert_hits(3);
+        // mock.assert_calls(3);
+        // mock2.assert_calls(3);
 
         Ok(())
     }

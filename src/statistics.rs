@@ -124,7 +124,7 @@ impl Statistics {
     /// [`Scheduler`]: crate::schedulers::Scheduler
     #[inline]
     #[must_use]
-    pub fn requests_mut(&mut self) -> &mut f64 {
+    pub const fn requests_mut(&mut self) -> &mut f64 {
         &mut self.requests
     }
 
@@ -242,7 +242,7 @@ impl Statistics {
         let adjustment = Duration::from_secs_f64(offset);
         self.start_time = current_time()
             .checked_sub(adjustment)
-            .map_or_else(|| Duration::from_secs_f64(0.0), |duration| duration);
+            .unwrap_or_else(|| Duration::from_secs_f64(0.0));
         self.elapsed = self.elapsed();
     }
 
@@ -353,7 +353,7 @@ impl Statistics {
                     FlowControl::Keep => update(Action::Keep),
                     FlowControl::Discard => update(Action::Discard),
                     FlowControl::StopFuzzing => update(Action::StopFuzzing),
-                };
+                }
                 update(Action::AddToCorpus(
                     corpus_name.clone(),
                     corpus_item_type.clone(),
@@ -546,7 +546,7 @@ impl Add for Statistics {
     /// does not update the start time.
     /// the most recent elapsed time and average requests per second are used
     fn add(self, rhs: Self) -> Self::Output {
-        let mut new = self.clone();
+        let mut new = self;
 
         new.timeouts += rhs.timeouts;
         new.requests += rhs.requests;
@@ -629,12 +629,12 @@ impl AddAssign for Statistics {
     }
 }
 
-impl AddAssign<&Statistics> for Statistics {
+impl AddAssign<&Self> for Statistics {
     /// add two [`Statistics`] objects together, storing the result on the left hand side
     ///
     /// does not update the start time.
     /// the most recent elapsed time and average requests per second are used
-    fn add_assign(&mut self, rhs: &Statistics) {
+    fn add_assign(&mut self, rhs: &Self) {
         self.timeouts += rhs.timeouts;
         self.requests += rhs.requests;
         self.errors += rhs.errors;
@@ -672,7 +672,7 @@ impl AddAssign<&Statistics> for Statistics {
     }
 }
 
-impl<'a, 'b> AddAssign<&'b Statistics> for &'a mut Statistics {
+impl<'b> AddAssign<&'b Statistics> for &mut Statistics {
     /// add two [`Statistics`] objects together, storing the result on the left hand side
     ///
     /// does not update the start time.
@@ -726,7 +726,7 @@ impl Sub for Statistics {
     /// if the rhs is greater than the lhs, the lhs will saturate at 0 for usize's
     /// and will result in a negative value for f64's
     fn sub(self, rhs: Self) -> Self::Output {
-        let mut new: Statistics = self.clone();
+        let mut new = self;
 
         // usize's
         new.timeouts = new.timeouts.saturating_sub(rhs.timeouts);
@@ -764,7 +764,7 @@ impl Sub for Statistics {
 
         // requests is an f64, but a negative number of requests doesn't make sense
         // so we'll stop at zero when negative
-        new.requests = new.requests - rhs.requests;
+        new.requests -= rhs.requests;
 
         if new.requests < 0.0 {
             new.requests = 0.0;
@@ -780,7 +780,7 @@ impl Sub for Statistics {
     }
 }
 
-impl<'a, 'b> Sub<&'b Statistics> for &'a Statistics {
+impl<'b> Sub<&'b Statistics> for &Statistics {
     type Output = Statistics;
 
     /// subtract one [`Statistics`] object from another
@@ -829,7 +829,7 @@ impl<'a, 'b> Sub<&'b Statistics> for &'a Statistics {
 
         // requests is an f64, but a negative number of requests doesn't make sense
         // so we'll stop at zero when negative
-        new.requests = new.requests - rhs.requests;
+        new.requests -= rhs.requests;
 
         if new.requests < 0.0 {
             new.requests = 0.0;
@@ -914,7 +914,7 @@ mod tests {
             start_time: Duration::default(),
             elapsed: 25.0,
             avg_reqs_per_sec: 26.0,
-            statuses: statuses,
+            statuses,
             actions: outer,
         };
 
@@ -988,7 +988,7 @@ mod tests {
             start_time: Duration::default(),
             elapsed: 25.0,
             avg_reqs_per_sec: 26.0,
-            statuses: statuses,
+            statuses,
             actions: outer,
         };
 
@@ -1060,8 +1060,8 @@ mod tests {
             start_time: Duration::default(),
             elapsed: 25.0,
             avg_reqs_per_sec: 26.0,
-            statuses: statuses,
-            actions: actions,
+            statuses,
+            actions,
         };
 
         let result = stats2 - stats;
@@ -1125,7 +1125,7 @@ mod tests {
         stats2.elapsed = 25.0;
         stats2.avg_reqs_per_sec = 26.0;
         stats2.actions = actions;
-        stats2.statuses = statuses.clone();
+        stats2.statuses = statuses;
 
         let expected = Statistics {
             timeouts: 0,
@@ -1151,13 +1151,13 @@ mod tests {
         assert_eq!(expected, result);
     }
 
-    /// test that a Statistics.actions map can include an AddToCorpus action and then be serialized using serde_json
+    /// test that a `Statistics.actions` map can include an `AddToCorpus` action and then be serialized using `serde_json`
     ///
-    /// Note: This test is currently disabled because serde_json requires HashMap keys to be strings,
-    /// but Action is an enum. This would require custom serialization logic to fix.
+    /// Note: This test is currently disabled because `serde_json` requires `HashMap` keys to be strings,
+    /// but `Action` is an enum. This would require custom serialization logic to fix.
     #[cfg(feature = "serde")]
     #[test]
-    #[ignore]
+    #[ignore = "serde_json requires HashMap keys to be strings; Action is an enum"]
     fn test_add_to_corpus_action_serialization() {
         let mut stats = Statistics::new();
 

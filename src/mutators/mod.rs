@@ -80,6 +80,7 @@ pub trait Mutator: DynClone + AsAny + Named + Send + Sync {
     ///
     /// returns an error if a mutation fails
     #[instrument(skip_all, level = "trace")]
+    #[allow(clippy::too_many_lines)]
     fn mutate_fields(
         &mut self,
         state: &mut SharedState,

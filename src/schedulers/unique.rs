@@ -350,6 +350,7 @@ impl Iterator for UniqueProductScheduler {
 }
 
 impl Named for UniqueProductScheduler {
+    #[allow(clippy::unnecessary_literal_bound)]
     fn name(&self) -> &str {
         "UniqueProductScheduler"
     }

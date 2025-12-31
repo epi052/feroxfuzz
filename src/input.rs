@@ -176,7 +176,7 @@ impl Data {
 
     /// size of the inner buffer
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         match self {
             Self::Fuzzable(inner) | Self::Static(inner) => inner.len(),
         }
@@ -184,7 +184,7 @@ impl Data {
 
     /// returns `true` if the inner buffer contains no elements
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         match self {
             Self::Fuzzable(inner) | Self::Static(inner) => inner.is_empty(),
         }

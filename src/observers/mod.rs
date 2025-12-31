@@ -103,6 +103,7 @@ mod tests {
 
     struct TestObserver {}
     impl Named for TestObserver {
+        #[allow(clippy::unnecessary_literal_bound)]
         fn name(&self) -> &str {
             "TestObserver"
         }
