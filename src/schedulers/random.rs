@@ -184,9 +184,7 @@ impl RandomScheduler {
                 // one of the corpora was empty
                 error!(%name, "corpus is empty");
 
-                return Err(FeroxFuzzError::EmptyCorpus {
-                    name: name.clone(),
-                });
+                return Err(FeroxFuzzError::EmptyCorpus { name: name.clone() });
             }
 
             if length > longest_corpus {

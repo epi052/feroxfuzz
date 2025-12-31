@@ -173,9 +173,7 @@ impl OrderedScheduler {
                 // one of the corpora was empty
                 error!(%name, "corpus is empty");
 
-                return Err(FeroxFuzzError::EmptyCorpus {
-                    name: name.clone(),
-                });
+                return Err(FeroxFuzzError::EmptyCorpus { name: name.clone() });
             }
 
             // the total number of expected iterations per corpus is simply

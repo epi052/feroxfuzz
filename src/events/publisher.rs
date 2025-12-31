@@ -200,8 +200,7 @@ impl EventPublisher for Arc<RwLock<Publisher>> {
     where
         E: 'static,
     {
-        self.read()
-            .is_ok_and(|guard| guard.has_listeners::<E>())
+        self.read().is_ok_and(|guard| guard.has_listeners::<E>())
     }
 }
 
