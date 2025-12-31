@@ -186,16 +186,6 @@ pub enum FeroxFuzzError {
         message: &'static str,
     },
 
-    /// Represents a failed mutation of a [`Request`] object
-    ///
-    /// [`Request`]: crate::requests::Request
-    #[cfg(feature = "libafl")]
-    #[error("Mutation failed")]
-    MutationError {
-        /// underlying source error-type
-        source: libafl::Error,
-    },
-
     /// Represents a failure to convert between two number types
     #[error("Conversion from {value}_{from} to {to} failed")]
     ConversionError {
@@ -221,17 +211,17 @@ pub enum FeroxFuzzError {
 
     /// Represents a discarded request during asynchronous fuzzing
     ///
-    /// Note: this is only used because of how the async fuzz_once loop
+    /// Note: this is only used because of how the async `fuzz_once` loop
     /// is implemented. It is not intended to be used outside of the
-    /// async fuzz_once loop.
+    /// async `fuzz_once` loop.
     #[error("Discarded request based on user-provided criteria")]
     DiscardedRequest,
 
     /// Represents a recommended [`Action::StopFuzzing`] during asynchronous fuzzing
     ///
-    /// Note: this is only used because of how the async fuzz_once loop
+    /// Note: this is only used because of how the async `fuzz_once` loop
     /// is implemented. It is not intended to be used outside of the
-    /// async fuzz_once loop.
+    /// async `fuzz_once` loop.
     ///
     /// [`Action::StopFuzzing`]: crate::actions::Action::StopFuzzing
     #[error("Stopped fuzzing based on user-provided criteria")]

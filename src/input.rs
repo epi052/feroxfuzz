@@ -3,15 +3,12 @@ use crate::error::FeroxFuzzError;
 use crate::std_ext::convert::{AsInner, IntoInner};
 use crate::std_ext::fmt::DisplayExt;
 use crate::AsBytes;
-#[cfg(feature = "libafl")]
-use libafl::inputs::{HasBytesVec, Input};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 use std::string::ParseError;
 
-use cfg_if::cfg_if;
 use tracing::{error, instrument};
 
 /// Base-level input type; can be marked `Fuzzable` or `Static`
@@ -55,8 +52,6 @@ impl IntoInner for Data {
     /// # Ok(())
     /// # }
     /// ```
-    #[must_use]
-    // #[allow(clippy::missing_const_for_fn)]
     fn into_inner(self) -> Self::Type {
         match self {
             Self::Fuzzable(value) | Self::Static(value) => value,
@@ -181,7 +176,7 @@ impl Data {
 
     /// size of the inner buffer
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         match self {
             Self::Fuzzable(inner) | Self::Static(inner) => inner.len(),
         }
@@ -189,7 +184,7 @@ impl Data {
 
     /// returns `true` if the inner buffer contains no elements
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         match self {
             Self::Fuzzable(inner) | Self::Static(inner) => inner.is_empty(),
         }
@@ -338,29 +333,5 @@ impl PartialEq<Vec<u8>> for Data {
 impl PartialEq<Data> for Vec<u8> {
     fn eq(&self, other: &Data) -> bool {
         self == other.as_ref()
-    }
-}
-
-cfg_if! {
-    if #[cfg(feature = "libafl")] {
-        // implement the HasBytesVec and Input traits from libafl so our
-        // state plays nicely with libafl mutators
-        impl HasBytesVec for Data {
-            fn bytes(&self) -> &[u8] {
-                self.as_ref()
-            }
-
-            fn bytes_mut(&mut self) -> &mut Vec<u8> {
-                match self {
-                    Self::Fuzzable(inner) | Self::Static(inner) => inner,
-                }
-            }
-        }
-
-        impl Input for Data {
-            fn generate_name(&self, idx: usize) -> String {
-                format!("{}_{idx}", self.format())
-            }
-        }
     }
 }

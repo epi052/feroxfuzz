@@ -352,7 +352,7 @@ mod tests {
         fuzzer.fuzz_once(&mut state)?;
 
         // /1 and /2 never sent
-        mock.assert_hits(1);
+        mock.assert_calls(1);
 
         Ok(())
     }
@@ -417,7 +417,7 @@ mod tests {
         fuzzer.fuzz_once(&mut state)?;
 
         // only /1 and /2 sent
-        mock.assert_hits(2);
+        mock.assert_calls(2);
 
         Ok(())
     }
@@ -521,12 +521,12 @@ mod tests {
 
         fuzzer.fuzz_once(&mut state)?;
 
-        mock_200s.assert_hits(1);
-        mock_401s.assert_hits(1);
-        mock_404s.assert_hits(1); // just ensures the right endpoints were hit
+        mock_200s.assert_calls(1);
+        mock_401s.assert_calls(1);
+        mock_404s.assert_calls(1); // just ensures the right endpoints were hit
 
         // processor should have hit this endpoint for each discarded item
-        mock_tracked_side_effects.assert_hits(2);
+        mock_tracked_side_effects.assert_calls(2);
 
         Ok(())
     }
@@ -626,12 +626,12 @@ mod tests {
 
         fuzzer.fuzz_once(&mut state)?;
 
-        mock_200s.assert_hits(1);
-        mock_403s.assert_hits(1);
-        mock_404s.assert_hits(1); // just ensures the right endpoints were hit
+        mock_200s.assert_calls(1);
+        mock_403s.assert_calls(1);
+        mock_404s.assert_calls(1); // just ensures the right endpoints were hit
 
         // processor should have hit this endpoint for each discarded item
-        mock_tracked_side_effects.assert_hits(2);
+        mock_tracked_side_effects.assert_calls(2);
 
         Ok(())
     }

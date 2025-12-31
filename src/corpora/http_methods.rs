@@ -191,7 +191,7 @@ impl HttpMethodsCorpus {
         }
     }
 
-    /// create a new [`Corpus`] consisting of HTTP methods that  
+    /// create a new [`Corpus`] consisting of HTTP methods that
     /// indicate responses to them are allowed to be stored for
     /// future reuse
     ///
@@ -279,11 +279,22 @@ impl HttpMethodsCorpus {
     pub fn items_mut(&mut self) -> &mut [Data] {
         &mut self.items
     }
+
+    /// Returns a mutable iterator over the items in the corpus.
+    #[must_use]
+    pub fn iter_mut(&mut self) -> <&mut [Data] as IntoIterator>::IntoIter {
+        <&mut Self as IntoIterator>::into_iter(self)
+    }
+
+    /// Returns an iterator over the items in the corpus.
+    #[must_use]
+    pub fn iter(&self) -> <&[Data] as IntoIterator>::IntoIter {
+        <&Self as IntoIterator>::into_iter(self)
+    }
 }
 
 impl Len for HttpMethodsCorpus {
     #[inline]
-    #[must_use]
     fn len(&self) -> usize {
         self.items.len()
     }

@@ -107,18 +107,17 @@ where
 
             let reader = BufReader::new(file);
 
-            for line in reader.lines().flatten() {
+            for line in reader.lines().map_while(Result::ok) {
                 if line.is_empty() || line.starts_with('#') {
                     // skip empty lines and comments
                     continue;
                 }
 
-                if let Ok(associated_type) = line.parse() {
-                    // since the associated type `Item` must implement FromStr
-                    // we can call .parse() to convert it into the expected
-                    // type before pushing it onto the container
-                    items.push(associated_type);
-                }
+                // since the associated type `Item` must implement FromStr
+                // we can call .parse() to convert it into the expected
+                // type before pushing it onto the container. unwrap is safe here
+                let associated_type = line.parse().unwrap();
+                items.push(associated_type);
             }
         }
     }
@@ -261,6 +260,18 @@ impl DirCorpus {
     pub fn items_mut(&mut self) -> &mut [Data] {
         &mut self.items
     }
+
+    /// Returns a mutable iterator over the items in the corpus.
+    #[must_use]
+    pub fn iter_mut(&mut self) -> <&mut [Data] as IntoIterator>::IntoIter {
+        <&mut Self as IntoIterator>::into_iter(self)
+    }
+
+    /// Returns an iterator over the items in the corpus.
+    #[must_use]
+    pub fn iter(&self) -> <&[Data] as IntoIterator>::IntoIter {
+        <&Self as IntoIterator>::into_iter(self)
+    }
 }
 
 impl Named for DirCorpus {
@@ -271,7 +282,6 @@ impl Named for DirCorpus {
 
 impl Len for DirCorpus {
     #[inline]
-    #[must_use]
     fn len(&self) -> usize {
         self.items.len()
     }

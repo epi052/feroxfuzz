@@ -156,12 +156,12 @@ where
     }
 
     /// get a mutable reference to the baseline request used for mutation
-    pub fn request_mut(&mut self) -> &mut Request {
+    pub const fn request_mut(&mut self) -> &mut Request {
         &mut self.request
     }
 
     /// get a mutable reference to the scheduler
-    pub fn scheduler_mut(&mut self) -> &mut S {
+    pub const fn scheduler_mut(&mut self) -> &mut S {
         &mut self.scheduler
     }
 
@@ -263,7 +263,7 @@ where
                 // if the scheduler returns an iteration stopped error, we
                 // need to stop the fuzzing loop
                 break;
-            } else if matches!(scheduled, Err(FeroxFuzzError::SkipScheduledItem { .. })) {
+            } else if matches!(scheduled, Err(FeroxFuzzError::SkipScheduledItem)) {
                 // if the scheduler says we should skip this item, we'll continue to
                 // the next item
                 continue;
@@ -482,10 +482,7 @@ where
         #[allow(clippy::tuple_array_conversions)] // false positive
         [first, second, third, fourth, fifth, sixth]
             .into_iter()
-            .filter_map(|result| match result {
-                Ok(()) => None,
-                Err(err) => Some(err),
-            })
+            .filter_map(Result::err)
             .for_each(|err| {
                 tracing::error!("Failed to join response processing task: {:?}", err);
             });
@@ -675,10 +672,17 @@ mod tests {
     use reqwest;
     use std::time::Duration;
 
-    /// test that the fuzz loop will stop if the decider returns a StopFuzzing action in
+    fn reset_stop_fuzzing_flag() {
+        unsafe {
+            STOP_FUZZING_FLAG = false;
+        }
+    }
+
+    /// test that the fuzz loop will stop if the decider returns a `StopFuzzing` action in
     /// the pre-send phase
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_async_fuzzer_stops_fuzzing_pre_send() -> Result<(), Box<dyn std::error::Error>> {
+        reset_stop_fuzzing_flag();
         let srv = MockServer::start();
 
         let mock = srv.mock(|when, then| {
@@ -725,26 +729,28 @@ mod tests {
         // due to how the async fuzzer works, it's possible that no requests will
         // be sent in this short of a test, so the mock server may or may not
         // have received requests
-        assert!(mock.hits() == 1 || mock.hits() == 0);
+        let calls = mock.calls();
+        assert!(calls == 1 || calls == 0);
 
         fuzzer.scheduler.reset();
         fuzzer.fuzz_n_iterations(3, &mut state).await?;
 
-        assert!(mock.hits() <= 2);
+        assert!(mock.calls() <= 2);
 
         fuzzer.scheduler.reset();
         fuzzer.fuzz(&mut state).await?;
 
-        assert!(mock.hits() <= 3);
+        assert!(mock.calls() <= 3);
 
         Ok(())
     }
 
-    /// test that the fuzz loop will stop if the decider returns a StopFuzzing action
+    /// test that the fuzz loop will stop if the decider returns a `StopFuzzing` action
     /// in the post-send phase
     #[allow(clippy::too_many_lines)]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_async_fuzzer_stops_fuzzing_post_send() -> Result<(), Box<dyn std::error::Error>> {
+        reset_stop_fuzzing_flag();
         let srv = MockServer::start();
 
         let _mock0 = srv.mock(|when, then| {
@@ -804,7 +810,7 @@ mod tests {
         fuzzer.fuzz_once(&mut state).await?;
 
         if let Ok(guard) = state.stats().read() {
-            assert!((guard.requests() - 2.0).abs() < std::f64::EPSILON);
+            assert!((guard.requests() - 2.0).abs() < f64::EPSILON);
             assert_eq!(guard.status_code_count(200).unwrap(), 1);
             assert_eq!(guard.status_code_count(201).unwrap(), 1);
             assert_eq!(
@@ -830,7 +836,7 @@ mod tests {
         fuzzer.fuzz_n_iterations(2, &mut state).await?;
 
         if let Ok(guard) = state.stats().read() {
-            assert!((guard.requests() - 2.0).abs() < std::f64::EPSILON);
+            assert!((guard.requests() - 2.0).abs() < f64::EPSILON);
             assert_eq!(guard.status_code_count(200).unwrap(), 1);
             assert_eq!(guard.status_code_count(201).unwrap(), 1);
             assert_eq!(
@@ -857,7 +863,7 @@ mod tests {
 
         // at this point, /2 was hit from both previous tests, so we're 2 higher than expected
         if let Ok(guard) = state.stats().read() {
-            assert!((guard.requests() - 2.0).abs() < std::f64::EPSILON);
+            assert!((guard.requests() - 2.0).abs() < f64::EPSILON);
             assert_eq!(guard.status_code_count(200).unwrap(), 1);
             assert_eq!(guard.status_code_count(201).unwrap(), 1);
             assert_eq!(
@@ -879,9 +885,10 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     /// test that the fuzz loop will continue iterating over a corpus that has been
-    /// modified in-place by the AddToCorpus action
+    /// modified in-place by the `AddToCorpus` action
     async fn test_add_to_corpus_iters_over_new_entries_without_reset(
     ) -> Result<(), Box<dyn std::error::Error>> {
+        reset_stop_fuzzing_flag();
         let srv = MockServer::start();
 
         let _mock = srv.mock(|when, then| {
@@ -932,22 +939,35 @@ mod tests {
             .deciders(build_deciders!(decider.clone()))
             .build();
 
-        let mut corpora_len = state.total_corpora_len();
+        let initial_corpora_len = state.total_corpora_len();
 
-        fuzzer.fuzz_once(&mut state).await?;
+        // the `AddToCorpus` action triggers when the `/1.js` entry is processed, but
+        // corpus ordering isn't guaranteed across all corpus types; loop until we
+        // observe the length increase.
+        for _ in 0..initial_corpora_len {
+            fuzzer.fuzz_once(&mut state).await?;
 
-        // corpora_len should be +1 from the initial call
-        assert_eq!(corpora_len + 1, state.total_corpora_len());
+            if state.total_corpora_len() == initial_corpora_len + 1 {
+                break;
+            }
+        }
 
-        // reset corpora_len to the new value
-        corpora_len = state.total_corpora_len();
+        assert_eq!(state.total_corpora_len(), initial_corpora_len + 1);
 
-        // call again to hit the new /3 entry
+        // now that the corpus has grown, make sure the scheduler knows about it and
+        // continue fuzzing until we've seen the new entry.
         fuzzer.scheduler_mut().update_length();
-        fuzzer.fuzz_once(&mut state).await?;
 
-        // corpora_len shouldn't have changed
-        assert_eq!(corpora_len, state.total_corpora_len());
+        while state
+            .stats()
+            .read()
+            .unwrap()
+            .status_code_count(200)
+            .unwrap_or(0)
+            < state.total_corpora_len()
+        {
+            fuzzer.fuzz_once(&mut state).await?;
+        }
 
         // 0-3 sent/recv'd and ok
         assert_eq!(

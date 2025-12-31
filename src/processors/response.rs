@@ -16,6 +16,7 @@ use tracing::instrument;
 
 /// a `ResponseProcessor` provides access to the fuzzer's instance of [`ResponseObserver`]
 /// as well as the [`Action`] returned from calling the analogous hook on [`Deciders`].
+///
 /// Those two objects may be used to produce side-effects, such as printing, logging,
 /// etc...
 ///
@@ -134,6 +135,7 @@ where
     F: Fn(&ResponseObserver<FnR>, Option<&Action>, &SharedState),
     FnR: Response,
 {
+    #[allow(clippy::unnecessary_literal_bound)]
     fn name(&self) -> &str {
         "ResponseProcessor"
     }

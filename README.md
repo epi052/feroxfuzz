@@ -71,7 +71,7 @@ The easiest way to get started is to include FeroxFuzz in your project's `Cargo.
 
 ```toml
 [dependencies]
-feroxfuzz = { version = "1.0.0-rc.12" }
+feroxfuzz = { version = "1.0.0-rc.13" }
 ```
 
 ## Docs

@@ -157,7 +157,9 @@ pub struct FuzzNTimes {
 }
 
 /// This event is emitted when a fuzzer enters its fuzzing loop via the
-/// [`Fuzzer::fuzz_once`] method. If the fuzzer was started with [`Fuzzer::fuzz_n_iterations`]
+/// [`Fuzzer::fuzz_once`] method.
+///
+/// If the fuzzer was started with [`Fuzzer::fuzz_n_iterations`]
 /// or [`Fuzzer::fuzz`], this event will be emitted once per iteration.
 ///
 /// [`Fuzzer::fuzz_once`]: crate::fuzzers::AsyncFuzzing::fuzz_once
@@ -187,9 +189,11 @@ pub struct FuzzOnce {
     pub corpora_length: usize,
 }
 
-/// This event is emitted when a fuzzer exits the fuzzing loop. This can happen
-/// when the fuzzer has iterated over the entire corpus for the specified number
-/// of times, or when the fuzzer exits early due to an [`Action::StopFuzzing`]
+/// This event is emitted when a fuzzer exits the fuzzing loop.
+///
+/// This can happen when the fuzzer has iterated over the entire
+/// corpus for the specified number of times, or when the fuzzer
+/// exits early due to an [`Action::StopFuzzing`]
 ///
 /// [`Action::StopFuzzing`]: crate::actions::Action::StopFuzzing
 #[derive(Copy, Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

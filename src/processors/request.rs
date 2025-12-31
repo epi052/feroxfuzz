@@ -13,10 +13,11 @@ use crate::{actions::Action, responses::Response};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
-/// a `RequestProcessor` provides access to the fuzzer's mutated [`Request`] that
-/// is about to be sent to the target, as well as the [`Action`] returned
-/// from calling the analogous hook on [`Deciders`]. Those two objects may
-/// be used to produce side-effects, such as printing, logging, etc...
+/// a `RequestProcessor` provides access to the fuzzer's mutated [`Request`]
+/// and the [`Action`] returned from calling the analogous hook on [`Deciders`].
+///
+/// Those two objects may be used to produce side-effects, such as printing,
+/// logging, etc...
 ///
 /// [`Deciders`]: crate::deciders::Deciders
 ///
@@ -79,6 +80,7 @@ impl<F> Named for RequestProcessor<F>
 where
     F: Fn(&mut Request, Option<&Action>, &SharedState) + 'static,
 {
+    #[allow(clippy::unnecessary_literal_bound)]
     fn name(&self) -> &str {
         "RequestProcessor"
     }

@@ -1,6 +1,6 @@
 [package]
 name = "feroxfuzz"
-version = "1.0.0-rc.12"
+version = "1.0.0-rc.13"
 edition = "2021"
 authors = ["Ben 'epi' Risher (@epi052)"]
 license = "Apache-2.0"
@@ -16,8 +16,7 @@ default = ["async", "json"]
 # AsyncResponse et al will [de]serialize the response body in addition to normal fields
 serialize-body = ["serde", "typetag"]
 
-# AsyncResponse et al can attempt to convert the response body to json, also needed for
-# libafl Input trait
+# AsyncResponse et al can attempt to convert the response body to json
 json = ["serde", "serde_json", "typetag"]
 
 # wrapper around providing concrete async implementations via reqwest, tokio, and futures 
@@ -29,16 +28,19 @@ blocking = ["reqwest/blocking"]
 # wrapper around providing different encoders
 encoders = ["base64", "hex"]
 
-# wrapper around providing havoc mutations
-havoc = ["libafl", "libafl_bolts"]
-
 [dependencies]
 # MIT Licenses
 tuple_list = { version = "0.1" }
-derive_more = { version = "0.99" }
+derive_more = { version = "2.1", features = [
+    "constructor",
+    "from",
+    "into",
+    "not",
+    "sum",
+] }
 tracing = { version = "0.1", features = ["log"] }
 ## optional
-tokio = { version = "1.20", optional = true, features = [
+tokio = { version = "1.48", optional = true, features = [
     "rt-multi-thread",
     "macros",
     "tracing",
@@ -49,35 +51,30 @@ tokio = { version = "1.20", optional = true, features = [
 # MIT / Apache Licenses
 num = { version = "0.4" }
 cfg-if = { version = "1.0" }
-dyn-clone = { version = "1.0.9" }
-url = { version = "2.2", features = ["serde"] }
+dyn-clone = { version = "1.0.20" }
+url = { version = "2.5", features = ["serde"] }
 ## optional
 serde = { version = "1.0", optional = true, features = ["derive", "rc"] }
 serde_json = { version = "1.0", optional = true }
-typetag = { version = "0.2.3", optional = true }
-thiserror = { version = "1.0" }
-reqwest = { version = "0.11", optional = true, features = [
+typetag = { version = "0.2.21", optional = true }
+thiserror = { version = "2.0" }
+reqwest = { version = "0.13.1", optional = true, features = [
     "socks",
-    "rustls-tls",
 ] }
 async-trait = { version = "0.1" }
-regex = { version = "1.6" }
+regex = { version = "1.12" }
 serde_regex = { version = "1.1.0" }
-lazy_static = { version = "1.4" }
+lazy_static = { version = "1.5" }
 futures = { version = "0.3", optional = true }
-base64 = { version = "0.21.2", optional = true }
+base64 = { version = "0.22.1", optional = true }
 hex = { version = "0.4.3", optional = true }
-flume = { version = "0.11.0" }
-libafl = { version = "0.11.1", default-features = false, features = [
-    "std",
-], optional = true }
-libafl_bolts = { version = "0.11.1", default-features = false, optional = true }
+flume = { version = "0.12.0" }
 
 [dev-dependencies]
-http = { version = "0.2" }
+http = { version = "1.4.0" }
 tokio-test = { version = "0.4" }
-httpmock = { version = "0.6" }
-allocation-counter = { version = "0.5" }
+httpmock = { version = "0.8" }
+allocation-counter = { version = "0.8.1" }
 tempdir = { version = "0.3.7" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
@@ -88,3 +85,31 @@ all-features = true
 
 # defines the configuration attribute `docsrs`
 rustdoc-args = ["--cfg", "docsrs"]
+
+[[example]]
+name = "battering-ram"
+required-features = ["blocking"]
+
+[[example]]
+name = "blocking-regex"
+required-features = ["blocking"]
+
+[[example]]
+name = "cartesian-product"
+required-features = ["blocking"]
+
+[[example]]
+name = "cluster-bomb"
+required-features = ["blocking"]
+
+[[example]]
+name = "pitchfork"
+required-features = ["blocking"]
+
+[[example]]
+name = "sniper"
+required-features = ["blocking"]
+
+[[example]]
+name = "start-at-wordset-offset"
+required-features = ["blocking"]

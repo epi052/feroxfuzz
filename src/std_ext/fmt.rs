@@ -1,19 +1,17 @@
 use super::convert::AsInner;
-use lazy_static::lazy_static;
 use regex::Regex;
 use std::any::type_name;
 use std::fmt::Debug;
+use std::sync::LazyLock;
 
-lazy_static! {
-    /// translate fully qualified crate paths to just their names
-    ///
-    /// `feroxfuzz::corpora::wordlist::Wordlist<alloc::vec::Vec<&str>, &str>`
-    ///
-    /// becomes
-    ///
-    /// `Wordlist<Vec<&str>, &str>`
-    static ref TYPENAME_REGEX: Regex = Regex::new(r"\w+::").unwrap();
-}
+/// translate fully qualified crate paths to just their names
+///
+/// `feroxfuzz::corpora::wordlist::Wordlist<alloc::vec::Vec<&str>, &str>`
+///
+/// becomes
+///
+/// `Wordlist<Vec<&str>, &str>`
+static TYPENAME_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\w+::").unwrap());
 
 /// Extend the [`Display`] trait to provide a uniform format for library types
 pub trait DisplayExt {

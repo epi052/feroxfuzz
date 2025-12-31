@@ -19,6 +19,7 @@ use std::sync::{Arc, RwLock};
 
 /// a `StatisticsProcessor` provides access to the fuzzer's instance of [`Statistics`]
 /// as well as the [`Action`] returned from calling the analogous hook on [`Deciders`].
+///
 /// Those two objects may be used to produce side-effects, such as printing, logging,
 /// etc...
 ///

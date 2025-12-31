@@ -160,7 +160,7 @@ impl EventPublisher for Publisher {
     {
         self.registry
             .get::<ListenerVec<E>>()
-            .map_or(false, |listeners| !listeners.is_empty())
+            .is_some_and(|listeners| !listeners.is_empty())
     }
 }
 
@@ -200,8 +200,7 @@ impl EventPublisher for Arc<RwLock<Publisher>> {
     where
         E: 'static,
     {
-        self.read()
-            .map_or(false, |guard| guard.has_listeners::<E>())
+        self.read().is_ok_and(|guard| guard.has_listeners::<E>())
     }
 }
 

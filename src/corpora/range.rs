@@ -303,19 +303,19 @@ mod tests {
             .build()
             .unwrap(); // temp to initialize
 
-        let constructor_alloc = allocation_counter::count(|| {
+        let constructor_alloc = allocation_counter::measure(|| {
             x = RangeCorpus::with_stop(range)
                 .name("corpus")
                 .build()
                 .unwrap();
         });
 
-        let get_alloc = allocation_counter::count(|| {
+        let get_alloc = allocation_counter::measure(|| {
             x.get(3);
         });
 
-        assert_eq!(constructor_alloc, 12); // corpus_name.to_string()
-        assert_eq!(get_alloc, 0); // i64::to_string
+        assert_eq!(constructor_alloc.count_total, 12); // corpus_name.to_string()
+        assert_eq!(get_alloc.count_total, 0); // i64::to_string
     }
 
     /// hit the different ok/err branches of the `with_step` constructor

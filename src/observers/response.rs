@@ -238,32 +238,27 @@ where
     pub fn is_directory(&self) -> bool {
         if self.status_code() >= 300 && self.status_code() < 400 {
             // status code is 3xx
-            match (
-                self.headers().get("Location"), // account for case in header
-                self.headers().get("location"),
-            ) {
-                // and has a Location header
-                (Some(location), _) | (_, Some(location)) => {
-                    // get absolute redirect Url based on the already known base url
-                    if let Ok(abs_url) = self.url().join(&String::from_utf8_lossy(location)) {
-                        let mut trailing_slash = self.url().as_str().to_string();
+            if let Some(location) = self.get_header_case_insensitive("location") {
+                // and has a location header
 
-                        if !trailing_slash.ends_with('/') {
-                            // only append a slash if not present already
-                            trailing_slash.push('/');
-                        }
+                // get absolute redirect Url based on the already known base url
+                if let Ok(abs_url) = self.url().join(&String::from_utf8_lossy(location)) {
+                    let mut trailing_slash = self.url().as_str().to_string();
 
-                        if trailing_slash == abs_url.as_str() {
-                            // if current response's Url + / == the absolute redirection
-                            // location, we've found a directory
-                            return true;
-                        }
+                    if !trailing_slash.ends_with('/') {
+                        // only append a slash if not present already
+                        trailing_slash.push('/');
+                    }
+
+                    if trailing_slash == abs_url.as_str() {
+                        // if current response's Url + / == the absolute redirection
+                        // location, we've found a directory
+                        return true;
                     }
                 }
-                _ => {
-                    // 3xx response without a Location header
-                    return false;
-                }
+            } else {
+                // 3xx response without a Location header
+                return false;
             }
         } else if self.status_code() >= 200 && self.status_code() < 300 {
             // status code is 2xx, need to check if it ends in /
@@ -286,7 +281,7 @@ where
         //     (which may be empty).
         //
         // meaning: the two unwraps here are fine, the worst outcome is an empty string
-        let filename = self.url().path_segments().unwrap().last().unwrap();
+        let filename = self.url().path_segments().unwrap().next_back().unwrap();
 
         if !filename.is_empty() {
             // non-empty string, try to get extension
@@ -303,6 +298,16 @@ where
         }
 
         None
+    }
+
+    // account for any case variations in header names
+    fn get_header_case_insensitive(&self, header_name: &str) -> Option<&Vec<u8>> {
+        let lowercase_name = header_name.to_lowercase();
+
+        self.headers()
+            .iter()
+            .find(|(key, _)| key.to_lowercase() == lowercase_name)
+            .map(|(_, value)| value)
     }
 }
 
@@ -364,12 +369,10 @@ where
     }
 
     /// Get the [`Action`] to be taken as a result of this response
-    #[must_use]
     fn action(&self) -> Option<&Action> {
         self.response.action()
     }
 
-    #[must_use]
     fn request(&self) -> &Request {
         self.response.request()
     }
@@ -422,4 +425,127 @@ cfg_if! {
         }
     }
 
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::FeroxFuzzError;
+    use crate::responses::AsyncResponse;
+    use http::response;
+    use std::time::Duration;
+
+    #[tokio::test]
+    async fn test_get_header_case_insensitive() -> Result<(), FeroxFuzzError> {
+        // Create a response with headers in different cases
+
+        let reqwest_response = response::Builder::new()
+            .status(200)
+            .header("Content-Type", "text/html")
+            .header("X-Custom-Header", "CustomValue")
+            .header("accept-encoding", "gzip")
+            .body("")
+            .unwrap();
+
+        let elapsed = Duration::from_secs(1);
+
+        let response = AsyncResponse::try_from_reqwest_response(
+            Request::default(),
+            reqwest_response.into(),
+            elapsed,
+        )
+        .await?;
+
+        let observer = ResponseObserver::with_response(response);
+
+        // Test exact case match
+        assert_eq!(
+            observer.get_header_case_insensitive("Content-Type"),
+            Some(&b"text/html".to_vec())
+        );
+
+        // Test different case variations
+        assert_eq!(
+            observer.get_header_case_insensitive("content-type"),
+            Some(&b"text/html".to_vec())
+        );
+        assert_eq!(
+            observer.get_header_case_insensitive("CONTENT-TYPE"),
+            Some(&b"text/html".to_vec())
+        );
+        assert_eq!(
+            observer.get_header_case_insensitive("CoNtEnT-tYpE"),
+            Some(&b"text/html".to_vec())
+        );
+
+        // Test another header with mixed case
+        assert_eq!(
+            observer.get_header_case_insensitive("x-custom-header"),
+            Some(&b"CustomValue".to_vec())
+        );
+        assert_eq!(
+            observer.get_header_case_insensitive("X-CUSTOM-HEADER"),
+            Some(&b"CustomValue".to_vec())
+        );
+
+        // Test lowercase header
+        assert_eq!(
+            observer.get_header_case_insensitive("ACCEPT-ENCODING"),
+            Some(&b"gzip".to_vec())
+        );
+
+        // Test header that doesn't exist
+        assert_eq!(
+            observer.get_header_case_insensitive("non-existent-header"),
+            None
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_is_redirect_with_case_variations() -> Result<(), FeroxFuzzError> {
+        // Create a response with Location header in lowercase
+
+        let reqwest_response = response::Builder::new()
+            .status(302)
+            .header("location", "/redirect")
+            .body("")
+            .unwrap();
+
+        let elapsed = Duration::from_secs(1);
+
+        let response = AsyncResponse::try_from_reqwest_response(
+            Request::default(),
+            reqwest_response.into(),
+            elapsed,
+        )
+        .await?;
+
+        let observer_lowercase = ResponseObserver::with_response(response);
+
+        assert!(observer_lowercase.is_redirect());
+
+        // Create a response with Location header in uppercase
+        let reqwest_response = response::Builder::new()
+            .status(302)
+            .header("LOCaTION", "/redirect")
+            .body("")
+            .unwrap();
+
+        let response = AsyncResponse::try_from_reqwest_response(
+            Request::default(),
+            reqwest_response.into(),
+            elapsed,
+        )
+        .await?;
+
+        let observer_uppercase = ResponseObserver::with_response(response);
+
+        // This should still pass with the current implementation, which only checks for "Location" and "location"
+        // If we update is_redirect to use get_header_case_insensitive, this test would still pass
+        assert!(observer_uppercase.is_redirect());
+
+        Ok(())
+    }
 }

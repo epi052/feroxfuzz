@@ -1,5 +1,6 @@
 //! Corpora modeled around how the test cases are generated, i.e. from a file/folder etc...
-#![allow(clippy::use_self)] // clippy false-positive on CorpusItemType, doesn't want to apply directly to the enums that derive Serialize
+#![allow(clippy::use_self)]
+// clippy false-positive on CorpusItemType, doesn't want to apply directly to the enums that derive Serialize
 mod directory;
 mod http_methods;
 mod range;
@@ -118,6 +119,20 @@ pub enum CorpusType {
 
     /// [`HttpMethodsCorpus`] wrapper
     HttpMethods(HttpMethodsCorpus),
+}
+
+impl CorpusType {
+    /// Returns a mutable iterator over the items in the corpus.
+    #[must_use]
+    pub fn iter_mut(&mut self) -> <&mut [Data] as IntoIterator>::IntoIter {
+        <&mut Self as IntoIterator>::into_iter(self)
+    }
+
+    /// Returns an iterator over the items in the corpus.
+    #[must_use]
+    pub fn iter(&self) -> <&[Data] as IntoIterator>::IntoIter {
+        <&Self as IntoIterator>::into_iter(self)
+    }
 }
 
 /// [`Corpus`] implementation for [`CorpusType`] enum

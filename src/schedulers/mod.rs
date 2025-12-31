@@ -90,7 +90,7 @@ impl CorpusIndex {
 
     #[inline]
     const fn should_reset(&self, total_iterations: usize) -> bool {
-        total_iterations % self.iterations == 0
+        total_iterations.is_multiple_of(self.iterations)
     }
 
     #[inline]
@@ -99,7 +99,7 @@ impl CorpusIndex {
     }
 
     #[inline]
-    fn next(&mut self) -> Result<(), FeroxFuzzError> {
+    const fn next(&mut self) -> Result<(), FeroxFuzzError> {
         if self.current == self.length {
             return Err(FeroxFuzzError::IterationStopped);
         }
@@ -115,22 +115,22 @@ impl CorpusIndex {
     }
 
     #[inline]
-    fn reset(&mut self) {
+    const fn reset(&mut self) {
         self.update_current(0);
     }
 
     #[inline]
-    fn update_length(&mut self, length: usize) {
+    const fn update_length(&mut self, length: usize) {
         self.length = length;
     }
 
     #[inline]
-    fn update_iterations(&mut self, iterations: usize) {
+    const fn update_iterations(&mut self, iterations: usize) {
         self.iterations = iterations;
     }
 
     #[inline]
-    fn update_current(&mut self, value: usize) {
+    const fn update_current(&mut self, value: usize) {
         self.current = value;
     }
 }

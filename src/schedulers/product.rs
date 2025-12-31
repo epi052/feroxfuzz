@@ -34,6 +34,7 @@ use tracing::{error, instrument, trace};
 ///   user3: pass2
 ///   user3: pass3
 ///
+#[allow(clippy::doc_link_with_quotes)]
 #[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ProductScheduler {
@@ -339,6 +340,7 @@ impl Iterator for ProductScheduler {
 }
 
 impl Named for ProductScheduler {
+    #[allow(clippy::unnecessary_literal_bound)]
     fn name(&self) -> &str {
         "ProductScheduler"
     }
