@@ -79,7 +79,7 @@ impl AsyncRequests for AsyncClient {
     /// });
     ///
     /// let mut request = Request::from_url(&server.url("/doctest"), None)?;
-    /// # request.add_static_header(b"stuff:things", b":")?;
+    /// # request.add_static_header("stuff", "things");
     ///
     /// // bring your own client
     /// let req_client = reqwest::Client::builder().build()?;
