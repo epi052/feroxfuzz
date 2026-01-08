@@ -1453,15 +1453,9 @@ impl Request {
     /// # }
     /// ```
     #[instrument(skip_all, level = "trace")]
-    #[allow(clippy::missing_panics_doc)] // unwrap is infallible: we ensure headers is Some above
     pub fn add_static_header(&mut self, name: impl AsRef<[u8]>, value: impl AsRef<[u8]>) {
-        // ensure headers collection exists
-        if self.headers.is_none() {
-            self.headers = Some(Vec::new());
-        }
-
-        // unwrap is safe: we just ensured it exists above
-        self.headers.as_mut().unwrap().push((
+        // ensure headers collection exists before pushing the data
+        self.headers.get_or_insert_with(Vec::new).push((
             Data::Static(name.as_ref().to_vec()),
             Data::Static(value.as_ref().to_vec()),
         ));
@@ -1469,8 +1463,16 @@ impl Request {
 
     /// Parse and add a [`Data::Static`] header from a full header line.
     ///
-    /// The header line is split on the first `:` character. Leading whitespace
-    /// is trimmed from the value (to handle `Header: value` format).
+    /// The header line is split on the first `:` character.
+    ///
+    /// # No Validation / Normalization
+    ///
+    /// This library is designed for fuzzing, so this method intentionally performs minimal
+    /// processing: the returned value is the raw byte-slice after the first `:` (including any
+    /// leading whitespace, additional `:` characters, or even CR/LF).
+    ///
+    /// If you need trimming, normalization, or strict validation, do it before calling this
+    /// method (or after, based on your needs).
     ///
     /// # Examples
     ///
@@ -1491,8 +1493,7 @@ impl Request {
     ///
     /// # Errors
     ///
-    /// Returns an error if the header line does not contain a `:` character,
-    /// contains CR/LF characters, or has an empty header name.
+    /// Returns an error if the header line does not contain a `:` character.
     ///
     /// # Custom Parsing
     ///
@@ -1513,8 +1514,16 @@ impl Request {
 
     /// Parse and add a [`Data::Fuzzable`] header from a full header line.
     ///
-    /// The header line is split on the first `:` character. Leading whitespace
-    /// is trimmed from the value (to handle `Header: value` format).
+    /// The header line is split on the first `:` character.
+    ///
+    /// # No Validation / Normalization
+    ///
+    /// This library is designed for fuzzing, so this method intentionally performs minimal
+    /// processing: the returned value is the raw byte-slice after the first `:` (including any
+    /// leading whitespace, additional `:` characters, or even CR/LF).
+    ///
+    /// If you need trimming, normalization, or strict validation, do it before calling this
+    /// method (or after, based on your needs).
     ///
     /// `directive` should be one of the following variants:
     /// - [`ShouldFuzz::Key`]
@@ -1541,7 +1550,6 @@ impl Request {
     /// # Errors
     ///
     /// Returns an error if the header line does not contain a `:` character,
-    /// contains CR/LF characters, has an empty header name,
     /// or if an invalid `ShouldFuzz` directive is provided.
     ///
     /// # Custom Parsing
@@ -1561,21 +1569,13 @@ impl Request {
         Ok(())
     }
 
-    /// Internal helper: split a header line on the first `:`, trimming leading whitespace from value.
+    /// Internal helper: split a header line on the first `:`.
     ///
-    /// Also validates that the header line does not contain CR/LF (to prevent header injection)
-    /// and that the header name is not empty.
+    /// # No Validation / Normalization
+    ///
+    /// This helper intentionally does not trim, validate, or reject any bytes beyond requiring a
+    /// `:` delimiter. This keeps the parser permissive so callers can fuzz malformed inputs.
     fn split_header_line(header_line: &[u8]) -> Result<(&[u8], &[u8]), FeroxFuzzError> {
-        // reject CR/LF to prevent header injection attacks
-        if header_line.iter().any(|&b| b == b'\r' || b == b'\n') {
-            error!(?header_line, "Header line contains CR or LF");
-
-            return Err(FeroxFuzzError::KeyValueParseError {
-                key_value_pair: header_line.to_vec(),
-                reason: String::from("header line contains invalid CR or LF characters"),
-            });
-        }
-
         // find the first colon
         let Some(pos) = header_line.iter().position(|&b| b == b':') else {
             error!(?header_line, "No colon found in header line");
@@ -1587,23 +1587,7 @@ impl Request {
         };
 
         let name = &header_line[..pos];
-
-        // reject empty header name
-        if name.is_empty() {
-            error!(?header_line, "Empty header name");
-
-            return Err(FeroxFuzzError::KeyValueParseError {
-                key_value_pair: header_line.to_vec(),
-                reason: String::from("header name is empty"),
-            });
-        }
-
-        let mut value = &header_line[pos + 1..];
-
-        // trim leading whitespace from value (ASCII space and tab)
-        while let [b' ' | b'\t', rest @ ..] = value {
-            value = rest;
-        }
+        let value = &header_line[pos + 1..];
 
         Ok((name, value))
     }
@@ -1695,15 +1679,9 @@ impl Request {
     /// # }
     /// ```
     #[instrument(skip_all, level = "trace")]
-    #[allow(clippy::missing_panics_doc)] // unwrap is infallible: we ensure params is Some above
     pub fn add_static_param(&mut self, key: impl AsRef<[u8]>, value: impl AsRef<[u8]>) {
-        // ensure params collection exists
-        if self.params.is_none() {
-            self.params = Some(Vec::new());
-        }
-
-        // unwrap is safe: we just ensured it exists above
-        self.params.as_mut().unwrap().push((
+        // ensure params collection exists before pushing data
+        self.params.get_or_insert_with(Vec::new).push((
             Data::Static(key.as_ref().to_vec()),
             Data::Static(value.as_ref().to_vec()),
         ));
@@ -1712,6 +1690,16 @@ impl Request {
     /// Parse and add a [`Data::Static`] query parameter from a `key=value` pair.
     ///
     /// The param string is split on the first `=` character.
+    ///
+    /// # No Validation / Normalization
+    ///
+    /// This library is designed for fuzzing, so this method intentionally performs minimal
+    /// processing: the returned key/value are the raw byte-slices on either side of the first `=`.
+    /// No trimming or normalization is performed, and additional `=` characters remain in the
+    /// value.
+    ///
+    /// If you need trimming, normalization, or strict validation, do it before calling this
+    /// method (or after, based on your needs).
     ///
     /// # Examples
     ///
@@ -1754,6 +1742,16 @@ impl Request {
     ///
     /// The param string is split on the first `=` character.
     ///
+    /// # No Validation / Normalization
+    ///
+    /// This library is designed for fuzzing, so this method intentionally performs minimal
+    /// processing: the returned key/value are the raw byte-slices on either side of the first `=`.
+    /// No trimming or normalization is performed, and additional `=` characters remain in the
+    /// value.
+    ///
+    /// If you need trimming, normalization, or strict validation, do it before calling this
+    /// method (or after, based on your needs).
+    ///
     /// # Examples
     ///
     /// ```
@@ -1794,6 +1792,11 @@ impl Request {
     }
 
     /// Internal helper: split a param pair on the first `=`.
+    ///
+    /// # No Validation / Normalization
+    ///
+    /// This helper intentionally does not trim, validate, or reject any bytes beyond requiring an
+    /// `=` delimiter. This keeps the parser permissive so callers can fuzz malformed inputs.
     fn split_param_pair(param_pair: &[u8]) -> Result<(&[u8], &[u8]), FeroxFuzzError> {
         let Some(pos) = param_pair.iter().position(|&b| b == b'=') else {
             error!(?param_pair, "No equals sign found in param pair");
@@ -2310,14 +2313,14 @@ mod tests {
     fn split_header_line_parses_standard_header() {
         let (name, value) = Request::split_header_line(b"Accept: application/json").unwrap();
         assert_eq!(name, b"Accept");
-        assert_eq!(value, b"application/json");
+        assert_eq!(value, b" application/json");
     }
 
     #[test]
-    fn split_header_line_trims_leading_whitespace_from_value() {
+    fn split_header_line_preserves_leading_whitespace_in_value() {
         let (name, value) = Request::split_header_line(b"Content-Type:   text/html").unwrap();
         assert_eq!(name, b"Content-Type");
-        assert_eq!(value, b"text/html");
+        assert_eq!(value, b"   text/html");
     }
 
     #[test]
@@ -2341,21 +2344,24 @@ mod tests {
     }
 
     #[test]
-    fn split_header_line_errors_on_empty_name() {
-        let result = Request::split_header_line(b": value");
-        assert!(result.is_err());
+    fn split_header_line_allows_empty_name() {
+        let (name, value) = Request::split_header_line(b": value").unwrap();
+        assert_eq!(name, b"");
+        assert_eq!(value, b" value");
     }
 
     #[test]
-    fn split_header_line_errors_on_crlf() {
-        let result = Request::split_header_line(b"Header: value\r\nInject: evil");
-        assert!(result.is_err());
+    fn split_header_line_allows_crlf_in_value() {
+        let (name, value) = Request::split_header_line(b"Header: value\r\nInject: evil").unwrap();
+        assert_eq!(name, b"Header");
+        assert_eq!(value, b" value\r\nInject: evil");
     }
 
     #[test]
-    fn split_header_line_errors_on_newline() {
-        let result = Request::split_header_line(b"Header: value\nInject: evil");
-        assert!(result.is_err());
+    fn split_header_line_allows_newline_in_value() {
+        let (name, value) = Request::split_header_line(b"Header: value\nInject: evil").unwrap();
+        assert_eq!(name, b"Header");
+        assert_eq!(value, b" value\nInject: evil");
     }
 
     // ----------------
