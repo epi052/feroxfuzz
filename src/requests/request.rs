@@ -1480,7 +1480,7 @@ impl Request {
     /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::input::Data;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let expected = (Data::Static(b"Accept".to_vec()), Data::Static(b"application/json".to_vec()));
+    /// let expected = (Data::Static(b"Accept".to_vec()), Data::Static(b" application/json".to_vec()));
     ///
     /// let mut request = Request::from_url("http://localhost/", None)?;
     ///
@@ -1536,7 +1536,7 @@ impl Request {
     /// # use feroxfuzz::requests::{Request, ShouldFuzz};
     /// # use feroxfuzz::input::Data;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let expected = (Data::Static(b"Accept".to_vec()), Data::Fuzzable(b"application/json".to_vec()));
+    /// let expected = (Data::Static(b"Accept".to_vec()), Data::Fuzzable(b" application/json".to_vec()));
     ///
     /// let mut request = Request::from_url("http://localhost/", None)?;
     ///
