@@ -10,7 +10,7 @@ use derive_more::{Constructor, From, Into, Not, Sum};
 use regex::Regex;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use tracing::{error, instrument};
+use tracing::{debug, error, instrument};
 use url::Url;
 
 use std::fmt::{self, Display, Formatter};
@@ -368,18 +368,14 @@ impl Request {
                             }
                         }
                     }
-                    ShouldFuzz::URLParameterKey(parameter, delimiter) => {
-                        request.add_fuzzable_param(parameter, delimiter, ShouldFuzz::Key)?;
+                    ShouldFuzz::URLParameterKey(parameter) => {
+                        request.add_fuzzable_param_pair(parameter, ShouldFuzz::Key)?;
                     }
-                    ShouldFuzz::URLParameterValue(parameter, delimiter) => {
-                        request.add_fuzzable_param(parameter, delimiter, ShouldFuzz::Value)?;
+                    ShouldFuzz::URLParameterValue(parameter) => {
+                        request.add_fuzzable_param_pair(parameter, ShouldFuzz::Value)?;
                     }
-                    ShouldFuzz::URLParameterKeyAndValue(parameter, delimiter) => {
-                        request.add_fuzzable_param(
-                            parameter,
-                            delimiter,
-                            ShouldFuzz::KeyAndValue,
-                        )?;
+                    ShouldFuzz::URLParameterKeyAndValue(parameter) => {
+                        request.add_fuzzable_param_pair(parameter, ShouldFuzz::KeyAndValue)?;
                     }
                     ShouldFuzz::URLParameterKeys => {
                         if let Some(params) = &mut request.params {
@@ -411,14 +407,14 @@ impl Request {
                             }
                         }
                     }
-                    ShouldFuzz::HeaderKey(header, delimiter) => {
-                        request.add_fuzzable_header(header, delimiter, ShouldFuzz::Key)?;
+                    ShouldFuzz::HeaderKey(header) => {
+                        request.add_fuzzable_header_line(header, ShouldFuzz::Key)?;
                     }
-                    ShouldFuzz::HeaderValue(header, delimiter) => {
-                        request.add_fuzzable_header(header, delimiter, ShouldFuzz::Value)?;
+                    ShouldFuzz::HeaderValue(header) => {
+                        request.add_fuzzable_header_line(header, ShouldFuzz::Value)?;
                     }
-                    ShouldFuzz::HeaderKeyAndValue(header, delimiter) => {
-                        request.add_fuzzable_header(header, delimiter, ShouldFuzz::KeyAndValue)?;
+                    ShouldFuzz::HeaderKeyAndValue(header) => {
+                        request.add_fuzzable_header_line(header, ShouldFuzz::KeyAndValue)?;
                     }
                     ShouldFuzz::RequestBody(body) => {
                         request.body = Some(Data::Fuzzable(body.to_vec()));
@@ -534,9 +530,9 @@ impl Request {
 
             if !query.is_empty() {
                 query.split('&').for_each(|pair| {
-                    request
-                        .add_static_param(pair.as_bytes(), b"=")
-                        .unwrap_or_default();
+                    if let Err(err) = request.add_static_param_pair(pair.as_bytes()) {
+                        debug!(?pair, ?err, "skipping malformed query pair");
+                    }
                 });
             }
         } else {
@@ -674,66 +670,8 @@ impl Request {
     // Internal Helpers
     // ----------------
 
-    /// internal helper: splits a byte-array based on the given delimiter; mimics `str::split_once`
-    #[instrument(skip_all, level = "trace")]
-    fn get_key_and_value<'a>(
-        &mut self,
-        to_split: &'a [u8],
-        delim: &[u8],
-        collection: CollectionId,
-    ) -> Result<(&'a [u8], &'a [u8]), FeroxFuzzError> {
-        // initial bounds check on delimiter
-        if delim.is_empty() {
-            error!(?delim, ?collection, "Empty delimiter");
-
-            return Err(FeroxFuzzError::KeyValueParseError {
-                key_value_pair: to_split.to_vec(),
-                reason: String::from("the given delimiter is empty"),
-            });
-        }
-
-        // find the first index of the delimiter
-        let offset = to_split
-            .windows(delim.len())
-            .position(|window| window == delim);
-
-        // make sure we found something
-        if offset.is_none() {
-            error!(?to_split, ?delim, "Delimiter not found");
-
-            return Err(FeroxFuzzError::KeyValueParseError {
-                key_value_pair: to_split.to_vec(),
-                reason: format!("Could not find {delim:x?} in {to_split:x?}"),
-            });
-        }
-
-        // create headers/params if necessary
-        match collection {
-            CollectionId::Headers => {
-                if self.headers.is_none() {
-                    self.headers = Some(Vec::new());
-                }
-            }
-            CollectionId::Params => {
-                if self.params.is_none() {
-                    self.params = Some(Vec::new());
-                }
-            }
-        }
-
-        // emulate str::split behavior, where the delimiter is removed from the result
-        //
-        // when creating `value`, since the delimiter is variable length, need to
-        // move the offset that many bytes to the right in order to correctly
-        // remove the delimiter
-        let key = &to_split[..offset.unwrap()];
-        let value = &to_split[offset.unwrap() + delim.len()..];
-
-        Ok((key, value))
-    }
-
     /// internal helper: adds the given key/value to the specified collection with Fuzzable/Static marked
-    /// as appropriate
+    /// as appropriate. Creates the collection if it doesn't exist.
     fn add_key_value_pair(
         &mut self,
         key: &[u8],
@@ -741,11 +679,9 @@ impl Request {
         directive: Option<ShouldFuzz>,
         collection: CollectionId,
     ) -> Result<(), FeroxFuzzError> {
-        // assumption: self.get_key_and_value has been called first with the given `CollectionId`
-        // thereby creating the collection if it didn't already exist. i.e. we're safe to unwrap
         let coll = match collection {
-            CollectionId::Headers => self.headers.as_mut().unwrap(),
-            CollectionId::Params => self.params.as_mut().unwrap(),
+            CollectionId::Headers => self.headers.get_or_insert_with(Vec::new),
+            CollectionId::Params => self.params.get_or_insert_with(Vec::new),
         };
 
         match directive {
@@ -1399,7 +1335,7 @@ impl Request {
         self.headers.as_deref_mut()
     }
 
-    /// Add a [`Data::Fuzzable`] header. Fuzzable means that when
+    /// Add a [`Data::Fuzzable`] header by name and value. Fuzzable means that when
     /// it's passed to a mutator, the internal contents should change, based upon
     /// the wrapping fuzzer's mutator and fuzz strategy.
     ///
@@ -1410,7 +1346,7 @@ impl Request {
     ///
     /// # Examples
     ///
-    /// When `Key` is used, only the header's key is marked [`Data::Fuzzable`], while
+    /// When `Key` is used, only the header's name is marked [`Data::Fuzzable`], while
     /// the header's value is marked [`Data::Static`].
     ///
     /// ```
@@ -1418,12 +1354,11 @@ impl Request {
     /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::input::Data;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let expected = (Data::Fuzzable(b"stuff".to_vec()), Data::Static(b"things".to_vec()));
+    /// let expected = (Data::Fuzzable(b"Accept".to_vec()), Data::Static(b"application/json".to_vec()));
     ///
-    /// // all fields marked `Static`
     /// let mut request = Request::from_url("http://localhost/", None)?;
     ///
-    /// request.add_fuzzable_header(b"stuff:things", b":", ShouldFuzz::Key)?;
+    /// request.add_fuzzable_header("Accept", "application/json", ShouldFuzz::Key)?;
     ///
     /// assert_eq!(request.headers(), Some(vec![expected].as_slice()));
     /// # Ok(())
@@ -1431,38 +1366,36 @@ impl Request {
     /// ```
     ///
     /// When `Value` is used, only the header's value is marked [`Data::Fuzzable`], while
-    /// the header's key is marked [`Data::Static`].
+    /// the header's name is marked [`Data::Static`].
     ///
     /// ```
     /// # use feroxfuzz::requests::ShouldFuzz;
     /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::input::Data;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let expected = (Data::Static(b"stuff".to_vec()), Data::Fuzzable(b"things".to_vec()));
+    /// let expected = (Data::Static(b"Accept".to_vec()), Data::Fuzzable(b"application/json".to_vec()));
     ///
-    /// // all fields marked `Static`
     /// let mut request = Request::from_url("http://localhost/", None)?;
     ///
-    /// request.add_fuzzable_header(b"stuff: things", b": ", ShouldFuzz::Value)?;
+    /// request.add_fuzzable_header(b"Accept", b"application/json", ShouldFuzz::Value)?;
     ///
     /// assert_eq!(request.headers(), Some(vec![expected].as_slice()));
     /// # Ok(())
     /// # }
     /// ```
     ///
-    /// When `KeyAndValue` is used, both the header's key and its value are marked [`Data::Fuzzable`]
+    /// When `KeyAndValue` is used, both the header's name and its value are marked [`Data::Fuzzable`]
     ///
     /// ```
     /// # use feroxfuzz::requests::ShouldFuzz;
     /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::input::Data;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let expected = (Data::Fuzzable(b"stuff".to_vec()), Data::Fuzzable(b"things".to_vec()));
+    /// let expected = (Data::Fuzzable(b"Accept".to_vec()), Data::Fuzzable(b"application/json".to_vec()));
     ///
-    /// // all fields marked `Static`
     /// let mut request = Request::from_url("http://localhost/", None)?;
     ///
-    /// request.add_fuzzable_header(b"stuff : things", b" : ", ShouldFuzz::KeyAndValue)?;
+    /// request.add_fuzzable_header("Accept", "application/json", ShouldFuzz::KeyAndValue)?;
     ///
     /// assert_eq!(request.headers(), Some(vec![expected].as_slice()));
     /// # Ok(())
@@ -1470,41 +1403,6 @@ impl Request {
     /// ```
     ///
     /// # Errors
-    ///
-    /// If the delimiter passed in as `delim` is empty, an error is returned.
-    ///
-    /// ```
-    /// # use feroxfuzz::requests::ShouldFuzz;
-    /// # use feroxfuzz::requests::Request;
-    /// # use feroxfuzz::input::Data;
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut request = Request::from_url("http://localhost/", None)?;
-    ///
-    /// // delim must not be empty
-    /// let result = request.add_fuzzable_header(b"stuff : things", b"", ShouldFuzz::Key);
-    ///
-    /// assert!(result.is_err());
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// If the delimiter passed in as `delim` is not found within `header` an error
-    /// is returned.
-    ///
-    /// ```
-    /// # use feroxfuzz::requests::ShouldFuzz;
-    /// # use feroxfuzz::requests::Request;
-    /// # use feroxfuzz::input::Data;
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut request = Request::from_url("http://localhost/", None)?;
-    ///
-    /// // header must contain delim
-    /// let result = request.add_fuzzable_header(b"stuff : things", b"???", ShouldFuzz::Key);
-    ///
-    /// assert!(result.is_err());
-    /// # Ok(())
-    /// # }
-    /// ```
     ///
     /// If this function receives a [`ShouldFuzz`]
     /// variant other than the three listed below, it will return an error,
@@ -1516,34 +1414,77 @@ impl Request {
     #[instrument(skip_all, level = "trace")]
     pub fn add_fuzzable_header(
         &mut self,
-        header: &[u8],
-        delim: &[u8],
+        name: impl AsRef<[u8]>,
+        value: impl AsRef<[u8]>,
         directive: ShouldFuzz,
     ) -> Result<(), FeroxFuzzError> {
-        let collection = CollectionId::Headers;
-        // side-effect: self.headers is created if value was None upon call
-        let (key, value) = self.get_key_and_value(header, delim, collection)?;
+        // ensure headers collection exists
+        if self.headers.is_none() {
+            self.headers = Some(Vec::new());
+        }
 
-        self.add_key_value_pair(key, value, Some(directive), collection)?;
+        self.add_key_value_pair(
+            name.as_ref(),
+            value.as_ref(),
+            Some(directive),
+            CollectionId::Headers,
+        )?;
 
         Ok(())
     }
 
-    /// Add a [`Data::Static`] header. Static means that when
+    /// Add a [`Data::Static`] header by name and value. Static means that when
     /// it's passed to a mutator, the internal contents will not change.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use feroxfuzz::requests::ShouldFuzz;
     /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::input::Data;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let expected = (Data::Static(b"stuff".to_vec()), Data::Static(b"things".to_vec()));
+    /// let expected = (Data::Static(b"Accept".to_vec()), Data::Static(b"application/json".to_vec()));
     ///
     /// let mut request = Request::from_url("http://localhost/", None)?;
     ///
-    /// request.add_static_header(b"stuff:things", b":")?;
+    /// request.add_static_header("Accept", "application/json");
+    ///
+    /// assert_eq!(request.headers(), Some(vec![expected].as_slice()));
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[instrument(skip_all, level = "trace")]
+    pub fn add_static_header(&mut self, name: impl AsRef<[u8]>, value: impl AsRef<[u8]>) {
+        // ensure headers collection exists before pushing the data
+        self.headers.get_or_insert_with(Vec::new).push((
+            Data::Static(name.as_ref().to_vec()),
+            Data::Static(value.as_ref().to_vec()),
+        ));
+    }
+
+    /// Parse and add a [`Data::Static`] header from a full header line.
+    ///
+    /// The header line is split on the first `:` character.
+    ///
+    /// # No Validation / Normalization
+    ///
+    /// This library is designed for fuzzing, so this method intentionally performs minimal
+    /// processing: the returned value is the raw byte-slice after the first `:` (including any
+    /// leading whitespace, additional `:` characters, or even CR/LF).
+    ///
+    /// If you need trimming, normalization, or strict validation, do it before calling this
+    /// method (or after, based on your needs).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use feroxfuzz::requests::Request;
+    /// # use feroxfuzz::input::Data;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let expected = (Data::Static(b"Accept".to_vec()), Data::Static(b" application/json".to_vec()));
+    ///
+    /// let mut request = Request::from_url("http://localhost/", None)?;
+    ///
+    /// request.add_static_header_line("Accept: application/json")?;
     ///
     /// assert_eq!(request.headers(), Some(vec![expected].as_slice()));
     /// # Ok(())
@@ -1552,17 +1493,103 @@ impl Request {
     ///
     /// # Errors
     ///
-    /// If the delimiter passed in as `delim` is not found within `header` OR `delim` is empty, an error
-    /// will be returned. See [`Request::add_fuzzable_header`] for error examples.
+    /// Returns an error if the header line does not contain a `:` character.
+    ///
+    /// # Custom Parsing
+    ///
+    /// This method always splits on the first `:`. For custom delimiters
+    /// (e.g., `": "` or other formats), parse the header yourself and use
+    /// [`add_static_header`] directly.
     #[instrument(skip_all, level = "trace")]
-    pub fn add_static_header(&mut self, header: &[u8], delim: &[u8]) -> Result<(), FeroxFuzzError> {
-        let collection = CollectionId::Headers;
+    pub fn add_static_header_line(
+        &mut self,
+        header_line: impl AsRef<[u8]>,
+    ) -> Result<(), FeroxFuzzError> {
+        let (name, value) = Self::split_header_line(header_line.as_ref())?;
 
-        let (key, value) = self.get_key_and_value(header, delim, collection)?;
-
-        self.add_key_value_pair(key, value, None, collection)?;
+        self.add_static_header(name, value);
 
         Ok(())
+    }
+
+    /// Parse and add a [`Data::Fuzzable`] header from a full header line.
+    ///
+    /// The header line is split on the first `:` character.
+    ///
+    /// # No Validation / Normalization
+    ///
+    /// This library is designed for fuzzing, so this method intentionally performs minimal
+    /// processing: the returned value is the raw byte-slice after the first `:` (including any
+    /// leading whitespace, additional `:` characters, or even CR/LF).
+    ///
+    /// If you need trimming, normalization, or strict validation, do it before calling this
+    /// method (or after, based on your needs).
+    ///
+    /// `directive` should be one of the following variants:
+    /// - [`ShouldFuzz::Key`]
+    /// - [`ShouldFuzz::Value`]
+    /// - [`ShouldFuzz::KeyAndValue`]
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use feroxfuzz::requests::{Request, ShouldFuzz};
+    /// # use feroxfuzz::input::Data;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let expected = (Data::Static(b"Accept".to_vec()), Data::Fuzzable(b" application/json".to_vec()));
+    ///
+    /// let mut request = Request::from_url("http://localhost/", None)?;
+    ///
+    /// request.add_fuzzable_header_line("Accept: application/json", ShouldFuzz::Value)?;
+    ///
+    /// assert_eq!(request.headers(), Some(vec![expected].as_slice()));
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the header line does not contain a `:` character,
+    /// or if an invalid `ShouldFuzz` directive is provided.
+    ///
+    /// # Custom Parsing
+    ///
+    /// This method always splits on the first `:`. For custom delimiters,
+    /// parse the header yourself and use [`add_fuzzable_header`] directly.
+    #[instrument(skip_all, level = "trace")]
+    pub fn add_fuzzable_header_line(
+        &mut self,
+        header_line: impl AsRef<[u8]>,
+        directive: ShouldFuzz,
+    ) -> Result<(), FeroxFuzzError> {
+        let (name, value) = Self::split_header_line(header_line.as_ref())?;
+
+        self.add_fuzzable_header(name, value, directive)?;
+
+        Ok(())
+    }
+
+    /// Internal helper: split a header line on the first `:`.
+    ///
+    /// # No Validation / Normalization
+    ///
+    /// This helper intentionally does not trim, validate, or reject any bytes beyond requiring a
+    /// `:` delimiter. This keeps the parser permissive so callers can fuzz malformed inputs.
+    fn split_header_line(header_line: &[u8]) -> Result<(&[u8], &[u8]), FeroxFuzzError> {
+        // find the first colon
+        let Some(pos) = header_line.iter().position(|&b| b == b':') else {
+            error!(?header_line, "No colon found in header line");
+
+            return Err(FeroxFuzzError::KeyValueParseError {
+                key_value_pair: header_line.to_vec(),
+                reason: String::from("header line does not contain a ':' delimiter"),
+            });
+        };
+
+        let name = &header_line[..pos];
+        let value = &header_line[pos + 1..];
+
+        Ok((name, value))
     }
 
     /// get the url parameters
@@ -1580,7 +1607,7 @@ impl Request {
         self.params.as_deref_mut()
     }
 
-    /// Add a [`Data::Fuzzable`] query parameter. Fuzzable means that when
+    /// Add a [`Data::Fuzzable`] query parameter by key and value. Fuzzable means that when
     /// it's passed to a mutator, the internal contents should change, based upon
     /// the wrapping fuzzer's mutator and fuzz strategy.
     ///
@@ -1591,59 +1618,16 @@ impl Request {
     ///
     /// # Examples
     ///
-    /// When `Key` is used, only the param's key is marked [`Data::Fuzzable`], while
-    /// the param's value is marked [`Data::Static`].
-    ///
     /// ```
     /// # use feroxfuzz::requests::ShouldFuzz;
     /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::input::Data;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let expected = (Data::Fuzzable(b"stuff".to_vec()), Data::Static(b"things".to_vec()));
+    /// let expected = (Data::Fuzzable(b"foo".to_vec()), Data::Static(b"bar".to_vec()));
     ///
-    /// // all fields marked `Static`
     /// let mut request = Request::from_url("http://localhost/", None)?;
     ///
-    /// request.add_fuzzable_param(b"stuff=things", b"=", ShouldFuzz::Key)?;
-    ///
-    /// assert_eq!(request.params(), Some(vec![expected].as_slice()));
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// When `Value` is used, only the param's value is marked [`Data::Fuzzable`], while
-    /// the param's key is marked [`Data::Static`].
-    ///
-    /// ```
-    /// # use feroxfuzz::requests::ShouldFuzz;
-    /// # use feroxfuzz::requests::Request;
-    /// # use feroxfuzz::input::Data;
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let expected = (Data::Static(b"stuff".to_vec()), Data::Fuzzable(b"things".to_vec()));
-    ///
-    /// // all fields marked `Static`
-    /// let mut request = Request::from_url("http://localhost/", None)?;
-    ///
-    /// request.add_fuzzable_param(b"stuff=things", b"=", ShouldFuzz::Value)?;
-    ///
-    /// assert_eq!(request.params(), Some(vec![expected].as_slice()));
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// When `KeyAndValue` is used, both the param's key and its value are marked [`Data::Fuzzable`]
-    ///
-    /// ```
-    /// # use feroxfuzz::requests::ShouldFuzz;
-    /// # use feroxfuzz::requests::Request;
-    /// # use feroxfuzz::input::Data;
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let expected = (Data::Fuzzable(b"stuff".to_vec()), Data::Fuzzable(b"things".to_vec()));
-    ///
-    /// // all fields marked `Static`
-    /// let mut request = Request::from_url("http://localhost/", None)?;
-    ///
-    /// request.add_fuzzable_param(b"stuff = things", b" = ", ShouldFuzz::KeyAndValue)?;
+    /// request.add_fuzzable_param("foo", "bar", ShouldFuzz::Key)?;
     ///
     /// assert_eq!(request.params(), Some(vec![expected].as_slice()));
     /// # Ok(())
@@ -1652,103 +1636,181 @@ impl Request {
     ///
     /// # Errors
     ///
-    /// If the delimiter passed in as `delim` is empty, an error is returned.
-    ///
-    /// ```
-    /// # use feroxfuzz::requests::ShouldFuzz;
-    /// # use feroxfuzz::requests::Request;
-    /// # use feroxfuzz::input::Data;
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut request = Request::from_url("http://localhost/", None)?;
-    ///
-    /// // delim must not be empty
-    /// let result = request.add_fuzzable_param(b"stuff = things", b"", ShouldFuzz::Key);
-    ///
-    /// assert!(result.is_err());
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// If the delimiter passed in as `delim` is not found within `param` an error
-    /// is returned.
-    ///
-    /// ```
-    /// # use feroxfuzz::requests::ShouldFuzz;
-    /// # use feroxfuzz::requests::Request;
-    /// # use feroxfuzz::input::Data;
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut request = Request::from_url("http://localhost/", None)?;
-    ///
-    /// // header must contain delim
-    /// let result = request.add_fuzzable_param(b"stuff : things", b"???", ShouldFuzz::Key);
-    ///
-    /// assert!(result.is_err());
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// If this function receives a [`ShouldFuzz`]
-    /// variant other than the three listed below, it will return an error,
-    /// as only what's below make sense in this particular context.
-    ///
-    /// - `Key`
-    /// - `Value`
-    /// - `KeyAndValue`
+    /// Returns an error if an invalid `ShouldFuzz` directive is provided.
     #[instrument(skip_all, level = "trace")]
     pub fn add_fuzzable_param(
         &mut self,
-        header: &[u8],
-        delim: &[u8],
+        key: impl AsRef<[u8]>,
+        value: impl AsRef<[u8]>,
         directive: ShouldFuzz,
     ) -> Result<(), FeroxFuzzError> {
-        let collection = CollectionId::Params;
-        // side-effect: self.headers is created if value was None upon call
-        let (key, value) = self.get_key_and_value(header, delim, collection)?;
+        // ensure params collection exists
+        if self.params.is_none() {
+            self.params = Some(Vec::new());
+        }
 
-        self.add_key_value_pair(key, value, Some(directive), collection)?;
+        self.add_key_value_pair(
+            key.as_ref(),
+            value.as_ref(),
+            Some(directive),
+            CollectionId::Params,
+        )?;
 
         Ok(())
     }
 
-    /// Add a [`Data::Static`] query parameter. Static means that when
+    /// Add a [`Data::Static`] query parameter by key and value. Static means that when
     /// it's passed to a mutator, the internal contents will not change.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use feroxfuzz::requests::ShouldFuzz;
     /// # use feroxfuzz::requests::Request;
     /// # use feroxfuzz::input::Data;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut expected = vec![(Data::Static(b"stuff".to_vec()), Data::Static(b"things".to_vec()))];
-    /// let from_url_call = (Data::Static(b"mostuff".to_vec()), Data::Static(b"mothings".to_vec()));
+    /// let expected = (Data::Static(b"foo".to_vec()), Data::Static(b"bar".to_vec()));
     ///
-    /// // gathered during call to `from_url`
-    /// expected.insert(0, from_url_call.clone());
+    /// let mut request = Request::from_url("http://localhost/", None)?;
     ///
-    /// let mut request = Request::from_url("http://localhost/path?mostuff=mothings", None)?;
+    /// request.add_static_param("foo", "bar");
     ///
-    /// assert_eq!(request.params(), Some(vec![from_url_call].as_slice()));
-    /// request.add_static_param(b"stuff=things", b"=")?;
+    /// assert_eq!(request.params(), Some(vec![expected].as_slice()));
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[instrument(skip_all, level = "trace")]
+    pub fn add_static_param(&mut self, key: impl AsRef<[u8]>, value: impl AsRef<[u8]>) {
+        // ensure params collection exists before pushing data
+        self.params.get_or_insert_with(Vec::new).push((
+            Data::Static(key.as_ref().to_vec()),
+            Data::Static(value.as_ref().to_vec()),
+        ));
+    }
+
+    /// Parse and add a [`Data::Static`] query parameter from a `key=value` pair.
     ///
-    /// assert_eq!(request.params(), Some(expected.as_slice()));
+    /// The param string is split on the first `=` character.
+    ///
+    /// # No Validation / Normalization
+    ///
+    /// This library is designed for fuzzing, so this method intentionally performs minimal
+    /// processing: the returned key/value are the raw byte-slices on either side of the first `=`.
+    /// No trimming or normalization is performed, and additional `=` characters remain in the
+    /// value.
+    ///
+    /// If you need trimming, normalization, or strict validation, do it before calling this
+    /// method (or after, based on your needs).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use feroxfuzz::requests::Request;
+    /// # use feroxfuzz::input::Data;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let expected = (Data::Static(b"foo".to_vec()), Data::Static(b"bar".to_vec()));
+    ///
+    /// let mut request = Request::from_url("http://localhost/", None)?;
+    ///
+    /// request.add_static_param_pair("foo=bar")?;
+    ///
+    /// assert_eq!(request.params(), Some(vec![expected].as_slice()));
     /// # Ok(())
     /// # }
     /// ```
     ///
     /// # Errors
     ///
-    /// If the delimiter passed in as `delim` is not found within `param` OR `delim` is empty, an error
-    /// will be returned. See [`Request::add_fuzzable_param`] for error examples.
+    /// Returns an error if the param string does not contain a `=` character.
+    ///
+    /// # Custom Parsing
+    ///
+    /// This method always splits on the first `=`. For custom delimiters,
+    /// parse the param yourself and use [`add_static_param`] directly.
     #[instrument(skip_all, level = "trace")]
-    pub fn add_static_param(&mut self, param: &[u8], delim: &[u8]) -> Result<(), FeroxFuzzError> {
-        let collection = CollectionId::Params;
+    pub fn add_static_param_pair(
+        &mut self,
+        param_pair: impl AsRef<[u8]>,
+    ) -> Result<(), FeroxFuzzError> {
+        let (key, value) = Self::split_param_pair(param_pair.as_ref())?;
 
-        let (key, value) = self.get_key_and_value(param, delim, collection)?;
-
-        self.add_key_value_pair(key, value, None, collection)?;
+        self.add_static_param(key, value);
 
         Ok(())
+    }
+
+    /// Parse and add a [`Data::Fuzzable`] query parameter from a `key=value` pair.
+    ///
+    /// The param string is split on the first `=` character.
+    ///
+    /// # No Validation / Normalization
+    ///
+    /// This library is designed for fuzzing, so this method intentionally performs minimal
+    /// processing: the returned key/value are the raw byte-slices on either side of the first `=`.
+    /// No trimming or normalization is performed, and additional `=` characters remain in the
+    /// value.
+    ///
+    /// If you need trimming, normalization, or strict validation, do it before calling this
+    /// method (or after, based on your needs).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use feroxfuzz::requests::{Request, ShouldFuzz};
+    /// # use feroxfuzz::input::Data;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let expected = (Data::Static(b"foo".to_vec()), Data::Fuzzable(b"bar".to_vec()));
+    ///
+    /// let mut request = Request::from_url("http://localhost/", None)?;
+    ///
+    /// request.add_fuzzable_param_pair("foo=bar", ShouldFuzz::Value)?;
+    ///
+    /// assert_eq!(request.params(), Some(vec![expected].as_slice()));
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the param string does not contain a `=` character,
+    /// or if an invalid `ShouldFuzz` directive is provided.
+    ///
+    /// # Custom Parsing
+    ///
+    /// This method always splits on the first `=`. For custom delimiters,
+    /// parse the param yourself and use [`add_fuzzable_param`] directly.
+    #[instrument(skip_all, level = "trace")]
+    pub fn add_fuzzable_param_pair(
+        &mut self,
+        param_pair: impl AsRef<[u8]>,
+        directive: ShouldFuzz,
+    ) -> Result<(), FeroxFuzzError> {
+        let (key, value) = Self::split_param_pair(param_pair.as_ref())?;
+
+        self.add_fuzzable_param(key, value, directive)?;
+
+        Ok(())
+    }
+
+    /// Internal helper: split a param pair on the first `=`.
+    ///
+    /// # No Validation / Normalization
+    ///
+    /// This helper intentionally does not trim, validate, or reject any bytes beyond requiring an
+    /// `=` delimiter. This keeps the parser permissive so callers can fuzz malformed inputs.
+    fn split_param_pair(param_pair: &[u8]) -> Result<(&[u8], &[u8]), FeroxFuzzError> {
+        let Some(pos) = param_pair.iter().position(|&b| b == b'=') else {
+            error!(?param_pair, "No equals sign found in param pair");
+
+            return Err(FeroxFuzzError::KeyValueParseError {
+                key_value_pair: param_pair.to_vec(),
+                reason: String::from("param pair does not contain a '=' delimiter"),
+            });
+        };
+
+        let key = &param_pair[..pos];
+        let value = &param_pair[pos + 1..];
+
+        Ok((key, value))
     }
 
     /// get the user-agent
@@ -1948,110 +2010,6 @@ mod tests {
     #[test]
     fn new_request_returns_default_impl() {
         assert_eq!(Request::new(), Request::default());
-    }
-
-    /// `get_key_and_value` returns error on empty delim
-    #[test]
-    fn get_key_and_value_errors_on_empty_delim() {
-        let mut req = Request::new();
-        assert!(req
-            .get_key_and_value(b"stuff", b"", CollectionId::Headers)
-            .is_err());
-    }
-
-    /// `get_key_and_value` returns error on delim-not-found
-    #[test]
-    fn get_key_and_value_errors_on_delim_not_found() {
-        let mut req = Request::new();
-        assert!(req
-            .get_key_and_value(b"stuff", b"x", CollectionId::Headers)
-            .is_err());
-    }
-
-    /// `get_key_and_value` creates headers collection if missing
-    #[test]
-    fn get_key_and_value_creates_headers_when_missing() {
-        let mut req = Request::new();
-
-        assert!(req.headers.is_none());
-
-        req.get_key_and_value(b"stuff", b"s", CollectionId::Headers)
-            .unwrap();
-
-        assert_eq!(req.headers, Some(Vec::new()));
-    }
-
-    /// `get_key_and_value` creates params collection if missing
-    #[test]
-    fn get_key_and_value_creates_params_when_missing() {
-        let mut req = Request::new();
-
-        assert!(req.params.is_none());
-
-        req.get_key_and_value(b"stuff", b"s", CollectionId::Params)
-            .unwrap();
-
-        assert_eq!(req.params, Some(Vec::new()));
-    }
-
-    /// `get_key_and_value` returns correct key/value with single byte delim
-    #[test]
-    fn get_key_and_value_is_correct_single_byte_delim() {
-        let mut req = Request::new();
-
-        // delim as first char
-        let (key, value) = req
-            .get_key_and_value(b"stuff", b"s", CollectionId::Params)
-            .unwrap();
-
-        assert_eq!(key, b"");
-        assert_eq!(value, b"tuff");
-
-        // delim as last char
-        let (key, value) = req
-            .get_key_and_value(b"stufF", b"F", CollectionId::Params)
-            .unwrap();
-
-        assert_eq!(key, b"stuf");
-        assert_eq!(value, b"");
-
-        // delim in the middle
-        let (key, value) = req
-            .get_key_and_value(b"stuff:things", b":", CollectionId::Params)
-            .unwrap();
-
-        assert_eq!(key, b"stuff");
-        assert_eq!(value, b"things");
-    }
-
-    /// `get_key_and_value` returns correct key/value with multi-byte delim
-    #[test]
-    fn get_key_and_value_is_correct_multi_byte_delim() {
-        let mut req = Request::new();
-
-        // delim as first char
-        let (key, value) = req
-            .get_key_and_value(b"stuff", b"st", CollectionId::Params)
-            .unwrap();
-
-        assert_eq!(key, b"");
-        assert_eq!(value, b"uff");
-
-        // delim as last char
-        let (key, value) = req
-            .get_key_and_value(b"stufF", b"fF", CollectionId::Params)
-            .unwrap();
-
-        assert_eq!(key, b"stu");
-        assert_eq!(value, b"");
-
-        // delim in the middle
-        let (key, value) = req
-            .get_key_and_value(b"stuff::things", b"::", CollectionId::Params)
-            .unwrap();
-
-        assert_eq!(key, b"stuff");
-        assert_eq!(value, b"things");
     }
 
     /// `add_key_value_pair` adds correct Data tuple
@@ -2345,5 +2303,102 @@ mod tests {
         assert_eq!(request.password().unwrap(), "FUZZ_PASS");
         assert_eq!(request.host().unwrap(), "FUZZ_HOST");
         assert_eq!(request.port().unwrap(), "1111");
+    }
+
+    // ----------------
+    // split_header_line tests
+    // ----------------
+
+    #[test]
+    fn split_header_line_parses_standard_header() {
+        let (name, value) = Request::split_header_line(b"Accept: application/json").unwrap();
+        assert_eq!(name, b"Accept");
+        assert_eq!(value, b" application/json");
+    }
+
+    #[test]
+    fn split_header_line_preserves_leading_whitespace_in_value() {
+        let (name, value) = Request::split_header_line(b"Content-Type:   text/html").unwrap();
+        assert_eq!(name, b"Content-Type");
+        assert_eq!(value, b"   text/html");
+    }
+
+    #[test]
+    fn split_header_line_handles_no_whitespace() {
+        let (name, value) = Request::split_header_line(b"X-Custom:value").unwrap();
+        assert_eq!(name, b"X-Custom");
+        assert_eq!(value, b"value");
+    }
+
+    #[test]
+    fn split_header_line_handles_empty_value() {
+        let (name, value) = Request::split_header_line(b"X-Empty:").unwrap();
+        assert_eq!(name, b"X-Empty");
+        assert_eq!(value, b"");
+    }
+
+    #[test]
+    fn split_header_line_errors_on_missing_colon() {
+        let result = Request::split_header_line(b"NoColonHere");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn split_header_line_allows_empty_name() {
+        let (name, value) = Request::split_header_line(b": value").unwrap();
+        assert_eq!(name, b"");
+        assert_eq!(value, b" value");
+    }
+
+    #[test]
+    fn split_header_line_allows_crlf_in_value() {
+        let (name, value) = Request::split_header_line(b"Header: value\r\nInject: evil").unwrap();
+        assert_eq!(name, b"Header");
+        assert_eq!(value, b" value\r\nInject: evil");
+    }
+
+    #[test]
+    fn split_header_line_allows_newline_in_value() {
+        let (name, value) = Request::split_header_line(b"Header: value\nInject: evil").unwrap();
+        assert_eq!(name, b"Header");
+        assert_eq!(value, b" value\nInject: evil");
+    }
+
+    // ----------------
+    // split_param_pair tests
+    // ----------------
+
+    #[test]
+    fn split_param_pair_parses_standard_param() {
+        let (key, value) = Request::split_param_pair(b"foo=bar").unwrap();
+        assert_eq!(key, b"foo");
+        assert_eq!(value, b"bar");
+    }
+
+    #[test]
+    fn split_param_pair_handles_empty_value() {
+        let (key, value) = Request::split_param_pair(b"key=").unwrap();
+        assert_eq!(key, b"key");
+        assert_eq!(value, b"");
+    }
+
+    #[test]
+    fn split_param_pair_handles_empty_key() {
+        let (key, value) = Request::split_param_pair(b"=value").unwrap();
+        assert_eq!(key, b"");
+        assert_eq!(value, b"value");
+    }
+
+    #[test]
+    fn split_param_pair_handles_value_with_equals() {
+        let (key, value) = Request::split_param_pair(b"key=val=ue").unwrap();
+        assert_eq!(key, b"key");
+        assert_eq!(value, b"val=ue");
+    }
+
+    #[test]
+    fn split_param_pair_errors_on_missing_equals() {
+        let result = Request::split_param_pair(b"noequalshere");
+        assert!(result.is_err());
     }
 }

@@ -116,15 +116,22 @@ pub enum ShouldFuzz<'a> {
     UserAgent(&'a [u8]),
 
     /// directive associated with a URL query where only the key is fuzzable; the
-    /// value is static
-    URLParameterKey(&'a [u8], &'a [u8]),
+    /// value is static. Query param is parsed on the first `=`.
+    ///
+    /// Example: `ShouldFuzz::URLParameterKey(b"foo=bar")` parses as key=`foo`, value=`bar`
+    URLParameterKey(&'a [u8]),
 
     /// directive associated with a URL query where only the value is fuzzable; the
-    /// key is static
-    URLParameterValue(&'a [u8], &'a [u8]),
+    /// key is static. Query param is parsed on the first `=`.
+    ///
+    /// Example: `ShouldFuzz::URLParameterValue(b"admin=FUZZ")` parses as key=`admin`, value=`FUZZ`
+    URLParameterValue(&'a [u8]),
 
-    /// directive associated with a URL query where both the key and value are fuzzable
-    URLParameterKeyAndValue(&'a [u8], &'a [u8]),
+    /// directive associated with a URL query where both the key and value are fuzzable.
+    /// Query param is parsed on the first `=`.
+    ///
+    /// Example: `ShouldFuzz::URLParameterKeyAndValue(b"FUZZ1=FUZZ2")`
+    URLParameterKeyAndValue(&'a [u8]),
 
     /// directive associated with all URL queries where all query keys are marked
     /// fuzzable; unmarked values remain static
@@ -165,15 +172,22 @@ pub enum ShouldFuzz<'a> {
     URLParameterKeysAndValues,
 
     /// directive associated with an http header where only the key is fuzzable; the
-    /// value is static
-    HeaderKey(&'a [u8], &'a [u8]),
+    /// value is static. Header line is parsed on the first `:`.
+    ///
+    /// Example: `ShouldFuzz::HeaderKey(b"X-Custom: value")` parses as name=`X-Custom`, value=`value`
+    HeaderKey(&'a [u8]),
 
     /// directive associated with an http header where only the value is fuzzable; the
-    /// key is static
-    HeaderValue(&'a [u8], &'a [u8]),
+    /// key is static. Header line is parsed on the first `:`.
+    ///
+    /// Example: `ShouldFuzz::HeaderValue(b"Accept: FUZZ")` parses as name=`Accept`, value=`FUZZ`
+    HeaderValue(&'a [u8]),
 
-    /// directive associated with an http header where both the key and value are fuzzable
-    HeaderKeyAndValue(&'a [u8], &'a [u8]),
+    /// directive associated with an http header where both the key and value are fuzzable.
+    /// Header line is parsed on the first `:`.
+    ///
+    /// Example: `ShouldFuzz::HeaderKeyAndValue(b"FUZZ1: FUZZ2")`
+    HeaderKeyAndValue(&'a [u8]),
 
     /// directive associated with a fuzzable header/query-param key
     Key,

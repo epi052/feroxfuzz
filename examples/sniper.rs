@@ -72,11 +72,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // In order for us to get the same behavior as burp's "sniper" mode, we'll begin by adding our insertion points.
     // What's important here is that we're adding Static insertion points, which differs from normal fuzzing
     // sessions, where the insertion points are Fuzzable. We'll flip the parameters to fuzzable one-by-one later on.
-    request.add_static_param(b"injectable=first-value", b"=")?;
-    request.add_static_param(b"second=second-value", b"=")?;
-    request.add_static_param(b"third=third-value", b"=")?;
-    request.add_static_param(b"fourth=fourth-value", b"=")?;
-    request.add_static_param(b"fifth=fifth-value", b"=")?;
+    request.add_static_param("injectable", "first-value");
+    request.add_static_param("second", "second-value");
+    request.add_static_param("third", "third-value");
+    request.add_static_param("fourth", "fourth-value");
+    request.add_static_param("fifth", "fifth-value");
 
     let num_positions = 5;
 

@@ -64,7 +64,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "http://localhost:8000/",
         Some(&[ShouldFuzz::URLParameterValue(
             b"injectable=/RANGE1/CHARS/RANGE2",
-            b"=",
         )]),
     )?;
 

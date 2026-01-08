@@ -107,7 +107,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // create our ShouldFuzz directives
             params
                 .iter()
-                .map(|p| ShouldFuzz::URLParameterValue(p.as_bytes(), b"="))
+                .map(|p| ShouldFuzz::URLParameterValue(p.as_bytes()))
                 .collect::<Vec<ShouldFuzz>>()
                 .as_ref(),
         ),
