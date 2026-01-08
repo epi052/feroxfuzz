@@ -52,7 +52,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mutator = ReplaceKeyword::new(&"FUZZ", "corpus");
     let request = Request::from_url(
         "http://localhost:8000/",
-        Some(&[ShouldFuzz::URLParameterValue(b"injectable=/FUZZ", b"=")]),
+        Some(&[ShouldFuzz::URLParameterValue(b"injectable=/FUZZ")]),
     )?;
     let request_printer = RequestProcessor::new(|request, _action, _state| {
         print!("{}?", request.original_url());

@@ -79,7 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // anything not marked fuzzable is considered to be static and won't be mutated
     let request = Request::from_url(
         "http://localhost:8000/",
-        Some(&[ShouldFuzz::URLParameterValue(b"admin=FUZZ", b"=")]),
+        Some(&[ShouldFuzz::URLParameterValue(b"admin=FUZZ")]),
     )?;
 
     // a `RequestRegexDecider` takes a regular expression, compiles it to a `Regex` and then

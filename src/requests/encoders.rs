@@ -355,10 +355,7 @@ mod tests {
     fn test_header_with_base64_encoder() {
         let mut request = Request::from_url(
             "http://localhost:8000",
-            Some(&[ShouldFuzz::HeaderValue(
-                b"key:i'm a more normal string?",
-                b":",
-            )]),
+            Some(&[ShouldFuzz::HeaderValue(b"key:i'm a more normal string?")]),
         )
         .unwrap();
 
@@ -384,10 +381,7 @@ mod tests {
     fn test_header_with_url_encoder() {
         let mut request = Request::from_url(
             "http://localhost:8000",
-            Some(&[ShouldFuzz::HeaderValue(
-                b"key:i'm a more normal string?",
-                b":",
-            )]),
+            Some(&[ShouldFuzz::HeaderValue(b"key:i'm a more normal string?")]),
         )
         .unwrap();
 
@@ -413,10 +407,7 @@ mod tests {
     fn test_header_with_hex_encoder() {
         let mut request = Request::from_url(
             "http://localhost:8000",
-            Some(&[ShouldFuzz::HeaderValue(
-                b"key:i'm a more normal string?",
-                b":",
-            )]),
+            Some(&[ShouldFuzz::HeaderValue(b"key:i'm a more normal string?")]),
         )
         .unwrap();
 
@@ -443,8 +434,7 @@ mod tests {
         let mut request = Request::from_url(
             "http://localhost:8000",
             Some(&[ShouldFuzz::URLParameterKey(
-                b"key:i'm a more normal string?",
-                b":",
+                b"key=i'm a more normal string?",
             )]),
         )
         .unwrap();
@@ -472,8 +462,7 @@ mod tests {
         let mut request = Request::from_url(
             "http://localhost:8000",
             Some(&[ShouldFuzz::URLParameterKey(
-                b"key:i'm a more normal string?",
-                b":",
+                b"key=i'm a more normal string?",
             )]),
         )
         .unwrap();
@@ -501,8 +490,7 @@ mod tests {
         let mut request = Request::from_url(
             "http://localhost:8000",
             Some(&[ShouldFuzz::URLParameterKey(
-                b"key:i'm a more normal string?",
-                b":",
+                b"key=i'm a more normal string?",
             )]),
         )
         .unwrap();

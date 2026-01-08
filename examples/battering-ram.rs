@@ -56,8 +56,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let request = Request::from_url(
         "http://localhost:8000/",
         Some(&[
-            ShouldFuzz::URLParameterValue(b"injectable=/home/WORD/.ssh/id_rsa", b"="),
-            ShouldFuzz::HeaderValue(b"x-injected-for: WORD", b": "),
+            ShouldFuzz::URLParameterValue(b"injectable=/home/WORD/.ssh/id_rsa"),
+            ShouldFuzz::HeaderValue(b"x-injected-for: WORD"),
         ]),
     )?;
 
