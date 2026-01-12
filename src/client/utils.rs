@@ -51,7 +51,7 @@ pub(super) fn reqwest_to_ferox_error(source: reqwest::Error) -> FeroxFuzzError {
         // note: timeout is a more specific error than a request error and both
         // can be true at the same time; don't change the order of the if statements
         // without thinking about the specificity of the error
-        RequestErrorKind::Timeout(status)
+        RequestErrorKind::Timeout
     } else if source.is_request() {
         // Returns true if the error is related to the request
         RequestErrorKind::Request(status)

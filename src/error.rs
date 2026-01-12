@@ -274,7 +274,7 @@ pub enum RequestErrorKind {
     Request(Option<u16>),
 
     /// Represents a timeout during the request
-    Timeout(Option<u16>),
+    Timeout,
 
     /// Represents an unexpected error
     #[default]

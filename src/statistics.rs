@@ -473,11 +473,7 @@ impl Statistics {
 
                     self.redirection_errors += 1;
                 }
-                RequestErrorKind::Timeout(status) => {
-                    if let Some(code) = status {
-                        self.add_status_code(*code)?;
-                    }
-
+                RequestErrorKind::Timeout => {
                     self.timeouts += 1;
                 }
                 _ => {
