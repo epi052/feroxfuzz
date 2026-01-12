@@ -823,6 +823,65 @@ impl SharedState {
             .is_ok_and(|guard| guard.contains_key(name))
     }
 
+    /// Atomically inserts metadata if the key is not already present.
+    ///
+    /// Unlike the `has_metadata` + `add_metadata` pattern, this method uses
+    /// a single write lock to check and insert atomically, preventing race
+    /// conditions under concurrency.
+    ///
+    /// # Returns
+    ///
+    /// - `true` if the metadata was inserted (key was absent)
+    /// - `false` if the key already existed (no insertion performed)
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use feroxfuzz::corpora::RangeCorpus;
+    /// # use feroxfuzz::state::SharedState;
+    /// # use feroxfuzz::metadata::{Metadata, AsAny, AsAnyMut};
+    /// # use serde::{Serialize, Deserialize};
+    /// # use std::any::Any;
+    /// #
+    /// # #[derive(Debug, Serialize, Deserialize)]
+    /// # struct Counter(u64);
+    /// # impl AsAny for Counter {
+    /// #     fn as_any(&self) -> &dyn Any { self }
+    /// # }
+    /// # impl AsAnyMut for Counter {
+    /// #     fn as_any_mut(&mut self) -> &mut dyn Any { self }
+    /// # }
+    /// # #[typetag::serde]
+    /// # impl Metadata for Counter {
+    /// #     fn is_equal(&self, other: &dyn Any) -> bool {
+    /// #         other.downcast_ref::<Self>().is_some_and(|o| o.0 == self.0)
+    /// #     }
+    /// # }
+    /// #
+    /// let state = SharedState::with_corpus(
+    ///     RangeCorpus::with_stop(5).name("test").build().unwrap()
+    /// );
+    ///
+    /// // First insertion succeeds
+    /// assert!(state.add_metadata_if_absent("counter", Counter(0)));
+    ///
+    /// // Second insertion does nothing, returns false
+    /// assert!(!state.add_metadata_if_absent("counter", Counter(999)));
+    /// ```
+    pub fn add_metadata_if_absent(&self, name: &str, metadata: impl Metadata + 'static) -> bool {
+        use std::collections::hash_map::Entry;
+
+        self.metadata
+            .write()
+            .is_ok_and(|mut guard| match guard.entry(name.to_string()) {
+                Entry::Vacant(entry) => {
+                    entry.insert(Box::new(metadata));
+                    true
+                }
+                Entry::Occupied(_) => false,
+            })
+    }
+
     /// add an implementor of [`Metadata`] to the `[MetadataMap]`
     #[must_use]
     pub fn events(&self) -> Arc<RwLock<Publisher>> {
@@ -881,5 +940,87 @@ mod tests {
 
         assert_eq!(state.corpora().len(), 1);
         assert_eq!(state.corpus_indices().len(), 1);
+    }
+
+    // Test helper struct for metadata tests
+    #[derive(Debug, serde::Serialize, serde::Deserialize)]
+    struct TestMetadata(i32);
+
+    impl crate::metadata::AsAny for TestMetadata {
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+    }
+
+    impl crate::metadata::AsAnyMut for TestMetadata {
+        fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+    }
+
+    #[typetag::serde]
+    impl crate::metadata::Metadata for TestMetadata {
+        fn is_equal(&self, other: &dyn std::any::Any) -> bool {
+            other.downcast_ref::<Self>().is_some_and(|o| o.0 == self.0)
+        }
+    }
+
+    #[test]
+    fn add_metadata_if_absent_inserts_on_first_call() {
+        let state = SharedState::default();
+        let inserted = state.add_metadata_if_absent("key", TestMetadata(42));
+        assert!(inserted);
+        assert!(state.has_metadata("key"));
+    }
+
+    #[test]
+    #[allow(clippy::significant_drop_tightening)]
+    fn add_metadata_if_absent_does_not_overwrite() {
+        let state = SharedState::default();
+
+        // Insert initial value
+        state.add_metadata_if_absent("key", TestMetadata(1));
+
+        // Try to insert different value
+        let inserted = state.add_metadata_if_absent("key", TestMetadata(999));
+        assert!(!inserted);
+
+        // Verify original value preserved - extract value within lock scope
+        let original_value = {
+            let metadata = state.metadata();
+            let guard = metadata.read().unwrap();
+            let meta = guard.get("key").unwrap();
+            meta.as_any().downcast_ref::<TestMetadata>().unwrap().0
+        };
+        assert_eq!(original_value, 1);
+    }
+
+    #[test]
+    fn add_metadata_if_absent_concurrent_single_insertion() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::thread;
+
+        let state = Arc::new(SharedState::default());
+        let insertion_count = Arc::new(AtomicUsize::new(0));
+
+        let handles: Vec<_> = (0..10)
+            .map(|i| {
+                let state = Arc::clone(&state);
+                let count = Arc::clone(&insertion_count);
+                thread::spawn(move || {
+                    if state.add_metadata_if_absent("key", TestMetadata(i)) {
+                        count.fetch_add(1, Ordering::SeqCst);
+                    }
+                })
+            })
+            .collect();
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        // Exactly one thread should have inserted
+        assert_eq!(insertion_count.load(Ordering::SeqCst), 1);
+        assert!(state.has_metadata("key"));
     }
 }
